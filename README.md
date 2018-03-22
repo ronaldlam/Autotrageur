@@ -1,0 +1,2 @@
+# Autotrageur
+Automated arbitrageur
