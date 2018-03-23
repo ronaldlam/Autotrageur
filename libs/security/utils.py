@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 
-def encrypt(plaintext, password, salt=0):
+def encrypt(plaintext, password, salt=b"0"):
     """Return encrypted data.
 
     Args:
@@ -31,7 +31,7 @@ def encrypt(plaintext, password, salt=0):
     return f.encrypt(plaintext)
 
 
-def decrypt(ciphertext, password, salt=0):
+def decrypt(ciphertext, password, salt=b"0"):
     """Return decrypted data.
 
     Args:
