@@ -1,5 +1,6 @@
 import logging
 import smtplib
+
 import yaml
 
 EMAIL_CONFIG_FILEPATH = "email_info.yaml"
@@ -36,7 +37,6 @@ def send_single_email(recipient, email_cfg, msg):
         email_cfg (dict[]): A dictionary of e-mail configuration properties.
         msg (str): A message formatted to be written as an e-mail (non-MIME).
     """
-
     smtp_server = smtplib.SMTP(email_cfg['host'], email_cfg['port'])
 
     try:
