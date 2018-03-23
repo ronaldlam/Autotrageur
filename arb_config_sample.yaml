@@ -1,0 +1,13 @@
+# Exchange configurations for autotrageur.py
+
+# Exchange 1
+exchange1: # Name of first exchange, eg. binance
+exchange1_pair: # Name of target pair, eg. ETH/USDT
+
+# Exchange 2
+exchange2: # Name of second exchange, eg. bithumb
+exchange2_pair: # Name of target pair, eg. ETH/KRW
+
+# Targeted spreads
+spread_target_low: # Target low spread after which money goes from exchange2 -> exchange1, eg. 2
+spread_target_high: # Target high spread after which money goes from exchange1 -> exchange2, eg. 10

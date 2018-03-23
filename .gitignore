@@ -63,3 +63,6 @@ ENV/
 # API key files
 secret.txt
 encrypted-secret.txt
+
+# Local test files
+arb_config.yaml
