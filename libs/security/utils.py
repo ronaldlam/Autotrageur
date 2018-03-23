@@ -6,6 +6,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
+
 def encrypt(plaintext, password, salt=0):
     """Return encrypted data.
 
@@ -28,6 +29,7 @@ def encrypt(plaintext, password, salt=0):
     key = base64.urlsafe_b64encode(kdf.derive(password))
     f = Fernet(key)
     return f.encrypt(plaintext)
+
 
 def decrypt(ciphertext, password, salt=0):
     """Return decrypted data.
@@ -52,6 +54,7 @@ def decrypt(ciphertext, password, salt=0):
     f = Fernet(key)
     return f.decrypt(ciphertext)
 
+
 def to_str(bytes_or_str):
     """Return bytes from string or byte data.
 
@@ -66,6 +69,7 @@ def to_str(bytes_or_str):
     else:
         value = bytes_or_str
     return value
+
 
 def to_bytes(bytes_or_str):
     """Return string from string or byte data.
