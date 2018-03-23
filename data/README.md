@@ -1,0 +1,1 @@
+This folder contains csv trading data output.
