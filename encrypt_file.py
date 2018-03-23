@@ -1,0 +1,26 @@
+"""Encrypt your API keys.
+
+Creates an encrypted file encrypted-<file-name> containing of the
+specified api key data.
+
+Usage:
+    encrypt_file.py FILE PASSWORD SALT
+"""
+
+from docopt import docopt
+
+from libs.security.utils import encrypt, to_bytes
+
+if __name__ == "__main__":
+    arguments = docopt(__doc__, version="Encrypt 0.1")
+    print(arguments)
+
+    file_name = arguments["FILE"]
+    password = to_bytes(arguments["PASSWORD"])
+    salt = to_bytes(arguments["SALT"])
+
+    with open(file_name, "rb") as in_file:
+        plaintext = in_file.read()
+        ciphertext = encrypt(plaintext, password, salt)
+        with open("encrypted-" + file_name, "wb") as out_file:
+            out_file.write(ciphertext)

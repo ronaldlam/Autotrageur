@@ -56,3 +56,10 @@ docs/_build/
 .venv
 venv/
 ENV/
+
+# vscode
+.vscode/
+
+# API key files
+secret.txt
+encrypted-secret.txt
