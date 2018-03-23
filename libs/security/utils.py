@@ -55,6 +55,27 @@ def decrypt(ciphertext, password, salt=b"0"):
     return f.decrypt(ciphertext)
 
 
+def keyfile_to_map(keyfile):
+    """Convert key file data into map.
+
+    Args:
+        keyfile (string): The key file data in CSV form.
+
+    Returns:
+        dict[string:dict[string:string]]: Map from exchange to map of
+            labels to API keys and secrets
+    """
+    exchange_map = {}
+    rows = keyfile.split("\n")
+    labels = rows[0].split(",")
+
+    for row in rows[1:]:
+        cells = row.split(",")
+        exchange_map[cells[0]] = {labels[1]: cells[1], labels[2]: cells[2]}
+
+    return exchange_map
+
+
 def to_str(bytes_or_str):
     """Return bytes from string or byte data.
 
