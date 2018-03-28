@@ -1,5 +1,3 @@
-import time
-
 from forex_python.converter import CurrencyRates
 
 CURRENCY_CONVERTER = CurrencyRates()
@@ -15,7 +13,7 @@ class UnacceptableAmountException(Exception):
 
 
 def convert_currencies(from_curr, to_curr, amount):
-    """Converts a specified amount of currency into a foreign currency using forex rates.
+    """Converts a specified amount of currency into another currency.
 
     Args:
         from_curr (str): Ticker of currency to convert from.
