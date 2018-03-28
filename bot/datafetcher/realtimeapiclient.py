@@ -15,6 +15,15 @@ class RealTimeAPIClient(BaseAPIClient):
             base (str): The base (first) token/currency of the exchange pair.
             quote (str): The quote (second) token/currency of the exchange pair.
             exchange (str): Desired exchange to query against.
+            exchange_config (dict): The exchange's configuration in accordance
+                with the ccxt library for instantiating an exchange.
+                Ex.
+                {
+                    "apiKey": [SOME_API_KEY]
+                    "secret": [SOME_API_SECRET]
+                    "verbose": False,
+                }
+
         """
         super(RealTimeAPIClient, self).__init__(base, quote, exchange)
         self.ccxt_exchange = getattr(ccxt, exchange.lower())(exchange_config)
@@ -49,7 +58,7 @@ class RealTimeAPIClient(BaseAPIClient):
         Args:
             bids_or_asks (list[(int, int)]): The bids or asks in the form of
                 (price, volume).
-            target_amount (int): The amount to prospectively market buy.
+            target_amount (int): The amount to prospectively market buy/sell.
 
         Returns:
             float: Prospective price of a market buy or sell.

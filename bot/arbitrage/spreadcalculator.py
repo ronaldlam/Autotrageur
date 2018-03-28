@@ -6,9 +6,8 @@ def calc_spread(price1, price2):
         price2 (float): The second price.
 
     Returns:
-        float: The calculated spread.  Anything greater than 1 will be a
-               positive spread.
+        float: The calculated spread as a percentage.
     """
     # TODO: Should we format here?
     # TODO: Need to make more robust.
-    return price1/price2
+    return (price1/price2 - 1) * 100

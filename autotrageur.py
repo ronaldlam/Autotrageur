@@ -38,6 +38,7 @@ SPREAD_TARGET_HIGH = "spread_target_high"
 logging.basicConfig(level=logging.DEBUG)
 
 # Hardcoded for now, currently calcs instantaneous rates
+# TODO: Throw this into the config yaml.
 TARGET_AMOUNT = 50000
 
 if __name__ == "__main__":

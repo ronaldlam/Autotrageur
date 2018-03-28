@@ -1,4 +1,4 @@
-from forex_python.converter import CurrencyRates
+import bot.currencyconverter as currencyconverter
 
 class BaseAPIClient:
     """Base class for an API client."""
@@ -21,7 +21,5 @@ class BaseAPIClient:
         Args:
             amount (float): The amount of quoted currency to convert.
         """
-        # TODO: Probably better practice to have a converter module.
         # NOTE: With forex_python, the forex rates are updated only daily.
-        converter = CurrencyRates()
-        return converter.convert(self.quote, 'USD', amount)
+        return currencyconverter.convert_currencies(self.quote, 'USD', amount)

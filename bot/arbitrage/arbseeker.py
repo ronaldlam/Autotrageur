@@ -1,4 +1,4 @@
-# import spreadcalculator
+import bot.arbitrage.spreadcalculator as spreadcalculator
 
 BIDS = "bids"
 ASKS = "asks"
@@ -11,8 +11,8 @@ def get_arb_opportunities_by_orderbook(rtapi_ex1, rtapi_ex2, spread_low,
     the market buy/sell orders within the target_amount.
 
     Args:
-        rtapi_ex1 (object): The real-time api client for exchange 1.
-        rtapi_ex2 (object): The real-time api client for exchange 2.
+        rtapi_ex1 (RealTimeAPIClient): The real-time api client for exchange 1.
+        rtapi_ex2 (RealTimeAPIClient): The real-time api client for exchange 2.
         spread_low (int): Spread lower boundary in that if the spread crosses
             this, a reverse-arb opportunity exists.
         spread_high (int): Spread upper boundary in that if the spread crosses
@@ -54,13 +54,15 @@ def get_arb_opportunities_by_orderbook(rtapi_ex1, rtapi_ex2, spread_low,
           (rtapi_ex2.exchange, target_amount, rtapi_ex2.base, ex2_market_sell))
 
     # Calculate the spreads between exchange 1 and 2.
-    # ex1mbuy_ex2msell_spread = spreadcalculator.calc_spread(
-    #     ex1_market_buy, ex2_market_sell)
-    # ex1msell_ex2mbuy_reversespread = spreadcalculator.calc_spread(
-    #     ex1_market_sell, ex2_market_buy)
+    # TODO: We need to feed in the fees in order to more accurately calculate
+    # the spread.
+    ex2msell_ex1mbuy_spread = spreadcalculator.calc_spread(
+        ex2_market_sell, ex1_market_buy)
+    ex2mbuy_ex1msell_spread = spreadcalculator.calc_spread(
+        ex2_market_buy, ex1_market_sell)
 
-    ex2msell_ex1mbuy_spread = (ex2_market_sell/ex1_market_buy - 1) * 100
     print("Ex2 sell Ex1 buy spread: " + str(ex2msell_ex1mbuy_spread))
+    print("Ex2 buy Ex1 sell spread: " + str(ex2mbuy_ex1msell_spread))
 
     # If at or above spread_high, we can perform the forward arbitrage by market
     # selling on exchange 2, market buying on exchange 1.
@@ -72,9 +74,9 @@ def get_arb_opportunities_by_orderbook(rtapi_ex1, rtapi_ex2, spread_low,
             'marketbuy_exchange': rtapi_ex1.exchange,
             'marketsell_exchange': rtapi_ex2.exchange
         }
-    elif (ex2msell_ex1mbuy_spread <= spread_low):
+    elif (ex2mbuy_ex1msell_spread <= spread_low):
         return {
-            'spread': ex2msell_ex1mbuy_spread,
+            'spread': ex2mbuy_ex1msell_spread,
             'marketbuy_exchange': rtapi_ex2.exchange,
             'marketsell_exchange': rtapi_ex1.exchange
         }
