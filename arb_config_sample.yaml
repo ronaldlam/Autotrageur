@@ -1,13 +1,24 @@
 # Exchange configurations for autotrageur.py
 
+# Turn on live trading
+authenticate: # Will not authenticate and only use public API's otherwise, eg. true
+
+# Percentage downside of limit order slippage tolerable for market order emulations
+slippage: # Important for Gemini, eg. 3
+
 # Exchange 1
 exchange1: # Name of first exchange, eg. binance
 exchange1_pair: # Name of target pair, eg. ETH/USDT
+exchange1_test: # Whether to connect to test API, eg. true
 
 # Exchange 2
 exchange2: # Name of second exchange, eg. bithumb
 exchange2_pair: # Name of target pair, eg. ETH/KRW
+exchange2_test: # Whether to connect to test API, eg. false
 
 # Targeted spreads
 spread_target_low: # Target low spread after which money goes from exchange2 -> exchange1, eg. 2
 spread_target_high: # Target high spread after which money goes from exchange1 -> exchange2, eg. 10
+
+# Targeted trade amount in USD
+target_amount: # eg. 50000

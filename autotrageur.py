@@ -16,17 +16,21 @@ import yaml
 from libs.security.utils import decrypt, keyfile_to_map, to_bytes, to_str
 from libs.email_client.simple_email_client import send_all_emails
 import bot.arbitrage.arbseeker as arbseeker
-import bot.datafetcher.realtimeapiclient as realtimeapiclient
+import bot.datafetcher.tradingapiclient as trading_client
 
 KEYFILE = "KEYFILE"
 PASSWORD = "PASSWORD"
 SALT = "SALT"
 
 CONFIG_FILE = "arb_config.yaml"
+AUTHENTICATE = "authenticate"
+SLIPPAGE = "slippage"
 EXCHANGE1 = "exchange1"
 EXCHANGE2 = "exchange2"
 EXCHANGE1_PAIR = "exchange1_pair"
 EXCHANGE2_PAIR = "exchange2_pair"
+EXCHANGE1_TEST = "exchange1_test"
+EXCHANGE2_TEST = "exchange2_test"
 
 API_KEY = "api_key"
 API_SECRET = "api_secret"
@@ -34,12 +38,13 @@ API_SECRET = "api_secret"
 SPREAD_TARGET_LOW = "spread_target_low"
 SPREAD_TARGET_HIGH = "spread_target_high"
 
-# For debugging purposes.
-logging.basicConfig(level=logging.DEBUG)
+TARGET_AMOUNT = "target_amount"
 
-# Hardcoded for now, currently calcs instantaneous rates
-# TODO: Throw this into the config yaml.
-TARGET_AMOUNT = 50000
+# For debugging purposes.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s.%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S")
 
 if __name__ == "__main__":
     arguments = docopt(__doc__, version="Autotrageur 0.1")
@@ -61,17 +66,20 @@ if __name__ == "__main__":
         config = yaml.load(ymlfile)
 
     # Get exchange configuration settings.
-    exchange1_configs = {
-        "apiKey": exchange_key_map[config[EXCHANGE1]][API_KEY],
-        "secret": exchange_key_map[config[EXCHANGE1]][API_SECRET],
-        "verbose": False,
-    }
-
-    exchange2_configs = {
-        "apiKey": exchange_key_map[config[EXCHANGE2]][API_KEY],
-        "secret": exchange_key_map[config[EXCHANGE2]][API_SECRET],
-        "verbose": False,
-    }
+    if config[AUTHENTICATE]:
+        exchange1_configs = {
+            "apiKey": exchange_key_map[config[EXCHANGE1]][API_KEY],
+            "secret": exchange_key_map[config[EXCHANGE1]][API_SECRET],
+            "verbose": False,
+        }
+        exchange2_configs = {
+            "apiKey": exchange_key_map[config[EXCHANGE2]][API_KEY],
+            "secret": exchange_key_map[config[EXCHANGE2]][API_SECRET],
+            "verbose": False,
+        }
+    else:
+        exchange1_configs = {}
+        exchange2_configs = {}
 
     # Get spread low and highs.
     spread_low = config[SPREAD_TARGET_LOW]
@@ -81,28 +89,80 @@ if __name__ == "__main__":
     exchange1_basequote = config[EXCHANGE1_PAIR].split("/")
     exchange2_basequote = config[EXCHANGE2_PAIR].split("/")
 
-    rtclient_exchange1 = realtimeapiclient.RealTimeAPIClient(
-        exchange1_basequote[0], exchange1_basequote[1], config[EXCHANGE1],
+    tclient_exchange1 = trading_client.TradingClient(
+        exchange1_basequote[0],
+        exchange1_basequote[1],
+        config[EXCHANGE1],
+        config[SLIPPAGE],
+        config[TARGET_AMOUNT],
         exchange1_configs)
-    rtclient_exchange2 = realtimeapiclient.RealTimeAPIClient(
-        exchange2_basequote[0], exchange2_basequote[1], config[EXCHANGE2],
+    tclient_exchange2 = trading_client.TradingClient(
+        exchange2_basequote[0],
+        exchange2_basequote[1],
+        config[EXCHANGE2],
+        config[SLIPPAGE],
+        config[TARGET_AMOUNT],
         exchange2_configs)
 
-    # NOTE: Assumes the quote pair is fiat or stablecoin for V1.
-    for rtclient in list((rtclient_exchange1, rtclient_exchange2)):
-        if (rtclient.quote != 'USD') and (rtclient.quote != 'USDT'):
-            rtclient.set_conversion_needed(True)
+    # Connect to test API's if required
+    if config[EXCHANGE1_TEST]:
+        tclient_exchange1.connect_test_api()
+    if config[EXCHANGE2_TEST]:
+        tclient_exchange2.connect_test_api()
 
-    # Continuously poll to obtains spread opportunities.  Sends an e-mail when
+    # NOTE: Assumes the quote pair is fiat or stablecoin for V1.
+    for tclient in list((tclient_exchange1, tclient_exchange2)):
+        if (tclient.quote != 'USD') and (tclient.quote != 'USDT'):
+            tclient.set_conversion_needed(True)
+
+    if config[AUTHENTICATE]:
+        ex1_balance = tclient_exchange1.fetch_free_balance(
+            exchange1_basequote[0])
+        logging.log(logging.INFO, "Balance of %s on %s: %s" %
+                    (exchange1_basequote[0], config[EXCHANGE1], ex1_balance))
+        ex2_balance = tclient_exchange2.fetch_free_balance(
+            exchange2_basequote[0])
+        logging.log(logging.INFO, "Balance of %s on %s: %s" %
+                    (exchange2_basequote[0], config[EXCHANGE2], ex2_balance))
+
+    # Continuously poll to obtain spread opportunities.  Sends an e-mail when
     # spread_high or spread_low targets are hit.
-    # TODO: Prepare a market buy/sell order to exchanges, awaiting user
-    # confirmation.
-    while(True):
-        spread_opp = arbseeker.get_arb_opportunities_by_orderbook(rtclient_exchange1,
-            rtclient_exchange2, spread_low, spread_high, TARGET_AMOUNT)
-        if spread_opp is not None:
-            send_all_emails("Subject: Arb Forward-Spread Alert!\nThe spread of "
+    while True:
+        try:
+            spread_opp = arbseeker.get_arb_opportunities_by_orderbook(
+                tclient_exchange1, tclient_exchange2, spread_low,
+                spread_high)
+            if spread_opp is None:
+                message = "No arb opportunity found."
+                logging.log(logging.INFO, message)
+                raise arbseeker.AbortTradeException(message)
+            elif spread_opp[arbseeker.SPREAD_HIGH]:
+                message = (
+                    "Subject: Arb Forward-Spread Alert!\nThe spread of "
                             + exchange1_basequote[0]
                             + " is "
-                            + str(spread_opp['spread']))
-        time.sleep(5)
+                            + str(spread_opp[arbseeker.SPREAD]))
+            else:
+                message = (
+                    "Subject: Arb Backward-Spread Alert!\nThe spread of "
+                            + exchange1_basequote[0]
+                            + " is "
+                            + str(spread_opp[arbseeker.SPREAD]))
+
+            if config[AUTHENTICATE]:
+                logging.info(message)
+                send_all_emails(message)
+                verify = input("Type 'execute' to attept trade execution")
+
+                if verify == "execute":
+                    logging.info("Attempting to execute trades")
+                    arbseeker.execute_arbitrage(spread_opp)
+                else:
+                    logging.info("Trade was not executed.")
+
+        except ccxt.RequestTimeout as timeout:
+            logging.error(timeout)
+        except arbseeker.AbortTradeException as abort_trade:
+            logging.error(abort_trade)
+        finally:
+            time.sleep(5)
