@@ -5,6 +5,7 @@ import bot.datafetcher.tradingapiclient as trading_client
 
 
 class AbortTradeException(Exception):
+    """Exception signifying a trade abort."""
     pass
 
 
@@ -46,7 +47,6 @@ def get_arb_opportunities_by_orderbook(
             'marketsell_exchange': client2
         }
     """
-
     ex1_orderbook = trading_client1.get_full_orderbook()
     ex2_orderbook = trading_client2.get_full_orderbook()
 

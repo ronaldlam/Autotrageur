@@ -10,7 +10,6 @@ import logging
 import time
 
 import ccxt
-from ccxt.base.errors import RequestTimeout  # pylint: disable=E0611
 from docopt import docopt
 import yaml
 
@@ -112,9 +111,9 @@ if __name__ == "__main__":
         tclient_exchange2.connect_test_api()
 
     # NOTE: Assumes the quote pair is fiat or stablecoin for V1.
-    for rtclient in list((tclient_exchange1, tclient_exchange2)):
-        if (rtclient.quote != 'USD') and (rtclient.quote != 'USDT'):
-            rtclient.set_conversion_needed(True)
+    for tclient in list((tclient_exchange1, tclient_exchange2)):
+        if (tclient.quote != 'USD') and (tclient.quote != 'USDT'):
+            tclient.set_conversion_needed(True)
 
     if config[AUTHENTICATE]:
         ex1_balance = tclient_exchange1.fetch_free_balance(
@@ -161,7 +160,7 @@ if __name__ == "__main__":
                 else:
                     logging.info("Trade was not executed.")
 
-        except RequestTimeout as timeout:
+        except ccxt.RequestTimeout as timeout:
             logging.error(timeout)
         except arbseeker.AbortTradeException as abort_trade:
             logging.error(abort_trade)

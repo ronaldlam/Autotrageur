@@ -32,6 +32,8 @@ class TradingClient(BaseAPIClient):
             quote (str): The quote (second) token/currency of the
                 exchange pair.
             exchange (str): Desired exchange to query against.
+            slippage (float): Maximum desired slippage from emulated
+                market trades.
             target_amount (float): Targeted amount to buy or sell, in
                 quote currency.
             exchange_config (dict): The exchange's configuration in
@@ -80,6 +82,7 @@ class TradingClient(BaseAPIClient):
             # Calculated volume of asset expected to be purchased.
             volume = self.target_amount / asset_price
             # Maximum price we are willing to pay.
+            # TODO: Implement failsafes for unreasonable slippage.
             ratio = (100.0 + self.slippage) / 100.0
             limit_price = round(asset_price * ratio, 2)
 
@@ -235,8 +238,6 @@ class TradingClient(BaseAPIClient):
             index += 1
 
         if index == len(bids_or_asks) and remaining_amount > 0.0:
-            # TODO: May not be a fatal error depending on whether we want the
-            # bot to keep trying.
             raise OrderbookException("Order book not deep enough for trade.")
 
         # Add the zero or negative excess amount to trim off the overshoot
