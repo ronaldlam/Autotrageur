@@ -53,7 +53,6 @@ class Autotrageur:
         Raises:
             IOError: If the encrypted keyfile does not open.
         """
-
         # Load keyfile
         keys = None
         with open(arguments[KEYFILE], "rb") as in_file:
@@ -89,7 +88,6 @@ class Autotrageur:
 
     def _setup_markets(self):
         """Set up the market objects for the algorithm to use."""
-
         # Extract the pairs and compare them to see if conversion needed to
         # USD.
         self.exchange1_basequote = self.config[EXCHANGE1_PAIR].split("/")
@@ -125,17 +123,17 @@ class Autotrageur:
             ex1_balance = self.tclient_exchange1.fetch_free_balance(
                 self.exchange1_basequote[0])
             logging.log(logging.INFO,
-                "Balance of %s on %s: %s" % (
-                    self.exchange1_basequote[0],
-                    self.config[EXCHANGE1],
-                    ex1_balance))
+                        "Balance of %s on %s: %s" % (
+                            self.exchange1_basequote[0],
+                            self.config[EXCHANGE1],
+                            ex1_balance))
             ex2_balance = self.tclient_exchange2.fetch_free_balance(
                 self.exchange2_basequote[0])
             logging.log(logging.INFO,
-                "Balance of %s on %s: %s" % (
-                    self.exchange2_basequote[0],
-                    self.config[EXCHANGE2],
-                    ex2_balance))
+                        "Balance of %s on %s: %s" % (
+                            self.exchange2_basequote[0],
+                            self.config[EXCHANGE2],
+                            ex2_balance))
 
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
@@ -200,7 +198,6 @@ class Autotrageur:
         Args:
             arguments (map): Map of command line arguments.
         """
-
         self._load_configs(arguments)
         self._setup_markets()
 
