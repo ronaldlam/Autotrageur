@@ -217,7 +217,7 @@ class TradingClient(BaseAPIClient):
         price; input of asks will retrieve market buy price.
 
         Args:
-            bids_or_asks (list[(int, int)]): The bids or asks in the
+            bids_or_asks (list[list(float)]): The bids or asks in the
                 form of (price, volume).
 
         Returns:
