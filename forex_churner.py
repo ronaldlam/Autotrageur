@@ -57,7 +57,7 @@ class CurrencyConverter():
         if REQ_COUNTER is 5:
             timediff = time.time() - REQ_TIMER
             if (timediff < 1):
-                logging.log(logging.INFO, "Rate limit hit, sleep for: %s", str(timediff))
+                logging.log(logging.INFO, "Rate limit hit, sleep for 1 second")
                 # NOTE: Looks like sleeping for a whole second makes it far
                 # less likely to encounter rate limit and causing RatesNotAvailableError
                 # to be thrown below.
