@@ -75,12 +75,10 @@ class Autotrageur:
             self.exchange1_configs = {
                 "apiKey": exchange_key_map[self.config[EXCHANGE1]][API_KEY],
                 "secret": exchange_key_map[self.config[EXCHANGE1]][API_SECRET],
-                "verbose": False,
             }
             self.exchange2_configs = {
                 "apiKey": exchange_key_map[self.config[EXCHANGE2]][API_KEY],
                 "secret": exchange_key_map[self.config[EXCHANGE2]][API_SECRET],
-                "verbose": False,
             }
         else:
             self.exchange1_configs = {}
@@ -138,9 +136,13 @@ class Autotrageur:
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
 
+        Note that self.message is set depending on the results of poll.
+        This is specific for this default implementation.
+
         Returns:
             bool: Whether there is an opportunity.
         """
+        # TODO: Evaluate options and implement retry logic.
         try:
             # Get spread low and highs.
             spread_low = self.config[SPREAD_TARGET_LOW]
@@ -172,6 +174,7 @@ class Autotrageur:
 
     def _execute_trade(self):
         """Execute the trade, providing necessary failsafes."""
+        # TODO: Evaluate options and implement retry logic.
         try:
             if self.config[AUTHENTICATE]:
                 logging.info(self.message)
