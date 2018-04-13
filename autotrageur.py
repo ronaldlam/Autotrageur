@@ -1,16 +1,7 @@
-"""Automated arbitrageur
-
-Executes trades based on simple arbitrage strategy
-
-Usage:
-    autotrageur.py KEYFILE PASSWORD SALT CONFIGFILE
-"""
-
 import logging
 import time
 
 import ccxt
-from docopt import docopt
 import yaml
 
 from libs.security.utils import decrypt, keyfile_to_map, to_bytes, to_str
@@ -40,129 +31,180 @@ SPREAD_TARGET_HIGH = "spread_target_high"
 
 TARGET_AMOUNT = "target_amount"
 
-# For debugging purposes.
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s.%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S")
 
-if __name__ == "__main__":
-    arguments = docopt(__doc__, version="Autotrageur 0.1")
-    keys = None
+class Autotrageur:
+    """Base class for running Autotrageur, the algorithmic trading bot.
 
-    with open(arguments[KEYFILE], "rb") as in_file:
-        keys = decrypt(
-            in_file.read(),
-            to_bytes(arguments[PASSWORD]),
-            to_bytes(arguments[SALT]))
+    This class follows the "Template Method" design pattern. The
+    functions prefixed with _ are functionally protected methods, and
+    should only be called inside this class or its subclasses. The
+    run_autotrageur() function is used as the template method to run the
+    trading algorithm. Subclasses should override the protected methods
+    to alter behaviour and run different algorthims with different
+    configurations.
+    """
 
-    if keys is None:
-        raise IOError("Unable to open file. %s" % arguments)
+    def _load_configs(self, arguments):
+        """Load the configurations of the Autotrageur run.
 
-    str_keys = to_str(keys)
-    exchange_key_map = keyfile_to_map(str_keys)
+        Args:
+            arguments (map): Map of the arguments passed to the program
 
-    with open(CONFIG_FILE, "r") as ymlfile:
-        config = yaml.load(ymlfile)
+        Raises:
+            IOError: If the encrypted keyfile does not open.
+        """
+        # Load keyfile
+        keys = None
+        with open(arguments[KEYFILE], "rb") as in_file:
+            keys = decrypt(
+                in_file.read(),
+                to_bytes(arguments[PASSWORD]),
+                to_bytes(arguments[SALT]))
 
-    # Get exchange configuration settings.
-    if config[AUTHENTICATE]:
-        exchange1_configs = {
-            "apiKey": exchange_key_map[config[EXCHANGE1]][API_KEY],
-            "secret": exchange_key_map[config[EXCHANGE1]][API_SECRET],
-            "verbose": False,
-        }
-        exchange2_configs = {
-            "apiKey": exchange_key_map[config[EXCHANGE2]][API_KEY],
-            "secret": exchange_key_map[config[EXCHANGE2]][API_SECRET],
-            "verbose": False,
-        }
-    else:
-        exchange1_configs = {}
-        exchange2_configs = {}
+        if keys is None:
+            raise IOError("Unable to open file. %s" % arguments)
 
-    # Get spread low and highs.
-    spread_low = config[SPREAD_TARGET_LOW]
-    spread_high = config[SPREAD_TARGET_HIGH]
+        str_keys = to_str(keys)
+        exchange_key_map = keyfile_to_map(str_keys)
 
-    # Extract the pairs and compare them to see if conversion needed to USD.
-    exchange1_basequote = config[EXCHANGE1_PAIR].split("/")
-    exchange2_basequote = config[EXCHANGE2_PAIR].split("/")
+        with open(CONFIG_FILE, "r") as ymlfile:
+            self.config = yaml.load(ymlfile)
 
-    tclient_exchange1 = trading_client.TradingClient(
-        exchange1_basequote[0],
-        exchange1_basequote[1],
-        config[EXCHANGE1],
-        config[SLIPPAGE],
-        config[TARGET_AMOUNT],
-        exchange1_configs)
-    tclient_exchange2 = trading_client.TradingClient(
-        exchange2_basequote[0],
-        exchange2_basequote[1],
-        config[EXCHANGE2],
-        config[SLIPPAGE],
-        config[TARGET_AMOUNT],
-        exchange2_configs)
+        # Get exchange configuration settings.
+        if self.config[AUTHENTICATE]:
+            self.exchange1_configs = {
+                "apiKey": exchange_key_map[self.config[EXCHANGE1]][API_KEY],
+                "secret": exchange_key_map[self.config[EXCHANGE1]][API_SECRET],
+            }
+            self.exchange2_configs = {
+                "apiKey": exchange_key_map[self.config[EXCHANGE2]][API_KEY],
+                "secret": exchange_key_map[self.config[EXCHANGE2]][API_SECRET],
+            }
+        else:
+            self.exchange1_configs = {}
+            self.exchange2_configs = {}
 
-    # Connect to test API's if required
-    if config[EXCHANGE1_TEST]:
-        tclient_exchange1.connect_test_api()
-    if config[EXCHANGE2_TEST]:
-        tclient_exchange2.connect_test_api()
+    def _setup_markets(self):
+        """Set up the market objects for the algorithm to use."""
+        # Extract the pairs and compare them to see if conversion needed to
+        # USD.
+        self.exchange1_basequote = self.config[EXCHANGE1_PAIR].split("/")
+        self.exchange2_basequote = self.config[EXCHANGE2_PAIR].split("/")
 
-    # NOTE: Assumes the quote pair is fiat or stablecoin for V1.
-    for tclient in list((tclient_exchange1, tclient_exchange2)):
-        if (tclient.quote != 'USD') and (tclient.quote != 'USDT'):
-            tclient.set_conversion_needed(True)
+        self.tclient_exchange1 = trading_client.TradingClient(
+            self.exchange1_basequote[0],
+            self.exchange1_basequote[1],
+            self.config[EXCHANGE1],
+            self.config[SLIPPAGE],
+            self.config[TARGET_AMOUNT],
+            self.exchange1_configs)
+        self.tclient_exchange2 = trading_client.TradingClient(
+            self.exchange2_basequote[0],
+            self.exchange2_basequote[1],
+            self.config[EXCHANGE2],
+            self.config[SLIPPAGE],
+            self.config[TARGET_AMOUNT],
+            self.exchange2_configs)
 
-    if config[AUTHENTICATE]:
-        ex1_balance = tclient_exchange1.fetch_free_balance(
-            exchange1_basequote[0])
-        logging.log(logging.INFO, "Balance of %s on %s: %s" %
-                    (exchange1_basequote[0], config[EXCHANGE1], ex1_balance))
-        ex2_balance = tclient_exchange2.fetch_free_balance(
-            exchange2_basequote[0])
-        logging.log(logging.INFO, "Balance of %s on %s: %s" %
-                    (exchange2_basequote[0], config[EXCHANGE2], ex2_balance))
+        # Connect to test API's if required
+        if self.config[EXCHANGE1_TEST]:
+            self.tclient_exchange1.connect_test_api()
+        if self.config[EXCHANGE2_TEST]:
+            self.tclient_exchange2.connect_test_api()
 
-    # Continuously poll to obtain spread opportunities.  Sends an e-mail when
-    # spread_high or spread_low targets are hit.
-    while True:
+        # NOTE: Assumes the quote pair is fiat or stablecoin for V1.
+        for tclient in list((self.tclient_exchange1, self.tclient_exchange2)):
+            if (tclient.quote != 'USD') and (tclient.quote != 'USDT'):
+                tclient.set_conversion_needed(True)
+
+        if self.config[AUTHENTICATE]:
+            ex1_balance = self.tclient_exchange1.fetch_free_balance(
+                self.exchange1_basequote[0])
+            logging.log(logging.INFO,
+                        "Balance of %s on %s: %s" % (
+                            self.exchange1_basequote[0],
+                            self.config[EXCHANGE1],
+                            ex1_balance))
+            ex2_balance = self.tclient_exchange2.fetch_free_balance(
+                self.exchange2_basequote[0])
+            logging.log(logging.INFO,
+                        "Balance of %s on %s: %s" % (
+                            self.exchange2_basequote[0],
+                            self.config[EXCHANGE2],
+                            ex2_balance))
+
+    def _poll_opportunity(self):
+        """Poll exchanges for arbitrage opportunity.
+
+        Note that self.message is set depending on the results of poll.
+        This is specific for this default implementation.
+
+        Returns:
+            bool: Whether there is an opportunity.
+        """
+        # TODO: Evaluate options and implement retry logic.
         try:
-            spread_opp = arbseeker.get_arb_opportunities_by_orderbook(
-                tclient_exchange1, tclient_exchange2, spread_low,
+            # Get spread low and highs.
+            spread_low = self.config[SPREAD_TARGET_LOW]
+            spread_high = self.config[SPREAD_TARGET_HIGH]
+            self.spread_opp = arbseeker.get_arb_opportunities_by_orderbook(
+                self.tclient_exchange1, self.tclient_exchange2, spread_low,
                 spread_high)
-            if spread_opp is None:
-                message = "No arb opportunity found."
-                logging.log(logging.INFO, message)
-                raise arbseeker.AbortTradeException(message)
-            elif spread_opp[arbseeker.SPREAD_HIGH]:
-                message = (
+        except ccxt.RequestTimeout as timeout:
+            logging.error(timeout)
+            return False
+        finally:
+            if self.spread_opp is None:
+                self.message = "No arb opportunity found."
+                logging.log(logging.INFO, self.message)
+                return False
+            elif self.spread_opp[arbseeker.SPREAD_HIGH]:
+                self.message = (
                     "Subject: Arb Forward-Spread Alert!\nThe spread of "
-                            + exchange1_basequote[0]
-                            + " is "
-                            + str(spread_opp[arbseeker.SPREAD]))
+                    + self.exchange1_basequote[0]
+                    + " is "
+                    + str(self.spread_opp[arbseeker.SPREAD]))
             else:
-                message = (
+                self.message = (
                     "Subject: Arb Backward-Spread Alert!\nThe spread of "
-                            + exchange1_basequote[0]
-                            + " is "
-                            + str(spread_opp[arbseeker.SPREAD]))
+                    + self.exchange1_basequote[0]
+                    + " is "
+                    + str(self.spread_opp[arbseeker.SPREAD]))
+            return True
 
-            if config[AUTHENTICATE]:
-                logging.info(message)
-                send_all_emails(message)
+    def _execute_trade(self):
+        """Execute the trade, providing necessary failsafes."""
+        # TODO: Evaluate options and implement retry logic.
+        try:
+            if self.config[AUTHENTICATE]:
+                logging.info(self.message)
+                send_all_emails(self.message)
                 verify = input("Type 'execute' to attept trade execution")
 
                 if verify == "execute":
                     logging.info("Attempting to execute trades")
-                    arbseeker.execute_arbitrage(spread_opp)
+                    arbseeker.execute_arbitrage(self.spread_opp)
                 else:
                     logging.info("Trade was not executed.")
-
         except ccxt.RequestTimeout as timeout:
             logging.error(timeout)
         except arbseeker.AbortTradeException as abort_trade:
             logging.error(abort_trade)
-        finally:
-            time.sleep(5)
+
+    def _wait(self):
+        """Wait for the specified polling interval."""
+        time.sleep(5)
+
+    def run_autotrageur(self, arguments):
+        """Run Autotrageur algorithm.
+
+        Args:
+            arguments (map): Map of command line arguments.
+        """
+        self._load_configs(arguments)
+        self._setup_markets()
+
+        while True:
+            if self._poll_opportunity():
+                self._execute_trade()
+            self._wait()
