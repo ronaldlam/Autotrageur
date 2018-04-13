@@ -19,12 +19,11 @@ class FCFAutotrageur(Autotrageur):
     specified target low.
     """
 
-
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
 
         Note that self.message is set depending on the results of poll.
-        This is specific for this default implementation.
+        This is specific for this implementation.
 
         Returns:
             bool: Whether there is an opportunity.
@@ -66,7 +65,7 @@ class FCFAutotrageur(Autotrageur):
             if self.config[AUTHENTICATE]:
                 logging.info(self.message)
                 send_all_emails(self.message)
-                verify = input("Type 'execute' to attept trade execution")
+                verify = input("Type 'execute' to attempt trade execution")
 
                 if verify == "execute":
                     logging.info("Attempting to execute trades")
