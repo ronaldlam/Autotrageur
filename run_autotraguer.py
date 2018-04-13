@@ -10,7 +10,7 @@ import logging
 
 from docopt import docopt
 
-import autotrageur
+from fcf_autotrageur import FCFAutotrageur
 
 # For debugging purposes.
 logging.basicConfig(
@@ -20,5 +20,5 @@ logging.basicConfig(
 
 if __name__ == "__main__":
     arguments = docopt(__doc__, version="Autotrageur 0.1")
-    autotrageur = autotrageur.Autotrageur()
+    autotrageur = FCFAutotrageur()
     autotrageur.run_autotrageur(arguments)
