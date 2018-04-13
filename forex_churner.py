@@ -8,20 +8,33 @@ import libs.csv.csvmaker as csvmaker
 
 # Constants.
 DAYS_PER_YEAR = 365
-MINUTES_TO_SECONDS = 60
-HOURS_TO_SECONDS = MINUTES_TO_SECONDS * 60
-DAYS_TO_SECONDS = HOURS_TO_SECONDS * 24
+SECONDS_PER_MINUTE = 60
+SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60
+SECONDS_PER_DAY = SECONDS_PER_HOUR * 24
 CSV_COL_HEADERS = ['date', 'forex_rate', 'base', 'quote']
 BASE_CURRENCY = 'EUR'
 QUOTE_CURRENCY = 'USD'
-FOREX_PERIOD = 1 * DAYS_PER_YEAR * DAYS_TO_SECONDS #TODO: Make cmd arg
+FOREX_PERIOD = 1 * DAYS_PER_YEAR * SECONDS_PER_DAY #TODO: Make cmd arg
 FOREX_FILENAME = "data/" + BASE_CURRENCY.lower() + QUOTE_CURRENCY.lower() + 'forexdaily.csv' # daily until we support hourly
+
+# Rate limiting counter and timer.  Fixer.io API seems to be 5 requests/sec max:
+# https://github.com/fixerAPI/fixer/issues/59
+REQ_COUNTER = 0
+REQ_TIMER = time.time()
 
 # For debugging purposes.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s.%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S")
+
+class NegativeAmountException(Exception):
+    """Thrown when trying to convert an amount less than 0
+
+    NOTE: This is because the forex_python library will throw a misleading
+    exception if trying to convert an amount of less than 0.
+    """
+    pass
 
 
 class CurrencyConverter():
@@ -31,35 +44,66 @@ class CurrencyConverter():
         """Constructor."""
         self.converter = CurrencyRates()
 
-    def forex_convert(self, io_price, base, quote, date=None):
+    def _rate_limit(self):
+        """Rate limit according to APIs restriction.
+
+        Will increment the global request counter if less than 5.  Or resets it
+        to 1 if at 5.  If exceeding the APIs restriction, will wait until API
+        restriction is met.
+        """
+        global REQ_COUNTER
+        global REQ_TIMER
+
+        if REQ_COUNTER is 5:
+            timediff = time.time() - REQ_TIMER
+            if (timediff < 1):
+                logging.log(logging.INFO, "Rate limit hit, sleep for: %s", str(timediff))
+                # NOTE: Looks like sleeping for a whole second makes it far
+                # less likely to encounter rate limit and causing RatesNotAvailableError
+                # to be thrown below.
+                time.sleep(1)
+
+        # Increment counter if less than 5, or reset to 1.
+        REQ_COUNTER = REQ_COUNTER + 1 if REQ_COUNTER < 5 else 1
+        if REQ_COUNTER is 1:
+            REQ_TIMER = time.time()
+
+    def forex_convert(self, price, base, quote, date=None):
         """Converts a base currency into a quote currency.
 
         Uses a third party library to convert a base currency into a quote
-        currency.  E.g. If base is CAD and quote is USD, the price inputed
+        currency.  E.g. If base is CAD and quote is USD, the price inputted
         will be converted into USD according to a CAD/USD forex rate.
 
+        Note: Requires a price >= 0 for the API to convert.
+
         Args:
-            io_price (float): The base currency's price to be converted.
+            price (float): The base currency's price to be converted.
             base (str): The base currency.
             quote (str): The quote currency.
             date (:obj:date, optional): The date used to determine the forex
                 rate for the base/quote pair.  If no date provided, will return
                 the latest forex rate.
 
+        Raises:
+            NegativeAmountException: Thrown when the price to be converted is
+                less than 0.
+
         Returns:
             float: The converted price.
         """
-        logging.log(logging.INFO, "Before conversion: %s", str(io_price))
-        if io_price > 0:
-            time.sleep(0.2) # Prevents exceeding api limit on fixer
-            io_price = self.converter.convert(base, quote, io_price, date)
-            logging.log(logging.INFO, "After conversion: %s", str(io_price))
-            return io_price
+        logging.log(logging.INFO, "Before conversion: %s", str(price))
+        if price < 0:
+            raise NegativeAmountException("Price cannot be less than 0")
+        self._rate_limit()
+        price = self.converter.convert(base, quote, price, date)
+        logging.log(logging.INFO, "After conversion: %s", str(price))
+        return price
 
 if __name__ == "__main__":
     # Start time is current time for now.
     start_time = time.time()
-    start_time = int(start_time - (start_time % DAYS_TO_SECONDS))
+    start_time = int(start_time - (start_time % SECONDS_PER_DAY))
     end_time = start_time - FOREX_PERIOD
     logging.log(logging.INFO, "End date: %s",
         dt.utcfromtimestamp(end_time).strftime('%Y-%m-%d'))
@@ -72,7 +116,7 @@ if __name__ == "__main__":
             start_time_datetime.strftime('%Y-%m-%d'))
         forex_row = {}
 
-        # Build the KRW-USD forex dict as a row in the csv file.
+        # Build the forex dict as a row in the csv file.
         forex_row[CSV_COL_HEADERS[0]] = start_time
         try:
             forex_row[CSV_COL_HEADERS[1]] = currency_converter.forex_convert(1,
@@ -86,9 +130,11 @@ if __name__ == "__main__":
         forex_row[CSV_COL_HEADERS[2]] = BASE_CURRENCY
         forex_row[CSV_COL_HEADERS[3]] = QUOTE_CURRENCY
         forex_price_list.insert(0, forex_row)
-        start_time = start_time - DAYS_TO_SECONDS
+        start_time = start_time - SECONDS_PER_DAY
 
     # Write to csv file.
+    # TODO: Consider batching up writes to avoid size limitations with large
+    # datasets
     csvmaker.dict_write_to_csv(
         CSV_COL_HEADERS,
         FOREX_FILENAME,
