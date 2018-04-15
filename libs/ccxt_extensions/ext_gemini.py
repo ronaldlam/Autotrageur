@@ -1,0 +1,158 @@
+import logging
+
+import ccxt
+
+
+class ext_gemini(ccxt.gemini):
+    """Subclass of ccxt's gemini.py for internal use.
+
+    The name ext_gemini is to keep similar convention when initializing
+    the exchnage classes.
+    """
+
+    def describe(self):
+        """Return gemini exchange object with corrected info.
+
+        The describe() call returns a map of attributes that the
+        exchange object contains. The deep_extend() call is defined in
+        exchange.py and lets you combine additional details into a given
+        map. Thus this simply extends the description of the default
+        ccxt.gemini() object.
+
+        Returns:
+            dict: The description of the exchange.
+        """
+        return self.deep_extend(super().describe(), {
+            'has': {
+                'createMarketOrder': 'emulated'
+            },
+            'fees': {
+                'trading': {
+                    'taker': 0.01,
+                    'maker': 0.01,
+                },
+            },
+        })
+
+    def fetch_markets(self):
+        """Retrieve data for the markets of the exchange.
+
+        This gets called by load_markets() which dynamically fetches and
+        populates information about a given exchange. Precision data is
+        added here for consistency. The ccxt.binance() module was used
+        for reference.
+
+        Returns:
+            dict: The description of available markets on the exchange.
+        """
+        # See https://docs.gemini.com/rest-api/#symbols-and-minimums
+        precision = {
+            'BTC/USD': {
+                'base': 10,     # The precision of min execution quantity
+                'quote': 2,     # The precision of min execution quantity
+                'amount': 8,    # The precision of min order increment
+                'price': 2,     # The precision of min price increment
+            },
+            'ETH/USD': {
+                'base': 8,
+                'quote': 2,
+                'amount': 6,
+                'price': 2,
+            },
+            'ETH/BTC': {
+                'base': 8,
+                'quote': 10,
+                'amount': 6,
+                'price': 5,
+            }
+        }
+
+        markets = super().fetch_markets()
+
+        for market in markets:
+            market['precision'] = precision[market['symbol']]
+
+        return markets
+
+    def create_emulated_market_buy_order(
+            self, symbol, quote_amount, asset_price, slippage):
+        """Create an emulated market buy order with maximum slippage.
+
+        This is implemented as an 'immediate or cancel' trade which will
+        execute on only immediately available liquidity. If the
+        calculated limit price is above the maximum fill price, a market
+        order is completed immediately. If the available liquidity is
+        not enough for quote_amount of the asset, only fills under the
+        limit price will complete and the order will not be completely
+        filled.
+
+        Args:
+            symbol (str): The symbol of the market, ie. 'ETH/USD'.
+            quote_amount (float): The amount to buy in quote currency.
+            asset_price (float): The target buy price, quote per base.
+            slippage (float): The percentage off asset_price the market
+                buy will tolerate.
+        """
+        # Calculated volume of asset expected to be purchased.
+        asset_volume = quote_amount / asset_price
+        # Maximum price we are willing to pay.
+        # TODO: Implement failsafes for unreasonable slippage.
+        ratio = (100.0 + slippage) / 100.0
+        limit_price = asset_price * ratio
+        a_precision = self.markets[symbol]['precision']['amount']
+        p_precision = self.markets[symbol]['precision']['price']
+
+        # Rounding is required for direct ccxt call.
+        asset_volume = round(asset_volume, a_precision)
+        limit_price = round(limit_price, p_precision)
+
+        logging.info("Gemini emulated market buy.")
+        logging.info("Estimated asset price: %s" % asset_price)
+        logging.info("Asset volume: %s" % asset_volume)
+        logging.info("Limit price: %s" % limit_price)
+
+        result = self.create_limit_buy_order(
+            symbol,
+            asset_volume,
+            limit_price,
+            {"options": ["immediate-or-cancel"]})
+        return result
+
+    def create_emulated_market_sell_order(
+            self, symbol, asset_price, asset_amount, slippage):
+        """Create an emulated market sell order with maximum slippage.
+
+        This is implemented as an 'immediate or cancel' trade which will
+        execute on only immediately available liquidity. If the
+        calculated limit price is below the minimum fill price, a market
+        order is completed immediately. If the available liquidity is
+        not enough for asset_amount of the asset, only fills over the
+        limit price will complete and the order will not be completely
+        filled.
+
+        Args:
+            symbol (str): The symbol of the market, ie. 'ETH/USD'.
+            asset_price (float): The price, quote per base.
+            asset_amount (float): The amount of the asset to be sold.
+            slippage (float): The percentage off asset_price the market
+                buy will tolerate.
+
+        Returns:
+            [type]: [description]
+        """
+        # Minimum price we are willing to sell.
+        ratio = (100.0 - slippage) / 100.0
+        precision = self.markets[symbol]['precision']['price']
+        limit_price = round(asset_price * ratio, precision)
+
+        logging.info("Gemini market sell.")
+        logging.info("Estimated asset price: %s" % asset_price)
+        logging.info("Volume: %s" % asset_amount)
+        logging.info("Limit price: %s" % limit_price)
+
+        result = self.create_limit_sell_order(
+            symbol,
+            asset_amount,
+            limit_price,
+            {"options": ["immediate-or-cancel"]})
+        return result

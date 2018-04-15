@@ -90,14 +90,14 @@ class Autotrageur(ABC):
         self.exchange1_basequote = self.config[EXCHANGE1_PAIR].split("/")
         self.exchange2_basequote = self.config[EXCHANGE2_PAIR].split("/")
 
-        self.tclient_exchange1 = trading_client.TradingClient(
+        self.tclient1 = trading_client.TradingClient(
             self.exchange1_basequote[0],
             self.exchange1_basequote[1],
             self.config[EXCHANGE1],
             self.config[SLIPPAGE],
             self.config[TARGET_AMOUNT],
             self.exchange1_configs)
-        self.tclient_exchange2 = trading_client.TradingClient(
+        self.tclient2 = trading_client.TradingClient(
             self.exchange2_basequote[0],
             self.exchange2_basequote[1],
             self.config[EXCHANGE2],
@@ -107,28 +107,46 @@ class Autotrageur(ABC):
 
         # Connect to test API's if required
         if self.config[EXCHANGE1_TEST]:
-            self.tclient_exchange1.connect_test_api()
+            self.tclient1.connect_test_api()
         if self.config[EXCHANGE2_TEST]:
-            self.tclient_exchange2.connect_test_api()
+            self.tclient2.connect_test_api()
+
+        # Load the available markets for the exchange.
+        self.tclient1.load_markets()
+        self.tclient2.load_markets()
 
         # NOTE: Assumes the quote pair is fiat or stablecoin for V1.
-        for tclient in list((self.tclient_exchange1, self.tclient_exchange2)):
+        for tclient in list((self.tclient1, self.tclient2)):
             if (tclient.quote != 'USD') and (tclient.quote != 'USDT'):
                 tclient.set_conversion_needed(True)
 
         if self.config[AUTHENTICATE]:
-            ex1_balance = self.tclient_exchange1.fetch_free_balance(
+            ex1_balance = self.tclient1.fetch_free_balance(
                 self.exchange1_basequote[0])
             logging.log(logging.INFO,
                         "Balance of %s on %s: %s" % (
                             self.exchange1_basequote[0],
                             self.config[EXCHANGE1],
                             ex1_balance))
-            ex2_balance = self.tclient_exchange2.fetch_free_balance(
+            ex2_balance = self.tclient2.fetch_free_balance(
                 self.exchange2_basequote[0])
             logging.log(logging.INFO,
                         "Balance of %s on %s: %s" % (
                             self.exchange2_basequote[0],
+                            self.config[EXCHANGE2],
+                            ex2_balance))
+            ex1_balance = self.tclient1.fetch_free_balance(
+                self.exchange1_basequote[1])
+            logging.log(logging.INFO,
+                        "Balance of %s on %s: %s" % (
+                            self.exchange1_basequote[1],
+                            self.config[EXCHANGE1],
+                            ex1_balance))
+            ex2_balance = self.tclient2.fetch_free_balance(
+                self.exchange2_basequote[1])
+            logging.log(logging.INFO,
+                        "Balance of %s on %s: %s" % (
+                            self.exchange2_basequote[1],
                             self.config[EXCHANGE2],
                             ex2_balance))
 
