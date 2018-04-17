@@ -166,7 +166,7 @@ def get_token_history(history_params, interval):
         elif interval == TimeInterval.HOURS.value:
             history_data_points[0:0] = tokenhistory.histoHour(
                 history_params.base, history_params.quote,
-                history_params.exchange,history_params.extraParams,
+                history_params.exchange, history_params.extraParams,
                 history_params.sign, history_params.tryConversion,
                 history_params.aggregate, limit, history_params.toTs)
         elif interval == TimeInterval.DAYS.value:
@@ -197,21 +197,23 @@ if __name__ == "__main__":
     filename = config['filename']
     if config['filename'] is None:
         filename = ''.join([basecurr, quotecurr, exchange, interval,
-            str(limit), '.csv'])
+                            str(limit), '.csv'])
     if not TimeInterval.has_value(interval):
         raise IncompatibleTimeIntervalError("Time interval must be one of:"
-        "'days', hours', 'minutes'.")
+                                            "'days', hours', 'minutes'.")
     if os.path.exists(filename):
         sys.exit(filename + "already exists.  Please use another name or move "
-        "the file.")
+                 "the file.")
 
     # Prompt user with the configuration specified.
     user_confirm = ''
     while user_confirm.lower() != 'y':
         user_confirm = input(' '.join([">> You want to produce", filename,
-            "with base currency", basecurr, "quote currency", quotecurr,
-            "from exchange", exchange, "time interval", interval, "limit",
-            str(limit), "Y/N ?"]))
+                                       "with base currency", basecurr,
+                                       "quote currency", quotecurr,
+                                       "from exchange", exchange,
+                                       "time interval", interval, "limit",
+                                       str(limit), "Y/N ?"]))
 
     toTs = get_most_recent_rounded_timestamp(interval)
     print("Calculated nearest current timestamp: " + str(toTs))
