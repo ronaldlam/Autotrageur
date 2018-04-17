@@ -20,9 +20,8 @@ import time
 
 import libs.cryCompare.history as tokenhistory
 from docopt import docopt
+import pandas as pd
 import yaml
-
-import libs.csv.csvmaker as csvmaker
 
 # Constants
 MINUTES_TO_SECONDS = 60
@@ -37,7 +36,11 @@ CSV_COL_HEADERS = [
         'low',
         'open',
         'volumefrom',
-        'volumeto'
+        'volumeto',
+        'vwap',
+        'base',
+        'quote',
+        'exchange'
 ]
 
 # CryptoCompare limitations
@@ -191,6 +194,7 @@ if __name__ == "__main__":
     exchange = config['exchange']
     interval = config['interval']
     limit = config['limit']
+    filename = config['filename']
     if config['filename'] is None:
         filename = ''.join([basecurr, quotecurr, exchange, interval,
             str(limit), '.csv'])
@@ -209,7 +213,6 @@ if __name__ == "__main__":
             "from exchange", exchange, "time interval", interval, "limit",
             str(limit), "Y/N ?"]))
 
-    print(arguments)
     toTs = get_most_recent_rounded_timestamp(interval)
     print("Calculated nearest current timestamp: " + str(toTs))
 
@@ -219,12 +222,13 @@ if __name__ == "__main__":
     price_history = get_token_history(
         history_params, interval)
 
-    # TODO: Consider batching up writes to avoid size limitations with large
+    # Add the additional columns for the csv, through pandas.
+    pricedf = pd.DataFrame(price_history, columns=CSV_COL_HEADERS)
+    pricedf['vwap'] = pricedf['volumeto'] / pricedf['volumefrom']
+    pricedf['base'] = basecurr
+    pricedf['quote'] = quotecurr
+    pricedf['exchange'] = exchange
+
+    # TODO: Consider batching up writes to avoid memory limitations with large
     # datasets
-    csvmaker.dict_write_to_csv(
-        CSV_COL_HEADERS,
-        filename,
-        price_history)
-
-
-
+    pricedf.to_csv(path_or_buf=filename, index=False)
