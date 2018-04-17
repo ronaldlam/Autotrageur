@@ -1,0 +1,11 @@
+# Configuration to create a csv of a trading pair's daily history
+# NOTE: CryptoCompare API only supports historical minute data for the past 7 days.
+
+base: eth # (String) The base currency of the trading pair (e.g. "ETH" of "ETH/USD" pair).
+quote: usd # (String) The quote currency of the trading pair (e.g. "USD" of "ETH/USD" pair).
+exchange: gemini # (String) The name of the exchange to obtain historical data (e.g. "Gemini").
+interval: days # (String) Time Interval to retrieve historical.  One of 'days', 'hours', 'minutes'.
+limit: 730 # (Int) Number of data points to return. E.g. 365 for daily will be 365 days.
+
+filename: # (String) A custom filename.  If not provided, the filename will be a concatenation of
+          # the above properties.  e.g. ethusdgeminidays30.csv
