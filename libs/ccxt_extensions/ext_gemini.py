@@ -125,6 +125,11 @@ class ext_gemini(ccxt.gemini):
             asset_price (float): The target buy price, quote per base.
             slippage (float): The percentage off asset_price the market
                 buy will tolerate.
+
+        Returns:
+            dict[dict, int]: Dictionary of response, includes 'info'
+            and 'id'. The 'info' includes all response contents and
+            result['id'] == result['info']['id']
         """
         # Calculated volume of asset expected to be purchased.
         asset_volume = quote_amount / asset_price
@@ -171,21 +176,25 @@ class ext_gemini(ccxt.gemini):
                 buy will tolerate.
 
         Returns:
-            [type]: [description]
+            dict[dict, int]: Dictionary of response, includes 'info'
+            and 'id'. The 'info' includes all response contents and
+            result['id'] == result['info']['id']
         """
         # Minimum price we are willing to sell.
         ratio = (100.0 - slippage) / 100.0
-        precision = self.markets[symbol]['precision']['price']
-        limit_price = round(asset_price * ratio, precision)
+        a_precision = self.markets[symbol]['precision']['amount']
+        p_precision = self.markets[symbol]['precision']['price']
+        rounded_amount = round(asset_amount, a_precision)
+        rounded_limit_price = round(asset_price * ratio, p_precision)
 
-        logging.info("Gemini market sell.")
+        logging.info("Gemini emulated market sell.")
         logging.info("Estimated asset price: %s" % asset_price)
-        logging.info("Volume: %s" % asset_amount)
-        logging.info("Limit price: %s" % limit_price)
+        logging.info("Asset volume: %s" % rounded_amount)
+        logging.info("Limit price: %s" % rounded_limit_price)
 
         result = self.create_limit_sell_order(
             symbol,
-            asset_amount,
-            limit_price,
+            rounded_amount,
+            rounded_limit_price,
             {"options": ["immediate-or-cancel"]})
         return result

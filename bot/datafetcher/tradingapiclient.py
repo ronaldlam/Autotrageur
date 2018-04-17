@@ -80,8 +80,7 @@ class TradingClient(BaseAPIClient):
         by the exchange.
 
         Args:
-            asset_price (float): Target asset price for exchanges with
-                no market buy support.
+            asset_price (float): Target asset price for the trade.
 
         Raises:
             NotImplementedError: If not implemented.
@@ -92,14 +91,17 @@ class TradingClient(BaseAPIClient):
             result['id'] == result['info']['id']
         """
         symbol = "%s/%s" % (self.base, self.quote)
-        a_precision = self.ccxt_exchange.markets[symbol]['precision']['amount']
         market_order = self.ccxt_exchange.has['createMarketOrder']
 
         if market_order is True:
             # Rounding is required for direct ccxt call.
-            rounded_amount = round(self.target_amount, a_precision)
+            precision = self.ccxt_exchange.markets[symbol]['precision']
+            amount_precision = precision['amount']
+            asset_amount = self.target_amount / asset_price
+            rounded_amount = round(asset_amount, amount_precision)
             result = self.ccxt_exchange.create_market_buy_order(
-                symbol, rounded_amount)
+                symbol,
+                rounded_amount)
         elif market_order == 'emulated':
             # Rounding is deferred to emulated implementation.
             result = self.ccxt_exchange.create_emulated_market_buy_order(
@@ -131,21 +133,20 @@ class TradingClient(BaseAPIClient):
             result['id'] == result['info']['id']
         """
         symbol = "%s/%s" % (self.base, self.quote)
-        p_precision = self.ccxt_exchange.markets[symbol]['precision']['price']
-        a_precision = self.ccxt_exchange.markets[symbol]['precision']['amount']
-        rounded_price = round(asset_price, p_precision)
-        rounded_amount = round(asset_amount, a_precision)
         market_order = self.ccxt_exchange.has['createMarketOrder']
 
         if market_order is True:
+            precision = self.ccxt_exchange.markets[symbol]['precision']
+            amount_precision = precision['amount']
+            rounded_amount = round(asset_amount, amount_precision)
             result = self.ccxt_exchange.create_market_sell_order(
                 symbol,
                 rounded_amount)
         elif market_order == 'emulated':
             result = self.ccxt_exchange.create_emulated_market_sell_order(
                 symbol,
-                rounded_price,
-                rounded_amount,
+                asset_price,
+                asset_amount,
                 self.slippage)
         else:
             raise NotImplementedError(
