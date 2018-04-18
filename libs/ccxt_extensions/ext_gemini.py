@@ -7,7 +7,7 @@ class ext_gemini(ccxt.gemini):
     """Subclass of ccxt's gemini.py for internal use.
 
     The name ext_gemini is to keep similar convention when initializing
-    the exchnage classes.
+    the exchange classes.
     """
 
     def describe(self):
