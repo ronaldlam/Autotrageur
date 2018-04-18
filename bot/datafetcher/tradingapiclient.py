@@ -93,12 +93,15 @@ class TradingClient(BaseAPIClient):
         if market_order is True:
             # Rounding is required for direct ccxt call.
             precision = self.ccxt_exchange.markets[symbol]['precision']
-            amount_precision = precision['amount']
             asset_amount = self.target_amount / asset_price
-            rounded_amount = round(asset_amount, amount_precision)
+
+            # In the case the exchange supports arbitrary precision.
+            if 'amount' in precision and precision['amount'] is not None:
+                asset_amount = round(asset_amount, precision['amount'])
+
             result = self.ccxt_exchange.create_market_buy_order(
                 symbol,
-                rounded_amount)
+                asset_amount)
         elif market_order == 'emulated':
             # Rounding is deferred to emulated implementation.
             result = self.ccxt_exchange.create_emulated_market_buy_order(
@@ -134,11 +137,13 @@ class TradingClient(BaseAPIClient):
 
         if market_order is True:
             precision = self.ccxt_exchange.markets[symbol]['precision']
-            amount_precision = precision['amount']
-            rounded_amount = round(asset_amount, amount_precision)
+
+            if 'amount' in precision and precision['amount'] is not None:
+                asset_amount = round(asset_amount, precision['amount'])
+
             result = self.ccxt_exchange.create_market_sell_order(
                 symbol,
-                rounded_amount)
+                asset_amount)
         elif market_order == 'emulated':
             result = self.ccxt_exchange.create_emulated_market_sell_order(
                 symbol,
