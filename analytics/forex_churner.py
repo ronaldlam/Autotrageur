@@ -1,3 +1,12 @@
+import os
+import sys
+import inspect
+
+# Add parent dir onto the sys.path.
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0, parentdir)
+
 from datetime import datetime as dt
 import logging
 import time
@@ -5,6 +14,7 @@ import time
 from forex_python.converter import CurrencyRates, RatesNotAvailableError
 
 import libs.csv.csvmaker as csvmaker
+
 
 # Constants.
 DAYS_PER_YEAR = 365
