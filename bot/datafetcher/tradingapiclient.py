@@ -4,6 +4,9 @@ import sys
 import ccxt
 
 from .baseapiclient import BaseAPIClient
+import libs.ccxt_extensions as ccxt_extensions
+
+EXTENSION_PREFIX = "ext_"
 
 
 class OrderbookException(Exception):
@@ -47,7 +50,12 @@ class TradingClient(BaseAPIClient):
 
         """
         super(TradingClient, self).__init__(base, quote, exchange)
-        self.ccxt_exchange = getattr(ccxt, exchange.lower())(exchange_config)
+        exchange = exchange.lower()
+        if EXTENSION_PREFIX + exchange in dir(ccxt_extensions):
+            self.ccxt_exchange = getattr(
+                ccxt_extensions, EXTENSION_PREFIX + exchange)(exchange_config)
+        else:
+            self.ccxt_exchange = getattr(ccxt, exchange)(exchange_config)
         self.slippage = slippage
         self.target_amount = target_amount
         self.conversion_needed = False
@@ -69,37 +77,39 @@ class TradingClient(BaseAPIClient):
         """Execute a market buy order.
 
         Args:
-            asset_price (float): Target asset price for exchanges with
-                no market buy support.
+            asset_price (float): Target asset price for the trade.
+
+        Raises:
+            NotImplementedError: If not implemented.
 
         Returns:
             dict[dict, int]: Dictionary of response, includes 'info'
             and 'id'. The 'info' includes all response contents and
             result['id'] == result['info']['id']
         """
-        if self.ccxt_exchange.id == "gemini":
-            assert asset_price is not None
-            # Calculated volume of asset expected to be purchased.
-            volume = self.target_amount / asset_price
-            # Maximum price we are willing to pay.
-            # TODO: Implement failsafes for unreasonable slippage.
-            ratio = (100.0 + self.slippage) / 100.0
-            limit_price = round(asset_price * ratio, 2)
+        symbol = "%s/%s" % (self.base, self.quote)
+        market_order = self.ccxt_exchange.has['createMarketOrder']
 
-            logging.info("Gemini market buy.")
-            logging.info("Estimated asset price: %s" % asset_price)
-            logging.info("Volume: %s" % volume)
-            logging.info("Limit price: %s" % limit_price)
-
-            result = self.ccxt_exchange.create_limit_buy_order(
-                "%s/%s" % (self.base, self.quote),
-                volume,
-                limit_price,
-                {"options": ["immediate-or-cancel"]})
-        else:
+        if market_order is True:
+            # Rounding is required for direct ccxt call.
+            precision = self.ccxt_exchange.markets[symbol]['precision']
+            amount_precision = precision['amount']
+            asset_amount = self.target_amount / asset_price
+            rounded_amount = round(asset_amount, amount_precision)
             result = self.ccxt_exchange.create_market_buy_order(
-                "%s/%s" % (self.base, self.quote),
-                self.target_amount)
+                symbol,
+                rounded_amount)
+        elif market_order == 'emulated':
+            # Rounding is deferred to emulated implementation.
+            result = self.ccxt_exchange.create_emulated_market_buy_order(
+                symbol,
+                self.target_amount,
+                asset_price,
+                self.slippage)
+        else:
+            raise NotImplementedError(
+                "Exchange %s has no market buy functionality." %
+                self.ccxt_exchange.id)
 
         return result
 
@@ -111,30 +121,34 @@ class TradingClient(BaseAPIClient):
                 no market sell support.
             asset_amount (float): Target amount of the asset to be sold.
 
+        Raises:
+            NotImplementedError: If not implemented.
+
         Returns:
             dict[dict, int]: Dictionary of response, includes 'info'
             and 'id'. The 'info' includes all response contents and
             result['id'] == result['info']['id']
         """
-        if self.ccxt_exchange.id == "gemini":
-            # Minimum price we are willing to sell.
-            ratio = (100.0 - self.slippage) / 100.0
-            limit_price = round(asset_price * ratio, 2)
+        symbol = "%s/%s" % (self.base, self.quote)
+        market_order = self.ccxt_exchange.has['createMarketOrder']
 
-            logging.info("Gemini market sell.")
-            logging.info("Estimated asset price: %s" % asset_price)
-            logging.info("Volume: %s" % asset_amount)
-            logging.info("Limit price: %s" % limit_price)
-
-            result = self.ccxt_exchange.create_limit_sell_order(
-                "%s/%s" % (self.base, self.quote),
-                asset_amount,
-                limit_price,
-                {"options": ["immediate-or-cancel"]})
-        else:
+        if market_order is True:
+            precision = self.ccxt_exchange.markets[symbol]['precision']
+            amount_precision = precision['amount']
+            rounded_amount = round(asset_amount, amount_precision)
             result = self.ccxt_exchange.create_market_sell_order(
-                "%s/%s" % (self.base, self.quote),
-                self.target_amount)
+                symbol,
+                rounded_amount)
+        elif market_order == 'emulated':
+            result = self.ccxt_exchange.create_emulated_market_sell_order(
+                symbol,
+                asset_price,
+                asset_amount,
+                self.slippage)
+        else:
+            raise NotImplementedError(
+                "Exchange %s has no market sell functionality." %
+                self.ccxt_exchange.id)
 
         return result
 
@@ -144,8 +158,9 @@ class TradingClient(BaseAPIClient):
         This function assumes worst case fees. For example, Gemini has a
         volume adjusted fee schedule that will benefit high volume
         traders. This is not accessible through their API and only post-
-        trade fees can be retrieved. Also, ccxt seems to have incomplete
-        information for Gemini.
+        trade fees can be retrieved. Information may be loaded per
+        exchange in the Autotrageur project extending ccxt. See
+        libs.ccxt_extensions.at_gemini for an example.
 
         Raises:
             NotImplementedError: If not accessible through ccxt.
@@ -153,10 +168,7 @@ class TradingClient(BaseAPIClient):
         Returns:
             float: The maker fee, given as a ratio.
         """
-        # TODO: Review when upgrading past ccxt 1.11.163.
-        if self.ccxt_exchange.id == "gemini":
-            return 0.0025  # Hardcoded to 0.25%, verified through docs.
-        elif self.ccxt_exchange.fees["trading"]["maker"]:
+        if self.ccxt_exchange.fees["trading"]["maker"]:
             return self.ccxt_exchange.fees["trading"]["maker"]
         else:
             logging.error(
@@ -166,8 +178,8 @@ class TradingClient(BaseAPIClient):
     def fetch_taker_fees(self):
         """Retrieve taker fees for given exchange.
 
-        This function assumes worst case fees. High volume discounts are not
-        counted. See fetch_maker_fees() for additional details.
+        This function assumes worst case fees. High volume discounts are
+        not counted. See fetch_maker_fees() for additional details.
 
         Raises:
             NotImplementedError: If not accessible through ccxt.
@@ -249,6 +261,10 @@ class TradingClient(BaseAPIClient):
             usd_value = super(TradingClient, self).convert_to_usd(
                 self.target_amount)
             return usd_value / asset_volume
+
+    def load_markets(self):
+        """Load the markets of the exchange."""
+        self.ccxt_exchange.load_markets()
 
     def set_conversion_needed(self, flag):
         """Indicates whether a conversion is needed for the quote currency.

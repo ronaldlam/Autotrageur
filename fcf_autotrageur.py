@@ -34,7 +34,7 @@ class FCFAutotrageur(Autotrageur):
             spread_low = self.config[SPREAD_TARGET_LOW]
             spread_high = self.config[SPREAD_TARGET_HIGH]
             self.spread_opp = arbseeker.get_arb_opportunities_by_orderbook(
-                self.tclient_exchange1, self.tclient_exchange2, spread_low,
+                self.tclient1, self.tclient2, spread_low,
                 spread_high)
         except ccxt.RequestTimeout as timeout:
             logging.error(timeout)
@@ -65,7 +65,7 @@ class FCFAutotrageur(Autotrageur):
             if self.config[AUTHENTICATE]:
                 logging.info(self.message)
                 send_all_emails(self.message)
-                verify = input("Type 'execute' to attempt trade execution")
+                verify = input("Type 'execute' to attempt trade execution\n")
 
                 if verify == "execute":
                     logging.info("Attempting to execute trades")
