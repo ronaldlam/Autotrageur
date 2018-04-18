@@ -76,9 +76,6 @@ class TradingClient(BaseAPIClient):
     def execute_market_buy(self, asset_price):
         """Execute a market buy order.
 
-        This function will round asset_price to the precision supported
-        by the exchange.
-
         Args:
             asset_price (float): Target asset price for the trade.
 
