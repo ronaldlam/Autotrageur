@@ -24,11 +24,11 @@ import pandas as pd
 import yaml
 
 # Constants
-MINUTES_TO_SECONDS = 60
-HOURS_TO_SECONDS = MINUTES_TO_SECONDS * 60
-DAYS_TO_SECONDS = HOURS_TO_SECONDS * 24
-DAYS_IN_YEAR = 365
-HOURS_IN_YEAR = DAYS_IN_YEAR * 24
+SECONDS_PER_MINUTE = 60
+SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60
+SECONDS_PER_DAY = SECONDS_PER_HOUR * 24
+DAYS_PER_YEAR = 365
+HOURS_IN_YEAR = DAYS_PER_YEAR * 24
 CSV_COL_HEADERS = [
         'time',
         'close',
@@ -86,7 +86,7 @@ class HistoryQueryParams:
 
     def __init__(self, base, quote, exchange=None, extraParams=None,
                  sign=False, tryConversion=True, aggregate=None, limit=None,
-                 toTs=None, allData=None):
+                 toTs=None, allData=False):
         """Constructor.
 
         Args:
@@ -103,13 +103,13 @@ class HistoryQueryParams:
                 only direct trading values.  Defaults to True.
             aggregate (int, optional): Time period to aggregate the data over
                 (for daily it's days, for hourly it's hours and for minute
-                histo it's minutes). Defaults to None.
+                it's minutes). Defaults to None.
             limit (int, optional): Number of data points to return.  Max is
                 2000.  Defaults to None.
             toTs (int, optional): Last unix timestamp to return data for.
                 Defaults to None, the present timestamp.
             allData (bool, optional): Returns all data (only available on
-                histo day).  Defaults to None.
+                histo day).  Defaults to False.
         """
         self.base = base
         self.quote = quote
@@ -134,11 +134,11 @@ def get_most_recent_rounded_timestamp(interval):
     """
     curr_time = time.time()
     if interval == TimeInterval.MINUTES.value:
-        return curr_time - (curr_time % MINUTES_TO_SECONDS)
+        return curr_time - (curr_time % SECONDS_PER_MINUTE)
     elif interval == TimeInterval.HOURS.value:
-        return curr_time - (curr_time % HOURS_TO_SECONDS)
+        return curr_time - (curr_time % SECONDS_PER_HOUR)
     elif interval == TimeInterval.DAYS.value:
-        return curr_time - (curr_time % DAYS_TO_SECONDS)
+        return curr_time - (curr_time % SECONDS_PER_DAY)
 
 
 def get_token_history(history_params, interval):
@@ -200,9 +200,9 @@ if __name__ == "__main__":
                             str(limit), '.csv'])
     if not TimeInterval.has_value(interval):
         raise IncompatibleTimeIntervalError("Time interval must be one of:"
-                                            "'days', hours', 'minutes'.")
+                                            "'days', 'hours', 'minutes'.")
     if os.path.exists(filename):
-        sys.exit(filename + "already exists.  Please use another name or move "
+        sys.exit(filename + " already exists.  Please use another name or move "
                  "the file.")
 
     # Prompt user with the configuration specified.
