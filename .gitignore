@@ -67,3 +67,4 @@ encrypted-secret.txt
 # Local test files
 arb_config.yaml
 email_info.yaml
+.pytest_cache/
