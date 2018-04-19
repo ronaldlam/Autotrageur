@@ -1,4 +1,4 @@
-date,forex_rate,base,quote
+time,forex_rate,base,quote
 1460505600,0.00087035,KRW,USD
 1460592000,0.00086654,KRW,USD
 1460678400,0.00087128,KRW,USD

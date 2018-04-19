@@ -1,4 +1,4 @@
-date,forex_rate,base,quote
+time,forex_rate,base,quote
 1460505600,0.781,CAD,USD
 1460592000,0.77955,CAD,USD
 1460678400,0.77633,CAD,USD

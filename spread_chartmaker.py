@@ -28,7 +28,7 @@ if __name__ == "__main__":
     ds1_df.time = pd.to_datetime(ds1_df.time, unit='s')
 
     data = [
-        go.Scatter(x=ds1_df.time, y=ds1_df.vwap, mode='lines+markers', text=raw_spread),
-        go.Scatter(x=ds2_df.time, y=ds2_df.vwap, mode='lines+markers')
+        go.Scatter(x=ds1_df.time, y=ds1_df.vwap, mode='lines+markers', text=raw_spread, name="bitfinex"),
+        go.Scatter(x=ds2_df.time, y=ds2_df.vwap, mode='lines+markers', name="gdax")
     ]
     plotly.offline.plot(data, filename="test_graph")
