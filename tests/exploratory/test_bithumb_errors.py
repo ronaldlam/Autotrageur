@@ -97,6 +97,21 @@ def is_buy(request):
     return request.param
 
 
+def get_result_from_error(e, translator):
+    """Retrieve translated string result from error
+
+    Args:
+        e (ccxt.ExchangeError): The error raised by ccxt.
+
+    Returns:
+        str: The translated result.
+    """
+    # Error messages come back with unicode escapes in the JSON. We
+    # decode by decoding the binary form with the extra setting.
+    decoded = e.args[0].encode('utf-8').decode('unicode_escape')
+    return str(translator.translate(decoded))
+
+
 def wait_out_ddos(wait_time):
     """Wait for wait_time and return wait_time.
 
@@ -137,10 +152,7 @@ def test_min_market_order_limits(
         else:
             bithumb.create_market_sell_order(symbol, limit_amount)
     except ccxt.ExchangeError as e:
-        # Error messages come back with unicode escapes in the JSON. We
-        # decode by decoding the binary form with the extra setting.
-        decoded = e.args[0].encode('utf-8').decode('unicode_escape')
-        result = str(translator.translate(decoded))
+        result = get_result_from_error(e, translator)
         assert(result == limit_results(is_buy, symbol, limit_amount))
     except ccxt.DDoSProtection as e:
         wait_time = wait_out_ddos(wait_time)
@@ -158,15 +170,54 @@ def test_max_market_order_precision(
         else:
             bithumb.create_market_sell_order(symbol, precision_amount)
     except ccxt.ExchangeError as e:
-        # Error messages come back with unicode escapes in the JSON. We
-        # decode by decoding the binary form with the extra setting.
-        decoded = e.args[0].encode('utf-8').decode('unicode_escape')
-        result = str(translator.translate(decoded))
+        result = get_result_from_error(e, translator)
         assert(result == precision_results(is_buy, symbol, precision_amount))
     except ccxt.DDoSProtection as e:
         wait_time = wait_out_ddos(wait_time)
         test_max_market_order_precision(
             is_buy, bithumb, symbol, precision_amount, translator, wait_time)
+
+
+
+# Failures are from dynamically calculated limits based on current
+# market price. See error messages for examples.
+@pytest.mark.parametrize(
+    "is_buy, symbol, price", [
+        pytest.param(True, "BTC/KRW", 0, marks=pytest.mark.xfail),
+        (True, "BTC/KRW", 0.1),
+        (True, "BTC/KRW", 1),
+        pytest.param(True, "BTC/KRW", 1000, marks=pytest.mark.xfail),
+        pytest.param(True, "ETH/KRW", 0, marks=pytest.mark.xfail),
+        (True, "ETH/KRW", 0.1),
+        (True, "ETH/KRW", 1),
+        pytest.param(True, "ETH/KRW", 1000, marks=pytest.mark.xfail),
+        (False, "BTC/KRW", 0),
+        (False, "BTC/KRW", 0.1),
+        (False, "BTC/KRW", 1),
+        (False, "BTC/KRW", 1000),
+        (False, "ETH/KRW", 0),
+        (False, "ETH/KRW", 0.1),
+        (False, "ETH/KRW", 1),
+        (False, "ETH/KRW", 1000)])
+def test_limit_order_min_price(
+    is_buy, bithumb, symbol, price, translator, wait_time=1):
+    try:
+        # To avoid DDoS protection.
+        time.sleep(.1)
+        if (is_buy):
+            bithumb.create_limit_buy_order(symbol, 0.01, price)
+        else:
+            bithumb.create_limit_sell_order(symbol, 0.01, price)
+    except ccxt.ExchangeError as e:
+        result = get_result_from_error(e, translator)
+        # assert(result == price_limit_results(is_buy, symbol, price))
+        if not result == price_limit_results(is_buy, symbol, price):
+            raise Exception(result)
+    except ccxt.DDoSProtection as e:
+        wait_time = wait_out_ddos(wait_time)
+        test_limit_order_min_price(
+            is_buy, bithumb, symbol, price, translator, wait_time)
+
 
 
 def limit_results(is_buy, symbol, limit_amount):
@@ -221,3 +272,36 @@ def precision_results(is_buy, symbol, precision_amount):
             }
         }
     }[is_buy][symbol][precision_amount]
+
+
+def price_limit_results(is_buy, symbol, price):
+    return {
+        True: {
+            "BTC/KRW": {
+                0: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "The order price is $ 898,000 or more."}, pronunciation=None)',
+                0.1: 'Translated(src=en, dest=en, text=bithumb {"status":"5500","message":"Invalid Parameter"}, pronunciation=bithumb {"status":"5500","message":"Invalid Parameter"})',
+                1: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "You can trade in units of $ 1000."}, pronunciation=None)',
+                1000: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "The order price is $ 898,000 or more."}, pronunciation=None)'
+            },
+            "ETH/KRW": {
+                0: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "You can place an order for over 62,000 KRW."}, pronunciation=None)',
+                0.1: 'Translated(src=en, dest=en, text=bithumb {"status":"5500","message":"Invalid Parameter"}, pronunciation=bithumb {"status":"5500","message":"Invalid Parameter"})',
+                1: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "Can be traded in units of $ 500."}, pronunciation=None)',
+                1000: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "You can place an order for over 62,000 KRW."}, pronunciation=None)'
+            }
+        },
+        False: {
+            "BTC/KRW": {
+                0: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "The price is below the sellable amount."}, pronunciation=None)',
+                0.1: 'Translated(src=en, dest=en, text=bithumb {"status":"5500","message":"Invalid Parameter"}, pronunciation=bithumb {"status":"5500","message":"Invalid Parameter"})',
+                1: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "You can trade in units of $ 1000."}, pronunciation=None)',
+                1000: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "The price is below the sellable amount."}, pronunciation=None)'
+            },
+            "ETH/KRW": {
+                0: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "The price is below the sellable amount."}, pronunciation=None)',
+                0.1: 'Translated(src=en, dest=en, text=bithumb {"status":"5500","message":"Invalid Parameter"}, pronunciation=bithumb {"status":"5500","message":"Invalid Parameter"})',
+                1: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "Can be traded in units of $ 500."}, pronunciation=None)',
+                1000: 'Translated(src=ko, dest=en, text=bithumb {"status": "5600", "message": "The price is below the sellable amount."}, pronunciation=None)'
+            }
+        }
+    }[is_buy][symbol][price]

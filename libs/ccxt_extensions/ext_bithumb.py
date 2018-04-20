@@ -19,13 +19,14 @@ class ext_bithumb(ccxt.bithumb):
                 'base': 8,      # The precision of min execution quantity
                 'quote': 0,     # The precision of min execution quantity
                 'amount': 4,    # The precision of min order increment
-                'price': 0,     # The precision of price in KRW
+                'price': -3,    # The precision of price in KRW
+                                # 1000 KRW increment
             },
             'ETH/KRW': {
                 'base': 8,
                 'quote': 0,
                 'amount': 4,
-                'price': 0,
+                'price': -3,    # Acutal min increment is 500 KRW
             }
         }
         limits = {
