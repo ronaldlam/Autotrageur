@@ -210,9 +210,7 @@ def test_limit_order_min_price(
             bithumb.create_limit_sell_order(symbol, 0.01, price)
     except ccxt.ExchangeError as e:
         result = get_result_from_error(e, translator)
-        # assert(result == price_limit_results(is_buy, symbol, price))
-        if not result == price_limit_results(is_buy, symbol, price):
-            raise Exception(result)
+        assert(result == price_limit_results(is_buy, symbol, price))
     except ccxt.DDoSProtection as e:
         wait_time = wait_out_ddos(wait_time)
         test_limit_order_min_price(

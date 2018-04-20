@@ -1,6 +1,11 @@
 import ccxt
 
 class ext_bithumb(ccxt.bithumb):
+    """Subclass of ccxt's bithumb.py for internal use.
+
+    The name ext_bithumb is to keep similar convention when initializing
+    the exchange classes.
+    """
 
     def fetch_markets(self):
         """Retrieve data for the markets of the exchange.
@@ -26,7 +31,7 @@ class ext_bithumb(ccxt.bithumb):
                 'base': 8,
                 'quote': 0,
                 'amount': 4,
-                'price': -3,    # Acutal min increment is 500 KRW
+                'price': -3,    # Actual min increment is 500 KRW
             }
         }
         limits = {
