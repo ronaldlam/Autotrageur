@@ -5,12 +5,18 @@ import ccxt
 
 from .baseapiclient import BaseAPIClient
 import libs.ccxt_extensions as ccxt_extensions
+from libs.security.utils import keys_exists
 
 EXTENSION_PREFIX = "ext_"
 
 
 class OrderbookException(Exception):
     """Exception for orderbook related errors."""
+    pass
+
+
+class ExchangeLimitException(Exception):
+    """Exception for exchange limit breaches."""
     pass
 
 
@@ -60,6 +66,57 @@ class TradingClient(BaseAPIClient):
         self.target_amount = target_amount
         self.conversion_needed = False
 
+    def __check_exchange_limits(self, amount, price):
+            """Verify amount and price are within exchange limits.
+
+            Args:
+                amount (float): Amount of the base asset to trade.
+                price (float): Price of base asset in quote currency.
+
+            Raises:
+                ExchangeLimitException: If asset buy amount is outside
+                    exchange limits.
+            """
+            symbol = "%s/%s" % (self.base, self.quote)
+            limits = self.ccxt_exchange.markets[symbol]['limits']
+
+            if amount is not None and keys_exists(limits, 'amount', 'min'):
+                min_limit = limits['amount']['min']
+                if min_limit is not None and min_limit > amount:
+                    raise ExchangeLimitException(
+                        "Order amount %s %s less than exchange limit %s %s." % (
+                            amount,
+                            self.base,
+                            min_limit,
+                            self.base))
+            if amount is not None and keys_exists(limits, 'amount', 'max'):
+                max_limit = limits['amount']['max']
+                if max_limit is not None and max_limit < amount:
+                    raise ExchangeLimitException(
+                        "Order amount %s %s more than exchange limit %s %s." % (
+                            amount,
+                            self.base,
+                            max_limit,
+                            self.base))
+            if price is not None and keys_exists(limits, 'price', 'min'):
+                min_limit = limits['price']['min']
+                if min_limit is not None and min_limit > price:
+                    raise ExchangeLimitException(
+                        "Order price %s %s less than exchange limit %s %s." % (
+                            price,
+                            self.base,
+                            min_limit,
+                            self.base))
+            if price is not None and keys_exists(limits, 'price', 'max'):
+                max_limit = limits['price']['max']
+                if max_limit is not None and max_limit < price:
+                    raise ExchangeLimitException(
+                        "Order price %s %s more than exchange limit %s %s." % (
+                            price,
+                            self.base,
+                            max_limit,
+                            self.base))
+
     def connect_test_api(self):
         """Connect to the test API of the exchange.
 
@@ -81,6 +138,8 @@ class TradingClient(BaseAPIClient):
 
         Raises:
             NotImplementedError: If not implemented.
+            ExchangeLimitException: If asset buy amount is outside
+                exchange limits.
 
         Returns:
             dict[dict, int]: Dictionary of response, includes 'info'
@@ -89,20 +148,25 @@ class TradingClient(BaseAPIClient):
         """
         symbol = "%s/%s" % (self.base, self.quote)
         market_order = self.ccxt_exchange.has['createMarketOrder']
+        asset_amount = self.target_amount / asset_price
 
         if market_order is True:
             # Rounding is required for direct ccxt call.
             precision = self.ccxt_exchange.markets[symbol]['precision']
-            asset_amount = self.target_amount / asset_price
 
             # In the case the exchange supports arbitrary precision.
             if 'amount' in precision and precision['amount'] is not None:
                 asset_amount = round(asset_amount, precision['amount'])
 
+            self.__check_exchange_limits(asset_amount, asset_price)
             result = self.ccxt_exchange.create_market_buy_order(
                 symbol,
                 asset_amount)
         elif market_order == 'emulated':
+            # We check before rounding which is not strictly correct,
+            # but it is likely larger issues are at hand if the error is
+            # raised.
+            self.__check_exchange_limits(asset_amount, asset_price)
             # Rounding is deferred to emulated implementation.
             result = self.ccxt_exchange.create_emulated_market_buy_order(
                 symbol,
@@ -126,6 +190,8 @@ class TradingClient(BaseAPIClient):
 
         Raises:
             NotImplementedError: If not implemented.
+            ExchangeLimitException: If asset buy amount is outside
+                exchange limits.
 
         Returns:
             dict[dict, int]: Dictionary of response, includes 'info'
@@ -141,10 +207,15 @@ class TradingClient(BaseAPIClient):
             if 'amount' in precision and precision['amount'] is not None:
                 asset_amount = round(asset_amount, precision['amount'])
 
+            self.__check_exchange_limits(asset_amount, asset_price)
             result = self.ccxt_exchange.create_market_sell_order(
                 symbol,
                 asset_amount)
         elif market_order == 'emulated':
+            # We check before rounding which is not strictly correct,
+            # but it is likely larger issues are at hand if the error is
+            # raised.
+            self.__check_exchange_limits(asset_amount, asset_price)
             result = self.ccxt_exchange.create_emulated_market_sell_order(
                 symbol,
                 asset_price,

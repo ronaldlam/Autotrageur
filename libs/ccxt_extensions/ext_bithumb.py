@@ -55,7 +55,9 @@ class ext_bithumb(ccxt.bithumb):
         markets = super().fetch_markets()
 
         for market in markets:
-            market['precision'] = precision[market['symbol']]
-            market['limits'] = limits[market['symbol']]
+            if market['symbol'] in precision:
+                market['precision'] = precision[market['symbol']]
+            if market['symbol'] in limits:
+                market['limits'] = limits[market['symbol']]
 
         return markets

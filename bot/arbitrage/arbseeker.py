@@ -1,5 +1,7 @@
 import logging
 
+from googletrans import Translator
+
 import bot.arbitrage.spreadcalculator as spreadcalculator
 import bot.datafetcher.tradingapiclient as trading_client
 
@@ -179,11 +181,14 @@ def execute_arbitrage(opportunity):
 
         sell_result = sell_trading_client.execute_market_sell(
             sell_price,
-            executed_buy_amount)
+            float(executed_buy_amount))
         logging.info("Sell result: %s" % sell_result)
 
     except Exception as exception:
-        logging.error(exception)
+        t = Translator()
+        decoded = exception.args[0].encode('utf-8').decode('unicode_escape')
+        translation = t.translate(decoded)
+        logging.error(translation.text)
         return False
     finally:
         return True
