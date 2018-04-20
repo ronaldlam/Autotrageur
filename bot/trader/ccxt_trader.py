@@ -67,55 +67,55 @@ class TradingClient(BaseAPIClient):
         self.conversion_needed = False
 
     def __check_exchange_limits(self, amount, price):
-        """Verify amount and price are within exchange limits.
+            """Verify amount and price are within exchange limits.
 
-        Args:
-            amount (float): Amount of the base asset to trade.
-            price (float): Price of base asset in quote currency.
+            Args:
+                amount (float): Amount of the base asset to trade.
+                price (float): Price of base asset in quote currency.
 
-        Raises:
-            ExchangeLimitException: If asset buy amount is outside
-                exchange limits.
-        """
-        symbol = "%s/%s" % (self.base, self.quote)
-        limits = self.ccxt_exchange.markets[symbol]['limits']
+            Raises:
+                ExchangeLimitException: If asset buy amount is outside
+                    exchange limits.
+            """
+            symbol = "%s/%s" % (self.base, self.quote)
+            limits = self.ccxt_exchange.markets[symbol]['limits']
 
-        if amount is not None and keys_exists(limits, 'amount', 'min'):
-            min_limit = limits['amount']['min']
-            if min_limit is not None and min_limit > amount:
-                raise ExchangeLimitException(
-                    "Order amount %s %s less than exchange limit %s %s." % (
-                        amount,
-                        self.base,
-                        min_limit,
-                        self.base))
-        if amount is not None and keys_exists(limits, 'amount', 'max'):
-            max_limit = limits['amount']['max']
-            if max_limit is not None and max_limit < amount:
-                raise ExchangeLimitException(
-                    "Order amount %s %s more than exchange limit %s %s." % (
-                        amount,
-                        self.base,
-                        max_limit,
-                        self.base))
-        if price is not None and keys_exists(limits, 'price', 'min'):
-            min_limit = limits['price']['min']
-            if min_limit is not None and min_limit > price:
-                raise ExchangeLimitException(
-                    "Order price %s %s less than exchange limit %s %s." % (
-                        price,
-                        self.base,
-                        min_limit,
-                        self.base))
-        if price is not None and keys_exists(limits, 'price', 'max'):
-            max_limit = limits['price']['max']
-            if max_limit is not None and max_limit < price:
-                raise ExchangeLimitException(
-                    "Order price %s %s more than exchange limit %s %s." % (
-                        price,
-                        self.base,
-                        max_limit,
-                        self.base))
+            if amount is not None and keys_exists(limits, 'amount', 'min'):
+                min_limit = limits['amount']['min']
+                if min_limit is not None and min_limit > amount:
+                    raise ExchangeLimitException(
+                        "Order amount %s %s less than exchange limit %s %s." % (
+                            amount,
+                            self.base,
+                            min_limit,
+                            self.base))
+            if amount is not None and keys_exists(limits, 'amount', 'max'):
+                max_limit = limits['amount']['max']
+                if max_limit is not None and max_limit < amount:
+                    raise ExchangeLimitException(
+                        "Order amount %s %s more than exchange limit %s %s." % (
+                            amount,
+                            self.base,
+                            max_limit,
+                            self.base))
+            if price is not None and keys_exists(limits, 'price', 'min'):
+                min_limit = limits['price']['min']
+                if min_limit is not None and min_limit > price:
+                    raise ExchangeLimitException(
+                        "Order price %s %s less than exchange limit %s %s." % (
+                            price,
+                            self.base,
+                            min_limit,
+                            self.base))
+            if price is not None and keys_exists(limits, 'price', 'max'):
+                max_limit = limits['price']['max']
+                if max_limit is not None and max_limit < price:
+                    raise ExchangeLimitException(
+                        "Order price %s %s more than exchange limit %s %s." % (
+                            price,
+                            self.base,
+                            max_limit,
+                            self.base))
 
     def connect_test_api(self):
         """Connect to the test API of the exchange.
