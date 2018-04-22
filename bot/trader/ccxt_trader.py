@@ -3,8 +3,11 @@ import sys
 
 import ccxt
 
-from .baseapiclient import BaseAPIClient
+import bot.currencyconverter as currencyconverter
 import libs.ccxt_extensions as ccxt_extensions
+from libs.trade.executor.ccxtexecutor import CCXTExecutor
+from libs.trade.executor.dryrunexecutor import DryRunExecutor
+from libs.trade.fetcher.ccxtfetcher import CCXTFetcher
 from libs.security.utils import keys_exists
 
 EXTENSION_PREFIX = "ext_"
@@ -20,27 +23,24 @@ class ExchangeLimitException(Exception):
     pass
 
 
-class TradingClient(BaseAPIClient):
-    """API Client for real-time data."""
+class CCXTTrader():
+    """CCXT Trader for performing trades."""
 
-    def __init__(
-            self,
-            base,
-            quote,
-            exchange,
-            slippage,
-            target_amount,
-            exchange_config=None):
+    def __init__(self, base, quote, exchange_name, slippage, target_amount,
+        exchange_config=None, dry_run=False):
         """Constructor.
 
-        Fetches real-time data from the specified exchange.
+        The trading client for interacting with the CCXT library.
+        Main responsibilities include:
+            1) Fetching real-time data from the specified exchange.
+            2) Executing orders against the specified exchange.
 
         Args:
             base (str): The base (first) token/currency of the exchange
                 pair.
             quote (str): The quote (second) token/currency of the
                 exchange pair.
-            exchange (str): Desired exchange to query against.
+            exchange_name (str): Desired exchange to query against.
             slippage (float): Maximum desired slippage from emulated
                 market trades.
             target_amount (float): Targeted amount to buy or sell, in
@@ -53,69 +53,101 @@ class TradingClient(BaseAPIClient):
                     "secret": [SOME_API_SECRET]
                     "verbose": False,
                 }
-
+            dry_run (bool): Whether to perform a dry run or not.  If True,
+                trades will be logged, rather than actually executed.
         """
-        super(TradingClient, self).__init__(base, quote, exchange)
-        exchange = exchange.lower()
-        if EXTENSION_PREFIX + exchange in dir(ccxt_extensions):
+        # Instantiate the CCXT Exchange object, or a custom extended CCXT
+        # Exchange object.
+        exchange_name = exchange_name.lower()
+        if EXTENSION_PREFIX + exchange_name in dir(ccxt_extensions):
             self.ccxt_exchange = getattr(
-                ccxt_extensions, EXTENSION_PREFIX + exchange)(exchange_config)
+                ccxt_extensions, EXTENSION_PREFIX + exchange_name)(exchange_config)
         else:
-            self.ccxt_exchange = getattr(ccxt, exchange)(exchange_config)
+            self.ccxt_exchange = getattr(ccxt, exchange_name)(exchange_config)
+
+        self.base = base
+        self.quote = quote
+        self.exchange_name = exchange_name
+        self.fetcher = CCXTFetcher(self.ccxt_exchange)
+        self.executor = DryRunExecutor() if dry_run else CCXTExecutor(self.ccxt_exchange)
         self.slippage = slippage
         self.target_amount = target_amount
         self.conversion_needed = False
 
     def __check_exchange_limits(self, amount, price):
-            """Verify amount and price are within exchange limits.
+        """Verify amount and price are within exchange limits.
 
-            Args:
-                amount (float): Amount of the base asset to trade.
-                price (float): Price of base asset in quote currency.
+        Args:
+            amount (float): Amount of the base asset to trade.
+            price (float): Price of base asset in quote currency.
 
-            Raises:
-                ExchangeLimitException: If asset buy amount is outside
-                    exchange limits.
-            """
-            symbol = "%s/%s" % (self.base, self.quote)
-            limits = self.ccxt_exchange.markets[symbol]['limits']
+        Raises:
+            ExchangeLimitException: If asset buy amount is outside
+                exchange limits.
+        """
+        symbol = "%s/%s" % (self.base, self.quote)
+        limits = self.ccxt_exchange.markets[symbol]['limits']
 
-            if amount is not None and keys_exists(limits, 'amount', 'min'):
-                min_limit = limits['amount']['min']
-                if min_limit is not None and min_limit > amount:
-                    raise ExchangeLimitException(
-                        "Order amount %s %s less than exchange limit %s %s." % (
-                            amount,
-                            self.base,
-                            min_limit,
-                            self.base))
-            if amount is not None and keys_exists(limits, 'amount', 'max'):
-                max_limit = limits['amount']['max']
-                if max_limit is not None and max_limit < amount:
-                    raise ExchangeLimitException(
-                        "Order amount %s %s more than exchange limit %s %s." % (
-                            amount,
-                            self.base,
-                            max_limit,
-                            self.base))
-            if price is not None and keys_exists(limits, 'price', 'min'):
-                min_limit = limits['price']['min']
-                if min_limit is not None and min_limit > price:
-                    raise ExchangeLimitException(
-                        "Order price %s %s less than exchange limit %s %s." % (
-                            price,
-                            self.base,
-                            min_limit,
-                            self.base))
-            if price is not None and keys_exists(limits, 'price', 'max'):
-                max_limit = limits['price']['max']
-                if max_limit is not None and max_limit < price:
-                    raise ExchangeLimitException(
-                        "Order price %s %s more than exchange limit %s %s." % (
-                            price,
-                            self.base,
-                            max_limit,
-                            self.base))
+        if amount is not None and keys_exists(limits, 'amount', 'min'):
+            min_limit = limits['amount']['min']
+            if min_limit is not None and min_limit > amount:
+                raise ExchangeLimitException(
+                    "Order amount %s %s less than exchange limit %s %s." % (
+                        amount,
+                        self.base,
+                        min_limit,
+                        self.base))
+        if amount is not None and keys_exists(limits, 'amount', 'max'):
+            max_limit = limits['amount']['max']
+            if max_limit is not None and max_limit < amount:
+                raise ExchangeLimitException(
+                    "Order amount %s %s more than exchange limit %s %s." % (
+                        amount,
+                        self.base,
+                        max_limit,
+                        self.base))
+        if price is not None and keys_exists(limits, 'price', 'min'):
+            min_limit = limits['price']['min']
+            if min_limit is not None and min_limit > price:
+                raise ExchangeLimitException(
+                    "Order price %s %s less than exchange limit %s %s." % (
+                        price,
+                        self.base,
+                        min_limit,
+                        self.base))
+        if price is not None and keys_exists(limits, 'price', 'max'):
+            max_limit = limits['price']['max']
+            if max_limit is not None and max_limit < price:
+                raise ExchangeLimitException(
+                    "Order price %s %s more than exchange limit %s %s." % (
+                        price,
+                        self.base,
+                        max_limit,
+                        self.base))
+
+    def __round_exchange_precision(self, market_order, symbol, asset_amount):
+        """Rounds the asset amount by a precision provided by the exchange.
+
+        Args:
+            market_order (bool or string): Is one of: True, False, 'emulated'
+                to specify if market order is supported, not supported,
+                or emulated.
+            symbol (string): The token pair symbol. E.g. 'ETH/USD'
+            asset_amount (float): The amount that is to be rounded.
+
+        Returns:
+            float: If precision specified by exchange, the rounded asset amount
+                is returned.  Else, the asset amount is returned unchanged.
+        """
+        if market_order:
+            # Rounding is required for direct ccxt call.
+            precision = self.ccxt_exchange.markets[symbol]['precision']
+
+            # In the case the exchange supports arbitrary precision.
+            if 'amount' in precision and precision['amount'] is not None:
+                asset_amount = round(asset_amount, precision['amount'])
+
+        return asset_amount
 
     def connect_test_api(self):
         """Connect to the test API of the exchange.
@@ -130,6 +162,24 @@ class TradingClient(BaseAPIClient):
                 "Test connection to %s not implemented." %
                 self.ccxt_exchange.id)
 
+    def check_wallet_balances(self):
+        """Checks the wallet balances of the base and quote currencies on the
+        exchange.
+
+        TODO: Should implement some fail-fast mechanism here, if wallet
+            balances do not meet a minimum.
+        """
+        for currency in [self.base, self.quote]:
+            import time
+            time.sleep(1)
+            balance = self.fetcher.fetch_free_balance(
+                self.base)
+            logging.log(logging.INFO,
+                        "Balance of %s on %s: %s" % (
+                            currency,
+                            self.exchange_name,
+                            balance))
+
     def execute_market_buy(self, asset_price):
         """Execute a market buy order.
 
@@ -143,32 +193,24 @@ class TradingClient(BaseAPIClient):
 
         Returns:
             dict[dict, int]: Dictionary of response, includes 'info'
-            and 'id'. The 'info' includes all response contents and
-            result['id'] == result['info']['id']
+                and 'id'. The 'info' includes all raw response contents and
+                result['id'] == result['info']['id']
         """
         symbol = "%s/%s" % (self.base, self.quote)
         market_order = self.ccxt_exchange.has['createMarketOrder']
-        asset_amount = self.target_amount / asset_price
+        asset_amount = self.__round_exchange_precision(market_order, symbol,
+                                                self.target_amount / asset_price)
+
+        # For 'emulated', We check before rounding which is not strictly
+        # correct, but it is likely larger issues are at hand if the error is
+        # raised.
+        self.__check_exchange_limits(asset_amount, asset_price)
 
         if market_order is True:
-            # Rounding is required for direct ccxt call.
-            precision = self.ccxt_exchange.markets[symbol]['precision']
-
-            # In the case the exchange supports arbitrary precision.
-            if 'amount' in precision and precision['amount'] is not None:
-                asset_amount = round(asset_amount, precision['amount'])
-
-            self.__check_exchange_limits(asset_amount, asset_price)
-            result = self.ccxt_exchange.create_market_buy_order(
-                symbol,
-                asset_amount)
+            result = self.executor.create_market_buy_order(symbol, asset_amount)
         elif market_order == 'emulated':
-            # We check before rounding which is not strictly correct,
-            # but it is likely larger issues are at hand if the error is
-            # raised.
-            self.__check_exchange_limits(asset_amount, asset_price)
-            # Rounding is deferred to emulated implementation.
-            result = self.ccxt_exchange.create_emulated_market_buy_order(
+            # Rounding will be deferred to emulated implementation.
+            result = self.executor.create_emulated_market_buy_order(
                 symbol,
                 self.target_amount,
                 asset_price,
@@ -195,28 +237,25 @@ class TradingClient(BaseAPIClient):
 
         Returns:
             dict[dict, int]: Dictionary of response, includes 'info'
-            and 'id'. The 'info' includes all response contents and
+            and 'id'. The 'info' includes all raw response contents and
             result['id'] == result['info']['id']
         """
         symbol = "%s/%s" % (self.base, self.quote)
         market_order = self.ccxt_exchange.has['createMarketOrder']
+        asset_amount = self.__round_exchange_precision(market_order, symbol,
+                                                 asset_amount)
+
+        # For 'emulated', We check before rounding which is not strictly
+        # correct, but it is likely larger issues are at hand if the error is
+        # raised.
+        self.__check_exchange_limits(asset_amount, asset_price)
 
         if market_order is True:
-            precision = self.ccxt_exchange.markets[symbol]['precision']
-
-            if 'amount' in precision and precision['amount'] is not None:
-                asset_amount = round(asset_amount, precision['amount'])
-
-            self.__check_exchange_limits(asset_amount, asset_price)
-            result = self.ccxt_exchange.create_market_sell_order(
+            result = self.executor.create_market_sell_order(
                 symbol,
                 asset_amount)
         elif market_order == 'emulated':
-            # We check before rounding which is not strictly correct,
-            # but it is likely larger issues are at hand if the error is
-            # raised.
-            self.__check_exchange_limits(asset_amount, asset_price)
-            result = self.ccxt_exchange.create_emulated_market_sell_order(
+            result = self.executor.create_emulated_market_sell_order(
                 symbol,
                 asset_price,
                 asset_amount,
@@ -228,80 +267,18 @@ class TradingClient(BaseAPIClient):
 
         return result
 
-    def fetch_maker_fees(self):
-        """Retrieve maker fees for given exchange.
-
-        This function assumes worst case fees. For example, Gemini has a
-        volume adjusted fee schedule that will benefit high volume
-        traders. This is not accessible through their API and only post-
-        trade fees can be retrieved. Information may be loaded per
-        exchange in the Autotrageur project extending ccxt. See
-        libs.ccxt_extensions.at_gemini for an example.
-
-        Raises:
-            NotImplementedError: If not accessible through ccxt.
-
-        Returns:
-            float: The maker fee, given as a ratio.
-        """
-        if self.ccxt_exchange.fees["trading"]["maker"]:
-            return self.ccxt_exchange.fees["trading"]["maker"]
-        else:
-            logging.error(
-                "Maker fees should be verified for %s" % self.ccxt_exchange.id)
-            raise NotImplementedError("Manually verify fees please.")
-
-    def fetch_taker_fees(self):
-        """Retrieve taker fees for given exchange.
-
-        This function assumes worst case fees. High volume discounts are
-        not counted. See fetch_maker_fees() for additional details.
-
-        Raises:
-            NotImplementedError: If not accessible through ccxt.
-
-        Returns:
-            float: The taker fee, given as a ratio.
-        """
-        if self.ccxt_exchange.fees["trading"]["taker"]:
-            return self.ccxt_exchange.fees["trading"]["taker"]
-        else:
-            logging.error(
-                "Taker fees should be verified for %s" % self.ccxt_exchange.id)
-            raise NotImplementedError("Manually verify fees please.")
-
-    def fetch_free_balance(self, asset):
-        """Fetch balance of the given asset in the account.
-
-        Args:
-            asset (string): The balance of the given asset
-
-        Returns:
-            float: The balances of the given asset.
-        """
-        balance = self.ccxt_exchange.fetch_balance()
-        return balance[asset]["free"]
-
-    def fetch_last_price(self):
-        """Fetches the last transacted price of the token pair.
-
-        Returns:
-            int: The last transacted price of the token pair.
-        """
-        pairsequence = (self.base, "/", self.quote)
-        ticker = self.ccxt_exchange.fetch_ticker(''.join(pairsequence))
-        return str(ticker['last'])
-
     def get_full_orderbook(self):
         """Gets the full orderbook (bids and asks) from the exchange."""
-        return self.ccxt_exchange.fetch_order_book(
-            self.base + "/" + self.quote)
+        return self.fetcher.get_full_orderbook(self.base, self.quote)
 
-    def get_market_price_from_orderbook(self, bids_or_asks):
+    def get_adjusted_market_price_from_orderbook(self, bids_or_asks):
         """Get market buy or sell price
 
-        Return potential market buy or sell price given bids or asks and
-        amount to be sold. Input of bids will retrieve market sell
+        Return adjusted market buy or sell price given bids or asks and
+        amount to be sold. The market price is adjusted based on orderbook
+        depth and the 'target amount' requested at the beginning of the program.
+
+        Input of bids will retrieve market sell
         price; input of asks will retrieve market buy price.
 
         Args:
@@ -312,7 +289,7 @@ class TradingClient(BaseAPIClient):
             float: Prospective price of a market buy or sell.
 
         Raises:
-            RuntimeError: If the orderbook is not deep enough.
+            OrderbookException: If the orderbook is not deep enough.
         """
         index = 0
         asset_volume = 0.0
@@ -334,9 +311,9 @@ class TradingClient(BaseAPIClient):
         if not self.conversion_needed:
             return self.target_amount / asset_volume
         else:
-            usd_value = super(TradingClient, self).convert_to_usd(
-                self.target_amount)
-            return usd_value / asset_volume
+            asset_usd_value = currencyconverter.convert_currencies(self.quote,
+                'USD', self.target_amount)
+            return asset_usd_value / asset_volume
 
     def load_markets(self):
         """Load the markets of the exchange."""

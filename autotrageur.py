@@ -6,7 +6,7 @@ import ccxt
 import yaml
 
 from libs.security.utils import decrypt, keyfile_to_map, to_bytes, to_str
-import bot.datafetcher.tradingapiclient as trading_client
+from bot.trader.ccxt_trader import CCXTTrader as CCXTTrader
 
 KEYFILE = "KEYFILE"
 PASSWORD = "PASSWORD"
@@ -14,6 +14,7 @@ SALT = "SALT"
 
 CONFIG_FILE = "arb_config.yaml"
 AUTHENTICATE = "authenticate"
+DRYRUN = "dryrun"
 SLIPPAGE = "slippage"
 EXCHANGE1 = "exchange1"
 EXCHANGE2 = "exchange2"
@@ -90,20 +91,22 @@ class Autotrageur(ABC):
         self.exchange1_basequote = self.config[EXCHANGE1_PAIR].split("/")
         self.exchange2_basequote = self.config[EXCHANGE2_PAIR].split("/")
 
-        self.tclient1 = trading_client.TradingClient(
+        self.tclient1 = CCXTTrader(
             self.exchange1_basequote[0],
             self.exchange1_basequote[1],
             self.config[EXCHANGE1],
             self.config[SLIPPAGE],
             self.config[TARGET_AMOUNT],
-            self.exchange1_configs)
-        self.tclient2 = trading_client.TradingClient(
+            self.exchange1_configs,
+            self.config[DRYRUN])
+        self.tclient2 = CCXTTrader(
             self.exchange2_basequote[0],
             self.exchange2_basequote[1],
             self.config[EXCHANGE2],
             self.config[SLIPPAGE],
             self.config[TARGET_AMOUNT],
-            self.exchange2_configs)
+            self.exchange2_configs,
+            self.config[DRYRUN])
 
         # Connect to test API's if required
         if self.config[EXCHANGE1_TEST]:
@@ -115,40 +118,14 @@ class Autotrageur(ABC):
         self.tclient1.load_markets()
         self.tclient2.load_markets()
 
-        # NOTE: Assumes the quote pair is fiat or stablecoin for V1.
+        # NOTE: Assumes the quote pair is 'USD' or 'USDT' for V1.
         for tclient in list((self.tclient1, self.tclient2)):
             if (tclient.quote != 'USD') and (tclient.quote != 'USDT'):
                 tclient.set_conversion_needed(True)
 
         if self.config[AUTHENTICATE]:
-            ex1_balance = self.tclient1.fetch_free_balance(
-                self.exchange1_basequote[0])
-            logging.log(logging.INFO,
-                        "Balance of %s on %s: %s" % (
-                            self.exchange1_basequote[0],
-                            self.config[EXCHANGE1],
-                            ex1_balance))
-            ex2_balance = self.tclient2.fetch_free_balance(
-                self.exchange2_basequote[0])
-            logging.log(logging.INFO,
-                        "Balance of %s on %s: %s" % (
-                            self.exchange2_basequote[0],
-                            self.config[EXCHANGE2],
-                            ex2_balance))
-            ex1_balance = self.tclient1.fetch_free_balance(
-                self.exchange1_basequote[1])
-            logging.log(logging.INFO,
-                        "Balance of %s on %s: %s" % (
-                            self.exchange1_basequote[1],
-                            self.config[EXCHANGE1],
-                            ex1_balance))
-            ex2_balance = self.tclient2.fetch_free_balance(
-                self.exchange2_basequote[1])
-            logging.log(logging.INFO,
-                        "Balance of %s on %s: %s" % (
-                            self.exchange2_basequote[1],
-                            self.config[EXCHANGE2],
-                            ex2_balance))
+            self.tclient1.check_wallet_balances()
+            self.tclient2.check_wallet_balances()
 
     @abstractmethod
     def _poll_opportunity(self):
