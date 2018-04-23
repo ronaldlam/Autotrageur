@@ -69,7 +69,8 @@ class CCXTTrader():
         self.quote = quote
         self.exchange_name = exchange_name
         self.fetcher = CCXTFetcher(self.ccxt_exchange)
-        self.executor = DryRunExecutor() if dry_run else CCXTExecutor(self.ccxt_exchange)
+        self.executor = DryRunExecutor(self.exchange_name) if dry_run else \
+            CCXTExecutor(self.ccxt_exchange)
         self.slippage = slippage
         self.target_amount = target_amount
         self.conversion_needed = False
@@ -234,8 +235,8 @@ class CCXTTrader():
 
         Returns:
             dict[dict, int]: Dictionary of response, includes 'info'
-            and 'id'. The 'info' includes all raw response contents and
-            result['id'] == result['info']['id']
+                and 'id'. The 'info' includes all raw response contents and
+                result['id'] == result['info']['id']
         """
         symbol = "%s/%s" % (self.base, self.quote)
         market_order = self.ccxt_exchange.has['createMarketOrder']
@@ -275,8 +276,8 @@ class CCXTTrader():
         amount to be sold. The market price is adjusted based on orderbook
         depth and the 'target amount' requested at the beginning of the program.
 
-        Input of bids will retrieve market sell
-        price; input of asks will retrieve market buy price.
+        Input of bids will retrieve market sell price; input of asks will
+        retrieve market buy price.
 
         Args:
             bids_or_asks (list[list(float)]): The bids or asks in the
