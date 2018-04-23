@@ -170,10 +170,7 @@ class CCXTTrader():
             balances do not meet a minimum.
         """
         for currency in [self.base, self.quote]:
-            import time
-            time.sleep(1)
-            balance = self.fetcher.fetch_free_balance(
-                self.base)
+            balance = self.fetcher.fetch_free_balance(currency)
             logging.log(logging.INFO,
                         "Balance of %s on %s: %s" % (
                             currency,

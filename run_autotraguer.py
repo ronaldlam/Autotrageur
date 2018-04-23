@@ -15,7 +15,7 @@ from fcf_autotrageur import FCFAutotrageur
 # For debugging purposes.
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s.%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
+    format="%(asctime)s.%(msecs)03d %(levelname)-8s [%(filename)s:%(funcName)s:%(lineno)d] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S")
 
 if __name__ == "__main__":
