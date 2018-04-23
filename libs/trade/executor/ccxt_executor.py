@@ -1,4 +1,4 @@
-from .baseexecutor import BaseExecutor
+from .base_executor import BaseExecutor
 
 class CCXTExecutor(BaseExecutor):
     """Executor for CCXT library."""
