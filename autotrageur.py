@@ -75,10 +75,12 @@ class Autotrageur(ABC):
             self.exchange1_configs = {
                 "apiKey": exchange_key_map[self.config[EXCHANGE1]][API_KEY],
                 "secret": exchange_key_map[self.config[EXCHANGE1]][API_SECRET],
+                "nonce": ccxt.Exchange.milliseconds,
             }
             self.exchange2_configs = {
                 "apiKey": exchange_key_map[self.config[EXCHANGE2]][API_KEY],
                 "secret": exchange_key_map[self.config[EXCHANGE2]][API_SECRET],
+                "nonce": ccxt.Exchange.milliseconds,
             }
         else:
             self.exchange1_configs = {}
