@@ -9,7 +9,8 @@ Usage:
 
 from docopt import docopt
 
-from libs.security.utils import encrypt, to_bytes
+from libs.security.encryption import encrypt
+from libs.utilities import to_bytes
 
 if __name__ == "__main__":
     arguments = docopt(__doc__, version="Encrypt 0.1")
