@@ -3,6 +3,9 @@
 # Turn on live trading
 authenticate: # Will not authenticate and only use public API's otherwise, eg. true
 
+# Dry Run functionality.
+dryrun: # If True, will log trades instead of executing them.
+
 # Percentage downside of limit order slippage tolerable for market order emulations
 slippage: # Important for Gemini, eg. 3
 

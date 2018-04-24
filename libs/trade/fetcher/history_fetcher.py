@@ -1,12 +1,10 @@
 import logging
 
-from .baseapiclient import BaseAPIClient
-
 LOGGER = logging.getLogger()
 
 
-class HistoryAPIClient(BaseAPIClient):
-    """API client for historical data."""
+class HistoryFetcher():
+    """Fetcher for historical data."""
 
     def __init__(self, history_query_params):
         """Constructor.
@@ -19,7 +17,7 @@ class HistoryAPIClient(BaseAPIClient):
         if not isinstance(history_query_params, HistoryQueryParams):
             LOGGER.warning("Instantiating a HistoryFetcher without \
                             HistoryQueryParams as a parameter")
-        super(HistoryAPIClient, self).__init__(
+        super(HistoryFetcher, self).__init__(
             history_query_params.base, history_query_params.quote,
             history_query_params.exchange)
         self.extraParams = history_query_params.extraParams

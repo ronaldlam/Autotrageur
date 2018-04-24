@@ -3,7 +3,7 @@ import logging
 from googletrans import Translator
 
 import bot.arbitrage.spreadcalculator as spreadcalculator
-import bot.datafetcher.tradingapiclient as trading_client
+import bot.trader.ccxt_trader as trading_client
 
 
 class AbortTradeException(Exception):
@@ -22,15 +22,15 @@ MARKETSELL_EXCHANGE = "marketsell_exchange"
 
 
 def get_arb_opportunities_by_orderbook(
-        trading_client1, trading_client2, spread_low, spread_high):
+        trader1, trader2, spread_low, spread_high):
     """Obtains arbitrage opportunities across two exchanges based on orderbook.
 
     Uses two real-time api clients to obtain orderbook information, calculate
     the market buy/sell orders within the target_amount's set in the clients.
 
     Args:
-        trading_client1 (TradingClient): The trading client for exchange 1.
-        trading_client2 (TradingClient): The trading client for exchange 2.
+        trader1 (CCXTTrader): The trading client for exchange 1.
+        trader2 (CCXTTrader): The trading client for exchange 2.
         spread_low (int): Spread lower boundary in that if the spread crosses
             this, a reverse-arb opportunity exists.
         spread_high (int): Spread upper boundary in that if the spread crosses
@@ -49,43 +49,43 @@ def get_arb_opportunities_by_orderbook(
             'marketsell_exchange': client2
         }
     """
-    ex1_orderbook = trading_client1.get_full_orderbook()
-    ex2_orderbook = trading_client2.get_full_orderbook()
+    ex1_orderbook = trader1.get_full_orderbook()
+    ex2_orderbook = trader2.get_full_orderbook()
 
     # Exceptions are caught here because we want all the data regardless.
     try:
-        ex1_market_buy = trading_client1.get_market_price_from_orderbook(
+        ex1_market_buy = trader1.get_adjusted_market_price_from_orderbook(
             ex1_orderbook[ASKS])
     except trading_client.OrderbookException:
         ex1_market_buy = None
     try:
-        ex1_market_sell = trading_client1.get_market_price_from_orderbook(
+        ex1_market_sell = trader1.get_adjusted_market_price_from_orderbook(
             ex1_orderbook[BIDS])
     except trading_client.OrderbookException:
         ex1_market_sell = None
     try:
-        ex2_market_buy = trading_client2.get_market_price_from_orderbook(
+        ex2_market_buy = trader2.get_adjusted_market_price_from_orderbook(
             ex2_orderbook[ASKS])
     except trading_client.OrderbookException:
         ex2_market_buy = None
     try:
-        ex2_market_sell = trading_client2.get_market_price_from_orderbook(
+        ex2_market_sell = trader2.get_adjusted_market_price_from_orderbook(
             ex2_orderbook[BIDS])
     except trading_client.OrderbookException:
         ex2_market_sell = None
 
     logging.info("%s buy of %s, %s price: %s" %
-                 (trading_client1.exchange, trading_client1.target_amount,
-                  trading_client1.base, ex1_market_buy))
+                 (trader1.exchange_name, trader1.target_amount,
+                  trader1.base, ex1_market_buy))
     logging.info("%s buy of %s, %s price: %s" %
-                 (trading_client2.exchange, trading_client2.target_amount,
-                  trading_client2.base, ex2_market_buy))
+                 (trader2.exchange_name, trader2.target_amount,
+                  trader2.base, ex2_market_buy))
     logging.info("%s sell of %s, %s price: %s" %
-                 (trading_client1.exchange, trading_client1.target_amount,
-                  trading_client1.base, ex1_market_sell))
+                 (trader1.exchange_name, trader1.target_amount,
+                  trader1.base, ex1_market_sell))
     logging.info("%s sell of %s, %s price: %s" %
-                 (trading_client2.exchange, trading_client2.target_amount,
-                  trading_client2.base, ex2_market_sell))
+                 (trader2.exchange_name, trader2.target_amount,
+                  trader2.base, ex2_market_sell))
 
     # Calculate the spreads between exchange 1 and 2.
     # TODO: We need to feed in the fees in order to more accurately calculate
@@ -96,12 +96,12 @@ def get_arb_opportunities_by_orderbook(
         ex2_market_buy, ex1_market_sell)
 
     logging.info("Ex2 (%s) sell Ex1 (%s) buy spread: (%s)" %
-                 (trading_client2.exchange,
-                  trading_client1.exchange,
+                 (trader2.exchange_name,
+                  trader1.exchange_name,
                   ex2msell_ex1mbuy_spread))
     logging.info("Ex2 (%s) buy Ex1 (%s) sell spread: (%s)" %
-                 (trading_client2.exchange,
-                  trading_client1.exchange,
+                 (trader2.exchange_name,
+                  trader1.exchange_name,
                   ex2mbuy_ex1msell_spread))
 
     # If at or above spread_high, we can perform the forward arbitrage by
@@ -114,8 +114,8 @@ def get_arb_opportunities_by_orderbook(
             TARGET_SPREAD: spread_high,
             SPREAD_HIGH: True,                      # Spread above the high
             SPREAD: ex2msell_ex1mbuy_spread,
-            MARKETBUY_EXCHANGE: trading_client1,
-            MARKETSELL_EXCHANGE: trading_client2
+            MARKETBUY_EXCHANGE: trader1,
+            MARKETSELL_EXCHANGE: trader2
         }
     elif (ex2mbuy_ex1msell_spread is not None
             and ex2mbuy_ex1msell_spread <= spread_low):
@@ -123,8 +123,8 @@ def get_arb_opportunities_by_orderbook(
             TARGET_SPREAD: spread_low,
             SPREAD_HIGH: False,                     # Spread below the low
             SPREAD: ex2mbuy_ex1msell_spread,
-            MARKETBUY_EXCHANGE: trading_client2,
-            MARKETSELL_EXCHANGE: trading_client1
+            MARKETBUY_EXCHANGE: trader2,
+            MARKETSELL_EXCHANGE: trader1
         }
     else:
         return None
@@ -154,8 +154,8 @@ def execute_arbitrage(opportunity):
     bids = sell_trading_client.get_full_orderbook()[BIDS]
 
     try:
-        buy_price = buy_trading_client.get_market_price_from_orderbook(asks)
-        sell_price = sell_trading_client.get_market_price_from_orderbook(bids)
+        buy_price = buy_trading_client.get_adjusted_market_price_from_orderbook(asks)
+        sell_price = sell_trading_client.get_adjusted_market_price_from_orderbook(bids)
 
         if spread_high:
             spread = spreadcalculator.calc_spread(sell_price, buy_price)
