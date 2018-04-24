@@ -3,7 +3,7 @@ import smtplib
 
 import yaml
 
-EMAIL_CONFIG_FILEPATH = "email_info.yaml"
+EMAIL_CONFIG_FILEPATH = "configs/email_info.yaml"
 LOGGER = logging.getLogger()
 
 

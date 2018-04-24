@@ -5,14 +5,15 @@ from abc import ABC, abstractmethod
 import ccxt
 import yaml
 
-from libs.security.utils import decrypt, keyfile_to_map, to_bytes, to_str
+from libs.security.encryption import decrypt
+from libs.utilities import keyfile_to_map, to_bytes, to_str
 from bot.trader.ccxt_trader import CCXTTrader as CCXTTrader
 
 KEYFILE = "KEYFILE"
 PASSWORD = "PASSWORD"
 SALT = "SALT"
 
-CONFIG_FILE = "arb_config.yaml"
+CONFIG_FILE = "configs/arb_config.yaml"
 AUTHENTICATE = "authenticate"
 DRYRUN = "dryrun"
 SLIPPAGE = "slippage"

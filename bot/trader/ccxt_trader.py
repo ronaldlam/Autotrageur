@@ -8,7 +8,7 @@ import libs.ccxt_extensions as ccxt_extensions
 from libs.trade.executor.ccxt_executor import CCXTExecutor
 from libs.trade.executor.dryrun_executor import DryRunExecutor
 from libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
-from libs.security.utils import keys_exists
+from libs.utilities import keys_exists
 
 EXTENSION_PREFIX = "ext_"
 
