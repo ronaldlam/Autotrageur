@@ -22,5 +22,8 @@ if __name__ == "__main__":
     with open(file_name, "rb") as in_file:
         plaintext = in_file.read()
         ciphertext = encrypt(plaintext, password, salt)
-        with open("encrypted-" + file_name, "wb") as out_file:
+        split_file_name = file_name.split("/")
+        split_file_name[-1] = "encrypted-" + split_file_name[-1]
+        new_file_name = "/".join(split_file_name)
+        with open(new_file_name, "wb") as out_file:
             out_file.write(ciphertext)

@@ -2,8 +2,8 @@ import logging
 
 import ccxt
 
-from autotrageur import SPREAD_TARGET_HIGH, SPREAD_TARGET_LOW, AUTHENTICATE
-from autotrageur import Autotrageur
+from .autotrageur import SPREAD_TARGET_HIGH, SPREAD_TARGET_LOW, AUTHENTICATE
+from .autotrageur import Autotrageur
 import bot.arbitrage.arbseeker as arbseeker
 from libs.email_client.simple_email_client import send_all_emails
 

@@ -10,7 +10,7 @@ import logging
 
 from docopt import docopt
 
-from fcf_autotrageur import FCFAutotrageur
+from bot.arbitrage.fcf_autotrageur import FCFAutotrageur
 
 # For debugging purposes.
 logging.basicConfig(

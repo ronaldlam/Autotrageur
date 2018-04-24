@@ -12,7 +12,7 @@ KEYFILE = "KEYFILE"
 PASSWORD = "PASSWORD"
 SALT = "SALT"
 
-CONFIG_FILE = "arb_config.yaml"
+CONFIG_FILE = "configs/arb_config.yaml"
 AUTHENTICATE = "authenticate"
 DRYRUN = "dryrun"
 SLIPPAGE = "slippage"
