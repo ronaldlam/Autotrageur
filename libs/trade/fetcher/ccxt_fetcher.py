@@ -64,8 +64,8 @@ class CCXTFetcher():
         """Fetches the last transacted price of the token pair.
 
         Args:
-            base (string): The base currency of the token pair.
-            quote (string): The quote currency of the token pair.
+            base (str): The base currency of the token pair.
+            quote (str): The quote currency of the token pair.
 
         Returns:
             int: The last transacted price of the token pair.
@@ -75,5 +75,29 @@ class CCXTFetcher():
         return str(ticker['last'])
 
     def get_full_orderbook(self, base, quote):
-        """Gets the full orderbook (bids and asks) from the exchange."""
+        """Gets the full orderbook (bids and asks) from the exchange.
+
+        Return value example:
+        {
+            'bids': [
+                [ price, amount ], // [ float, float ]
+                [ price, amount ],
+                ...
+            ],
+            'asks': [
+                [ price, amount ],
+                [ price, amount ],
+                ...
+            ],
+            'timestamp': 1499280391811, // Unix Timestamp in milliseconds (seconds * 1000)
+            'datetime': '2017-07-05T18:47:14.692Z', // ISO8601 datetime string with milliseconds
+        }
+
+        Args:
+            base (str): The base currency of the token pair.
+            quote (str): The quote currency of the token pair.
+
+        Returns:
+            dict: The full orderbook.
+        """
         return self.exchange.fetch_order_book(base + "/" + quote)
