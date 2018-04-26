@@ -84,30 +84,32 @@ class DryRunExecutor(BaseExecutor):
         logging.log(logging.INFO, "Arguments: %s", locals())
         return self._populate_dry_run_order(symbol, target_amount, asset_price)
 
-    def create_market_buy_order(self, symbol, asset_amount):
+    def create_market_buy_order(self, symbol, asset_amount, asset_price):
         """When a market buy order has been requested from the bot.
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
             asset_amount (float): The amount of asset to be bought.
+            asset_price (float); The target buy price, quote per base.
 
         Returns:
             dict: A pre-defined order dictionary populated with the function's
                 parameters.
         """
         logging.log(logging.INFO, "Arguments: %s", locals())
-        return self._populate_dry_run_order(symbol, asset_amount)
+        return self._populate_dry_run_order(symbol, asset_amount, asset_price)
 
-    def create_market_sell_order(self, symbol, asset_amount):
+    def create_market_sell_order(self, symbol, asset_amount, asset_price):
         """When a market sell order has been requested from the bot.
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
             asset_amount (float): The amount of asset to be sold.
+            asset_price (float); The target sell price, quote per base.
 
         Returns:
             dict: A pre-defined order dictionary populated with the function's
                 parameters.
         """
         logging.log(logging.INFO, "Arguments: %s", locals())
-        return self._populate_dry_run_order(symbol, asset_amount)
+        return self._populate_dry_run_order(symbol, asset_amount, asset_price)

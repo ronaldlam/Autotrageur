@@ -12,8 +12,8 @@ prev_spread = 0
 email_count = 0
 
 # Constants.
-MAX_EMAILS = 3
-SPREAD_PRECISION = 0
+MAX_EMAILS = 'max_emails'
+SPREAD_PRECISION = 'spread_precision'
 
 
 class FCFAutotrageur(Autotrageur):
@@ -75,6 +75,9 @@ class FCFAutotrageur(Autotrageur):
         be sent if the current spread is not similar to previous spread AND if
         a max email threshold has not been hit with similar spreads.
 
+        Default SPREAD_PRECISION is 0.
+        Default MAX_EMAILS is 3.
+
         Args:
             curr_spread (float): The current arbitrage spread for the arbitrage
                 opportunity.
@@ -82,11 +85,13 @@ class FCFAutotrageur(Autotrageur):
         global prev_spread
         global email_count
 
-        if (round(curr_spread, SPREAD_PRECISION) == round(prev_spread, SPREAD_PRECISION) and
-            email_count == MAX_EMAILS):
+        precision = self.config[SPREAD_PRECISION] or 0
+        max_num_emails = self.config[SPREAD_PRECISION] or 3
+        if (round(curr_spread, precision) == round(prev_spread, precision) and
+            email_count == max_num_emails):
             pass
         else:
-            if email_count == MAX_EMAILS:
+            if email_count == max_num_emails:
                 email_count = 0
             prev_spread = curr_spread
             send_all_emails(self.message)
