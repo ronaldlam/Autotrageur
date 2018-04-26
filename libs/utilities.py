@@ -1,3 +1,9 @@
+FIXED_KEYFILE_LABELS = ["exchange", "api_key", "api_secret"]
+
+
+class IncorrectFormatException(Exception):
+    pass
+
 
 def keyfile_to_map(keyfile):
     """Convert key file data into map.
@@ -13,8 +19,17 @@ def keyfile_to_map(keyfile):
     rows = keyfile.split("\n")
     labels = rows[0].split(",")
 
+    if FIXED_KEYFILE_LABELS != labels:
+        raise IncorrectFormatException(
+            "Keyfile column headers must be %s, received %s.",
+            FIXED_KEYFILE_LABELS,
+            labels)
+
     for row in rows[1:]:
         cells = row.split(",")
+        if len(cells) != 3:
+            raise IncorrectFormatException(
+                "Incorrect number of elements in row: %s", cells)
         exchange_map[cells[0]] = {labels[1]: cells[1], labels[2]: cells[2]}
 
     return exchange_map
@@ -53,10 +68,11 @@ def to_bytes(bytes_or_str):
 
 
 def keys_exists(dictionary, *keys):
-    """Check if *args (nested) exists in `dictionary` (dict).
+    """Check if *keys (nested) exists in `dictionary` (dict).
 
     Args:
-        dictionary (dict): The dict to search
+        dictionary (dict): The dict to search.
+        keys (list): The keys in order to search the dict with.
 
     Raises:
         AttributeError: If dictionary is not a dict.
@@ -74,6 +90,11 @@ def keys_exists(dictionary, *keys):
     _dictionary = dictionary
     for key in keys:
         try:
+            # The line after the statement may try to use the []
+            # operator on an arbitrary type, perhaps yielding a
+            # TypeError or other undefined behaviour.
+            if type(_dictionary) is not dict:
+                return False
             _dictionary = _dictionary[key]
         except KeyError:
             return False
