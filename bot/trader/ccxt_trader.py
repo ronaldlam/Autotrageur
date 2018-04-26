@@ -252,7 +252,8 @@ class CCXTTrader():
         if market_order is True:
             result = self.executor.create_market_sell_order(
                 symbol,
-                asset_amount)
+                asset_amount,
+                asset_price)
         elif market_order == 'emulated':
             result = self.executor.create_emulated_market_sell_order(
                 symbol,
