@@ -125,7 +125,7 @@ class Autotrageur(ABC):
         try:
             self.tclient1.check_wallet_balances()
             self.tclient2.check_wallet_balances()
-        except ccxt.AuthenticationError as auth_error:
+        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
             logging.error(auth_error)
 
             # If configuration is set for a dry run, continue the program even
