@@ -43,22 +43,24 @@ class CCXTExecutor(BaseExecutor):
             slippage)
         # TODO: Error handling scenarios in accordance with ccxt
 
-    def create_market_buy_order(self, symbol, asset_amount):
+    def create_market_buy_order(self, symbol, asset_amount, asset_price):
         """Creates a market buy order.
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
             asset_amount (float): The amount of asset to be bought.
+            asset_price (float); The target buy price, quote per base. (Unused)
         """
         return self.exchange.create_market_buy_order(symbol, asset_amount)
         # TODO: Error handling scenarios in accordance with ccxt
 
-    def create_market_sell_order(self, symbol, asset_amount):
+    def create_market_sell_order(self, symbol, asset_amount, asset_price):
         """Creates a market sell order.
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
             asset_amount (float): The amount of asset to be sold.
+            asset_price (float); The target sell price, quote per base. (Unused)
         """
         return self.exchange.create_market_sell_order(symbol, asset_amount)
         # TODO: Error handling scenarios in accordance with ccxt

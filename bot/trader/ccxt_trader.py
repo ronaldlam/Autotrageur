@@ -205,7 +205,8 @@ class CCXTTrader():
         self.__check_exchange_limits(asset_amount, asset_price)
 
         if market_order is True:
-            result = self.executor.create_market_buy_order(symbol, asset_amount)
+            result = self.executor.create_market_buy_order(symbol, asset_amount,
+                                                           asset_price)
         elif market_order == 'emulated':
             # Rounding will be deferred to emulated implementation.
             result = self.executor.create_emulated_market_buy_order(
