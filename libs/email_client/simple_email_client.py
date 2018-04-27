@@ -7,8 +7,12 @@ EMAIL_CONFIG_FILEPATH = "configs/email_info.yaml"
 LOGGER = logging.getLogger()
 
 
-def extract_email_info():
+def _extract_email_info(email_cfg_path):
     """Extracts e-mail configuration information from the e-mail_info file.
+
+    Args:
+        email_cfg_path (file): Path to a .yaml file containing email
+            info.
 
     Returns:
         dict[]: A dict of email configuration key/value pairs.  Ex:
@@ -23,7 +27,7 @@ def extract_email_info():
                         'example3@gmail.com']
         }
     """
-    with open(EMAIL_CONFIG_FILEPATH, "r") as ymlfile:
+    with open(email_cfg_path, "r") as ymlfile:
         email_cfg = yaml.load(ymlfile)
 
     return email_cfg
@@ -61,7 +65,7 @@ def send_all_emails(msg):
     Args:
         msg (str): An message formatted to be sent as an e-mail (non-MIME).
     """
-    email_cfg = extract_email_info()
+    email_cfg = _extract_email_info(EMAIL_CONFIG_FILEPATH)
 
     for recipient in email_cfg['recipients']:
         send_single_email(recipient, email_cfg, msg)
