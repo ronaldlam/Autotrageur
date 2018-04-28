@@ -59,18 +59,14 @@ def send_single_email(recipient, email_cfg, msg):
         LOGGER.info("Email sent successfully to: %s", recipient)
 
 
-def send_all_emails(msg):
+def send_all_emails(email_cfg_path, msg):
     """Sends an e-mail message to one or more e-mails.
 
     Args:
+        email_cfg_path(str): Path to e-mail configuration for sending emails.
         msg (str): An message formatted to be sent as an e-mail (non-MIME).
     """
-    email_cfg = _extract_email_info(EMAIL_CONFIG_FILEPATH)
+    email_cfg = _extract_email_info(email_cfg_path)
 
     for recipient in email_cfg['recipients']:
         send_single_email(recipient, email_cfg, msg)
-
-
-if __name__ == "__main__":
-    # The newline character is required if you desire a subject line.
-    send_all_emails("Subject: Sample Subject\nSample body of email")

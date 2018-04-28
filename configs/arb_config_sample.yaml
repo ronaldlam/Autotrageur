@@ -1,12 +1,10 @@
 # Exchange configurations for autotrageur.py
 
-# Turn on live trading
-authenticate: # Will not authenticate and only use public API's otherwise, eg. true
-
 # Dry Run functionality.
 dryrun: # If True, will log trades instead of executing them.
 
-# For email throttling
+# Email configuration, and email options.
+email_cfg_path: # path/to/email_cfg file.  Used to send e-mails on arb opportunities.
 max_emails: # Throttles after number of sent emails for similar spreads encountered, e.g. 3
 spread_precision: # The precision (number of decimals) to compare the previous spread, e.g. 1
 

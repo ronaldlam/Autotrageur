@@ -12,6 +12,7 @@ prev_spread = 0
 email_count = 0
 
 # Constants.
+EMAIL_CFG_PATH = 'email_cfg_path'
 MAX_EMAILS = 'max_emails'
 SPREAD_PRECISION = 'spread_precision'
 
@@ -94,7 +95,14 @@ class FCFAutotrageur(Autotrageur):
             if email_count == max_num_emails:
                 email_count = 0
             prev_spread = curr_spread
-            send_all_emails(self.message)
+            try:
+                send_all_emails(self.config[EMAIL_CFG_PATH], self.message)
+            except Exception as e:
+                logging.error("Unable to send e-mail due to: ")
+                logging.error(e)
+
+                # Continue running bot even if unable to send e-mail.
+                pass
             email_count += 1
 
     def _execute_trade(self):
