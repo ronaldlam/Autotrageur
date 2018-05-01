@@ -41,7 +41,7 @@ class Autotrageur(ABC):
     should only be called inside this class or its subclasses. The
     run_autotrageur() function is used as the template method to run the
     trading algorithm. Subclasses should override the protected methods
-    to alter behaviour and run different algorthims with different
+    to alter behaviour and run different algorithms with different
     configurations.
     """
 

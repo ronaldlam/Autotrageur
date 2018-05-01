@@ -146,10 +146,10 @@ def test_keyfile_to_map(keyfile, test_id):
     assert(keyfile_map == keyfile_to_map_result[test_id])
 
 
-@pytest.mark.xfail(raises=IncorrectFormatException, strict=True)
 def test_bad_keyfile_to_map(bad_keyfile):
     """Tests invalid keyfiles."""
-    keyfile_to_map(bad_keyfile)
+    with pytest.raises(IncorrectFormatException):
+        keyfile_to_map(bad_keyfile)
 
 
 @pytest.mark.parametrize("args", [
@@ -165,10 +165,10 @@ def test_keys_exists(args):
     ({}, []),
     ("hi", ["valid"]),
     (1, ["valid"])])
-@pytest.mark.xfail(raises=AttributeError, strict=True)
 def test_keys_exists_attribute_error(dictionary, args):
     """Tests keys_exists for AttributeError's"""
-    assert(keys_exists(dictionary, *args))
+    with pytest.raises(AttributeError):
+        keys_exists(dictionary, *args)
 
 
 @pytest.mark.parametrize("args", [

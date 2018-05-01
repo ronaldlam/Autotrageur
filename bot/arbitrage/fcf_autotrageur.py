@@ -13,10 +13,10 @@ class FCFAutotrageur(Autotrageur):
     This implementation of the Autotrageur polls two specified fiat to
     crypto markets. Given the target high and low spreads between the
     fiat currencies, this algorithm will execute a trade in the
-    direction of exchange two (buy cypto on exchange one, sell crypto on
-    exchange two) if the calculated spread is greater than the specified
-    target high; vice versa if the calculated spread is less than the
-    specified target low.
+    direction of exchange two (buy crypto on exchange one, sell crypto
+    on exchange two) if the calculated spread is greater than the
+    specified target high; vice versa if the calculated spread is less
+    than the specified target low.
     """
 
     def _poll_opportunity(self):
