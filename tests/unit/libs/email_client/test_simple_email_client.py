@@ -9,9 +9,9 @@ import yaml
 from libs.email_client import simple_email_client
 
 
-MOCK_GMAIL_ONE_RECIPIENT = "tests/libs/email_client/mockdata/mock_gmail_one_recipient.yaml"
-MOCK_GMAIL_MULTIPLE_RECIPIENTS = "tests/libs/email_client/mockdata/mock_gmail_multiple_recipients.yaml"
-MOCK_GMAIL_BAD_FORMAT = "tests/libs/email_client/mockdata/mock_gmail_bad_format.yaml"
+MOCK_GMAIL_ONE_RECIPIENT = "tests/unit/libs/email_client/mockdata/mock_gmail_one_recipient.yaml"
+MOCK_GMAIL_MULTIPLE_RECIPIENTS = "tests/unit/libs/email_client/mockdata/mock_gmail_multiple_recipients.yaml"
+MOCK_GMAIL_BAD_FORMAT = "tests/unit/libs/email_client/mockdata/mock_gmail_bad_format.yaml"
 MOCK_NON_EXISTENT_FILE = "does/not/exist.yaml"
 
 
