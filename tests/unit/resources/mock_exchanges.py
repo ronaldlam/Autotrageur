@@ -18,8 +18,8 @@ def fake_binance(mocker):
     fake_binance_exchange.balances = {
         'BTC': {
             'free': 1.50,
-            'used': 0.00,
-            'total': 1.50,
+            'used': 2.00,
+            'total': 3.50,
         },
         'USD': {
             'free': 123.00,

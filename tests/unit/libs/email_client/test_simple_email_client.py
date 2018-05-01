@@ -63,6 +63,7 @@ test_send_single_email_params = [
     test_send_single_email_params)
 def test_send_single_email(mocker, recipient, email_cfg, msg):
     MockSMTP = mocker.patch('smtplib.SMTP', autospec=True)
+
     # The return_value of the Mock class is the mock instance used.
     mock_smtp_server = MockSMTP.return_value
 
