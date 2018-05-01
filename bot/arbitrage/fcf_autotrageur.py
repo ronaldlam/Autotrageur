@@ -2,10 +2,20 @@ import logging
 
 import ccxt
 
-from .autotrageur import SPREAD_TARGET_HIGH, SPREAD_TARGET_LOW, AUTHENTICATE
+from .autotrageur import SPREAD_TARGET_HIGH, SPREAD_TARGET_LOW, AUTHENTICATE, DRYRUN
 from .autotrageur import Autotrageur
 import bot.arbitrage.arbseeker as arbseeker
 from libs.email_client.simple_email_client import send_all_emails
+
+# Global module variables.
+prev_spread = 0
+email_count = 0
+
+# Constants.
+EMAIL_CFG_PATH = 'email_cfg_path'
+MAX_EMAILS = 'max_emails'
+SPREAD_PRECISION = 'spread_precision'
+
 
 class FCFAutotrageur(Autotrageur):
     """The fiat-crypto-fiat Autotrageur.
@@ -58,13 +68,54 @@ class FCFAutotrageur(Autotrageur):
                     + str(self.spread_opp[arbseeker.SPREAD]))
             return True
 
+    def _email_or_throttle(self, curr_spread):
+        """Sends emails for a new arbitrage opportunity.  Throttles if too
+        frequent.
+
+        Based on preference of SPREAD_PRECISION and MAX_EMAILS, an e-mail will
+        be sent if the current spread is not similar to previous spread AND if
+        a max email threshold has not been hit with similar spreads.
+
+        Default SPREAD_PRECISION is 0.
+        Default MAX_EMAILS is 3.
+
+        Args:
+            curr_spread (float): The current arbitrage spread for the arbitrage
+                opportunity.
+        """
+        global prev_spread
+        global email_count
+
+        precision = self.config[SPREAD_PRECISION] or 0
+        max_num_emails = self.config[SPREAD_PRECISION] or 3
+        if (round(curr_spread, precision) == round(prev_spread, precision) and
+            email_count == max_num_emails):
+            pass
+        else:
+            if email_count == max_num_emails:
+                email_count = 0
+            prev_spread = curr_spread
+
+            # Continue running bot even if unable to send e-mail.
+            try:
+                send_all_emails(self.config[EMAIL_CFG_PATH], self.message)
+            except Exception as e:
+                logging.error("Unable to send e-mail due to: ")
+                logging.error(e)
+            email_count += 1
+
     def _execute_trade(self):
         """Execute the trade, providing necessary failsafes."""
         # TODO: Evaluate options and implement retry logic.
         try:
-            if self.config[AUTHENTICATE]:
-                logging.info(self.message)
-                send_all_emails(self.message)
+            logging.info(self.message)
+            self._email_or_throttle(self.spread_opp[arbseeker.SPREAD])
+
+            if self.config[DRYRUN]:
+                logging.info("**Dry run - begin fake execution")
+                arbseeker.execute_arbitrage(self.spread_opp)
+                logging.info("**Dry run - end fake execution")
+            else:
                 verify = input("Type 'execute' to attempt trade execution\n")
 
                 if verify == "execute":

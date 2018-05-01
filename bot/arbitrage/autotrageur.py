@@ -72,20 +72,16 @@ class Autotrageur(ABC):
             self.config = yaml.load(ymlfile)
 
         # Get exchange configuration settings.
-        if self.config[AUTHENTICATE]:
-            self.exchange1_configs = {
-                "apiKey": exchange_key_map[self.config[EXCHANGE1]][API_KEY],
-                "secret": exchange_key_map[self.config[EXCHANGE1]][API_SECRET],
-                "nonce": ccxt.Exchange.milliseconds,
-            }
-            self.exchange2_configs = {
-                "apiKey": exchange_key_map[self.config[EXCHANGE2]][API_KEY],
-                "secret": exchange_key_map[self.config[EXCHANGE2]][API_SECRET],
-                "nonce": ccxt.Exchange.milliseconds,
-            }
-        else:
-            self.exchange1_configs = {}
-            self.exchange2_configs = {}
+        self.exchange1_configs = {
+            "apiKey": exchange_key_map[self.config[EXCHANGE1]][API_KEY],
+            "secret": exchange_key_map[self.config[EXCHANGE1]][API_SECRET],
+            "nonce": ccxt.Exchange.milliseconds,
+        }
+        self.exchange2_configs = {
+            "apiKey": exchange_key_map[self.config[EXCHANGE2]][API_KEY],
+            "secret": exchange_key_map[self.config[EXCHANGE2]][API_SECRET],
+            "nonce": ccxt.Exchange.milliseconds,
+        }
 
     def _setup_markets(self):
         """Set up the market objects for the algorithm to use."""
@@ -126,9 +122,17 @@ class Autotrageur(ABC):
             if (tclient.quote != 'USD') and (tclient.quote != 'USDT'):
                 tclient.set_conversion_needed(True)
 
-        if self.config[AUTHENTICATE]:
+        try:
             self.tclient1.check_wallet_balances()
             self.tclient2.check_wallet_balances()
+        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
+            logging.error(auth_error)
+
+            # If configuration is set for a dry run, continue the program even
+            # with wrong auth credentials.
+            if self.config[DRYRUN]:
+                logging.info("**Dry run: continuing with program")
+                pass
 
     @abstractmethod
     def _poll_opportunity(self):
