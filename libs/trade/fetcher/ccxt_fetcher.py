@@ -1,9 +1,19 @@
 import logging
+import ccxt
+
 
 class CCXTFetcher():
     """Fetcher for CCXT library."""
 
     def __init__(self, exchange):
+        """Constructor.
+
+        Args:
+            exchange (ccxt_exchange): A CCXT exchange object.
+        """
+        if not isinstance(exchange, ccxt.Exchange):
+            raise TypeError("CCXTFetcher must initialize with a ccxt exchange"
+                " object")
         self.exchange = exchange
 
     def fetch_maker_fees(self):

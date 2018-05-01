@@ -7,8 +7,12 @@ EMAIL_CONFIG_FILEPATH = "configs/email_info.yaml"
 LOGGER = logging.getLogger()
 
 
-def extract_email_info():
+def _extract_email_info(email_cfg_path):
     """Extracts e-mail configuration information from the e-mail_info file.
+
+    Args:
+        email_cfg_path (file): Path to a .yaml file containing email
+            info.
 
     Returns:
         dict[]: A dict of email configuration key/value pairs.  Ex:
@@ -23,7 +27,7 @@ def extract_email_info():
                         'example3@gmail.com']
         }
     """
-    with open(EMAIL_CONFIG_FILEPATH, "r") as ymlfile:
+    with open(email_cfg_path, "r") as ymlfile:
         email_cfg = yaml.load(ymlfile)
 
     return email_cfg
@@ -48,25 +52,21 @@ def send_single_email(recipient, email_cfg, msg):
         smtp_server.login(email_cfg['username'], email_cfg['password'])
 
         smtp_server.sendmail(email_cfg['username'], recipient, msg)
+        LOGGER.info("Email sent successfully to: %s", recipient)
     except Exception as ex:
         LOGGER.error("Error encountered trying to send email: %s", ex)
     finally:
         smtp_server.quit()
-        LOGGER.info("Email sent successfully to: %s", recipient)
 
 
-def send_all_emails(msg):
+def send_all_emails(email_cfg_path, msg):
     """Sends an e-mail message to one or more e-mails.
 
     Args:
+        email_cfg_path (str): Path to e-mail configuration for sending emails.
         msg (str): An message formatted to be sent as an e-mail (non-MIME).
     """
-    email_cfg = extract_email_info()
+    email_cfg = _extract_email_info(email_cfg_path)
 
     for recipient in email_cfg['recipients']:
         send_single_email(recipient, email_cfg, msg)
-
-
-if __name__ == "__main__":
-    # The newline character is required if you desire a subject line.
-    send_all_emails("Subject: Sample Subject\nSample body of email")
