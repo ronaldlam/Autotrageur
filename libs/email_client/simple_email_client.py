@@ -52,18 +52,18 @@ def send_single_email(recipient, email_cfg, msg):
         smtp_server.login(email_cfg['username'], email_cfg['password'])
 
         smtp_server.sendmail(email_cfg['username'], recipient, msg)
+        LOGGER.info("Email sent successfully to: %s", recipient)
     except Exception as ex:
         LOGGER.error("Error encountered trying to send email: %s", ex)
     finally:
         smtp_server.quit()
-        LOGGER.info("Email sent successfully to: %s", recipient)
 
 
 def send_all_emails(email_cfg_path, msg):
     """Sends an e-mail message to one or more e-mails.
 
     Args:
-        email_cfg_path(str): Path to e-mail configuration for sending emails.
+        email_cfg_path (str): Path to e-mail configuration for sending emails.
         msg (str): An message formatted to be sent as an e-mail (non-MIME).
     """
     email_cfg = _extract_email_info(email_cfg_path)

@@ -13,7 +13,7 @@ class CCXTFetcher():
         """
         if not isinstance(exchange, ccxt.Exchange):
             raise TypeError("CCXTFetcher must initialize with a ccxt exchange"
-                "object")
+                " object")
         self.exchange = exchange
 
     def fetch_maker_fees(self):
