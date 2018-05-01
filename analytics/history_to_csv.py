@@ -18,7 +18,7 @@ sys.path.insert(0, parentdir)
 from enum import Enum
 import time
 
-import libs.cryCompare.history as tokenhistory
+import thirdparty.cryCompare.history as tokenhistory
 from docopt import docopt
 import pandas as pd
 import yaml
