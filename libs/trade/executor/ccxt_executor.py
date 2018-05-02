@@ -17,6 +17,9 @@ class CCXTExecutor(BaseExecutor):
             asset_price (float): The target buy price, quote per base.
             slippage (float): The percentage off asset_price the market
                 buy will tolerate.
+
+        Returns:
+            dict: The order result from the ccxt exchange.
         """
         return self.exchange.create_emulated_market_buy_order(
             symbol,
@@ -35,6 +38,9 @@ class CCXTExecutor(BaseExecutor):
             asset_amount (float): The amount of the asset to be sold.
             slippage (float): The percentage off asset_price the market
                 buy will tolerate.
+
+        Returns:
+            dict: The order result from the ccxt exchange.
         """
         return self.exchange.create_emulated_market_sell_order(
             symbol,
@@ -50,6 +56,9 @@ class CCXTExecutor(BaseExecutor):
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
             asset_amount (float): The amount of asset to be bought.
             asset_price (float); The target buy price, quote per base. (Unused)
+
+        Returns:
+            dict: The order result from the ccxt exchange.
         """
         return self.exchange.create_market_buy_order(symbol, asset_amount)
         # TODO: Error handling scenarios in accordance with ccxt
@@ -61,6 +70,9 @@ class CCXTExecutor(BaseExecutor):
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
             asset_amount (float): The amount of asset to be sold.
             asset_price (float); The target sell price, quote per base. (Unused)
+
+        Returns:
+            dict: The order result from the ccxt exchange.
         """
         return self.exchange.create_market_sell_order(symbol, asset_amount)
         # TODO: Error handling scenarios in accordance with ccxt
