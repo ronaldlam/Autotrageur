@@ -14,7 +14,8 @@ email_count = 0
 # Constants.
 EMAIL_CFG_PATH = 'email_cfg_path'
 MAX_EMAILS = 'max_emails'
-SPREAD_PRECISION = 'spread_precision'
+SPREAD_ROUNDING = 'spread_rounding'
+SPREAD_TOLERANCE = 'spread_tolerance'
 
 
 class FCFAutotrageur(Autotrageur):
@@ -72,11 +73,11 @@ class FCFAutotrageur(Autotrageur):
         """Sends emails for a new arbitrage opportunity.  Throttles if too
         frequent.
 
-        Based on preference of SPREAD_PRECISION and MAX_EMAILS, an e-mail will
+        Based on preference of SPREAD_ROUNDING and MAX_EMAILS, an e-mail will
         be sent if the current spread is not similar to previous spread AND if
         a max email threshold has not been hit with similar spreads.
 
-        Default SPREAD_PRECISION is 0.
+        Default SPREAD_ROUNDING is 0.
         Default MAX_EMAILS is 3.
 
         Args:
@@ -86,12 +87,26 @@ class FCFAutotrageur(Autotrageur):
         global prev_spread
         global email_count
 
-        precision = self.config[SPREAD_PRECISION] or 0
-        max_num_emails = self.config[SPREAD_PRECISION] or 3
-        if (round(curr_spread, precision) == round(prev_spread, precision) and
+        spread_rnd = self.config[SPREAD_ROUNDING] or 0
+        max_num_emails = self.config[MAX_EMAILS] or 3
+        spread_tol = self.config[SPREAD_TOLERANCE] or 0.5
+
+        rnd_curr_sprd = round(curr_spread, spread_rnd)
+        rnd_prev_sprd = round(prev_spread, spread_rnd)
+
+        logging.info("\nPrevious spread of: %f Current spread of: %f\n"
+                     "Rounded to: %f and %f.\nWith spread rounding of: %d, "
+                     "spread tolerance of: %f and max emails of: %d",
+                     prev_spread, curr_spread, rnd_prev_sprd, rnd_curr_sprd,
+                     spread_rnd, spread_tol, max_num_emails)
+
+        print("email count: ", email_count)
+        print("tolerance: ", str(rnd_prev_sprd - rnd_curr_sprd))
+        if (abs(rnd_prev_sprd - rnd_curr_sprd) <= spread_tol and
             email_count == max_num_emails):
             pass
         else:
+            print("tolerance exceeded: ", str(rnd_prev_sprd - rnd_curr_sprd))
             if email_count == max_num_emails:
                 email_count = 0
             prev_spread = curr_spread
@@ -99,9 +114,8 @@ class FCFAutotrageur(Autotrageur):
             # Continue running bot even if unable to send e-mail.
             try:
                 send_all_emails(self.config[EMAIL_CFG_PATH], self.message)
-            except Exception as e:
-                logging.error("Unable to send e-mail due to: ")
-                logging.error(e)
+            except Exception:
+                logging.error("Unable to send e-mail due to: \n", exc_info=True)
             email_count += 1
 
     def _execute_trade(self):
