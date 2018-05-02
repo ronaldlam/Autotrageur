@@ -1,13 +1,9 @@
-from unittest.mock import Mock, MagicMock, patch
+import smtplib
 
 import pytest
-from pytest_mock import mocker
-
-import smtplib
 import yaml
 
 from libs.email_client import simple_email_client
-
 
 MOCK_GMAIL_ONE_RECIPIENT = "tests/unit/libs/email_client/mockdata/mock_gmail_one_recipient.yaml"
 MOCK_GMAIL_MULTIPLE_RECIPIENTS = "tests/unit/libs/email_client/mockdata/mock_gmail_multiple_recipients.yaml"

@@ -3,16 +3,6 @@ import logging
 from .base_executor import BaseExecutor
 
 
-DRYRUN_FAKE_RESPONSE = {
-    "info": {
-        "order_id": "DRYRUN",
-        "id": "DRYRUN",
-        "executed_amount": 1
-    },
-    "id": "DRYRUN"
-}
-
-
 class DryRunExecutor(BaseExecutor):
     """An executor if a dry run is desired."""
 
