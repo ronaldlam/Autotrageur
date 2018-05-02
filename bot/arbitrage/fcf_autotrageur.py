@@ -12,6 +12,7 @@ prev_spread = 0
 email_count = 0
 
 # Constants.
+EMAIL_CFG_PATH = 'email_cfg_path'
 MAX_EMAILS = 'max_emails'
 SPREAD_PRECISION = 'spread_precision'
 
@@ -22,10 +23,10 @@ class FCFAutotrageur(Autotrageur):
     This implementation of the Autotrageur polls two specified fiat to
     crypto markets. Given the target high and low spreads between the
     fiat currencies, this algorithm will execute a trade in the
-    direction of exchange two (buy cypto on exchange one, sell crypto on
-    exchange two) if the calculated spread is greater than the specified
-    target high; vice versa if the calculated spread is less than the
-    specified target low.
+    direction of exchange two (buy crypto on exchange one, sell crypto
+    on exchange two) if the calculated spread is greater than the
+    specified target high; vice versa if the calculated spread is less
+    than the specified target low.
     """
 
     def _poll_opportunity(self):
@@ -94,7 +95,13 @@ class FCFAutotrageur(Autotrageur):
             if email_count == max_num_emails:
                 email_count = 0
             prev_spread = curr_spread
-            send_all_emails(self.message)
+
+            # Continue running bot even if unable to send e-mail.
+            try:
+                send_all_emails(self.config[EMAIL_CFG_PATH], self.message)
+            except Exception as e:
+                logging.error("Unable to send e-mail due to: ")
+                logging.error(e)
             email_count += 1
 
     def _execute_trade(self):
