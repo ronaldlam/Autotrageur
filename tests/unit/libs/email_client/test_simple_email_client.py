@@ -1,9 +1,6 @@
-from unittest.mock import Mock, MagicMock, patch
+import smtplib
 
 import pytest
-from pytest_mock import mocker
-
-import smtplib
 import yaml
 
 from libs.email_client import simple_email_client

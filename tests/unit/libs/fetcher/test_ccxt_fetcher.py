@@ -1,6 +1,5 @@
 import ccxt
 import pytest
-from pytest_mock import mocker
 
 from tests.unit.resources.mock_exchanges import fake_binance
 from libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
