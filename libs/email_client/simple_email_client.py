@@ -55,6 +55,7 @@ def send_single_email(recipient, email_cfg, msg):
         LOGGER.info("Email sent successfully to: %s", recipient)
     except Exception as ex:
         LOGGER.error("Error encountered trying to send email: %s", ex)
+        raise
     finally:
         smtp_server.quit()
 
