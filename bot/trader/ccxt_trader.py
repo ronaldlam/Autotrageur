@@ -27,7 +27,7 @@ class CCXTTrader():
     """CCXT Trader for performing trades."""
 
     def __init__(self, base, quote, exchange_name, slippage, target_amount,
-        exchange_config=None, dry_run=False):
+        exchange_config={}, dry_run=False):
         """Constructor.
 
         The trading client for interacting with the CCXT library.
