@@ -6,7 +6,10 @@ dryrun: # If True, will log trades instead of executing them.
 # Email configuration, and email options.
 email_cfg_path: # path/to/email_cfg file.  Used to send e-mails on arb opportunities.
 max_emails: # Throttles after number of sent emails for similar spreads encountered, e.g. 3
-spread_precision: # The precision (number of decimals) to compare the previous spread, e.g. 1
+spread_rounding: # The number of decimals in which to round the spread for comparison to previous spread, e.g. 1
+spread_tolerance: # The +/- of the spread in which to send an e-mail notification.
+# For example, 0.5 would mean for a previous spread of 2.5%, a next spread of > 3.0% or < 2.0% would
+# send an email.
 
 # Percentage downside of limit order slippage tolerable for market order emulations
 slippage: # Important for Gemini, eg. 3

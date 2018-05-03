@@ -1,3 +1,4 @@
+from decimal import Decimal
 import logging
 
 import ccxt
@@ -14,7 +15,8 @@ email_count = 0
 # Constants.
 EMAIL_CFG_PATH = 'email_cfg_path'
 MAX_EMAILS = 'max_emails'
-SPREAD_PRECISION = 'spread_precision'
+SPREAD_ROUNDING = 'spread_rounding'
+SPREAD_TOLERANCE = 'spread_tolerance'
 
 
 class FCFAutotrageur(Autotrageur):
@@ -28,6 +30,37 @@ class FCFAutotrageur(Autotrageur):
     specified target high; vice versa if the calculated spread is less
     than the specified target low.
     """
+
+    @staticmethod
+    def _is_within_tolerance(curr_spread, prev_spread, spread_rnd,
+                             spread_tol):
+        """Compares the current spread with the previous spread to see if
+        within user-specified spread tolerance.
+
+        If rounding specified (spread_rnd), the current and previous spreads
+        will be rounded before check against tolerance.
+
+        Args:
+            curr_spread (float): The current spread of the arb opportunity.
+            prev_spread (float): The previous spread to compare to.
+            spread_rnd (int): Number of decimals to round the spreads to.
+            spread_tol (float): The spread tolerance to check if curr_spread
+                minus prev_spread is within.
+
+        Returns:
+            bool: True if the (current spread - previous spread) is still
+                within the tolerance.  Else, False.
+        """
+        if spread_rnd is not None:
+            logging.info("Rounding spreads to %d decimal place", spread_rnd)
+            curr_spread = round(curr_spread, spread_rnd)
+            prev_spread = round(prev_spread, spread_rnd)
+
+        logging.info("\nPrevious spread of: %f Current spread of: %f\n"
+                     "spread tolerance of: %f", prev_spread, curr_spread,
+                     spread_tol)
+        return (abs(Decimal(str(curr_spread)) - Decimal(str(prev_spread))) <=
+                spread_tol)
 
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
@@ -46,8 +79,8 @@ class FCFAutotrageur(Autotrageur):
             self.spread_opp = arbseeker.get_arb_opportunities_by_orderbook(
                 self.tclient1, self.tclient2, spread_low,
                 spread_high)
-        except ccxt.RequestTimeout as timeout:
-            logging.error(timeout)
+        except ccxt.NetworkError as network_error:
+            logging.error(network_error, exc_info=True)
             return False
         finally:
             if self.spread_opp is None:
@@ -72,12 +105,10 @@ class FCFAutotrageur(Autotrageur):
         """Sends emails for a new arbitrage opportunity.  Throttles if too
         frequent.
 
-        Based on preference of SPREAD_PRECISION and MAX_EMAILS, an e-mail will
-        be sent if the current spread is not similar to previous spread AND if
-        a max email threshold has not been hit with similar spreads.
-
-        Default SPREAD_PRECISION is 0.
-        Default MAX_EMAILS is 3.
+        Based on preference of SPREAD_ROUNDING, SPREAD_TOLERANCE and MAX_EMAILS,
+        an e-mail will be sent if the current spread is not similar to previous
+        spread AND if a max email threshold has not been hit with similar
+        spreads.
 
         Args:
             curr_spread (float): The current arbitrage spread for the arbitrage
@@ -86,12 +117,14 @@ class FCFAutotrageur(Autotrageur):
         global prev_spread
         global email_count
 
-        precision = self.config[SPREAD_PRECISION] or 0
-        max_num_emails = self.config[SPREAD_PRECISION] or 3
-        if (round(curr_spread, precision) == round(prev_spread, precision) and
-            email_count == max_num_emails):
-            pass
-        else:
+        max_num_emails = self.config[MAX_EMAILS]
+        spread_tol = self.config[SPREAD_TOLERANCE]
+        spread_rnd = self.config[SPREAD_ROUNDING]
+
+        bWithinTolerance = FCFAutotrageur._is_within_tolerance(
+            curr_spread, prev_spread, spread_rnd, spread_tol)
+
+        if not bWithinTolerance or email_count < max_num_emails:
             if email_count == max_num_emails:
                 email_count = 0
             prev_spread = curr_spread
@@ -99,9 +132,8 @@ class FCFAutotrageur(Autotrageur):
             # Continue running bot even if unable to send e-mail.
             try:
                 send_all_emails(self.config[EMAIL_CFG_PATH], self.message)
-            except Exception as e:
-                logging.error("Unable to send e-mail due to: ")
-                logging.error(e)
+            except Exception:
+                logging.error("Unable to send e-mail due to: \n", exc_info=True)
             email_count += 1
 
     def _execute_trade(self):
