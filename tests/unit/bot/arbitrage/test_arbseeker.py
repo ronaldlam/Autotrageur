@@ -39,7 +39,14 @@ def trader2():
         (5, 10, True),
         (2, 2, True),
         (6, 6, True),
-        (2, 7, True)
+        (2, 7, True),
+        (None, 4, False), # Still triggers correctly, first calculated
+        pytest.param(None, 6, False,
+            marks=pytest.mark.xfail(strict=True, raises=TypeError)),
+        pytest.param(4, None, False,
+            marks=pytest.mark.xfail(strict=True, raises=TypeError)),
+        pytest.param(6, None, False,
+            marks=pytest.mark.xfail(strict=True, raises=TypeError)),
     ]
 )
 def test_get_opportunities(
@@ -181,3 +188,8 @@ def test_abort_arbitrage(
     trader2.get_full_orderbook.assert_called_once()
     trader2.get_adjusted_market_price_from_orderbook.assert_called_once()
     assert(trader2.execute_market_sell.call_count == 0)
+
+
+def test_dead_opportunity():
+    with pytest.raises(TypeError):
+        execute_arbitrage(None)
