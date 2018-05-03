@@ -52,36 +52,48 @@ class Autotrageur(ABC):
             arguments (map): Map of the arguments passed to the program
 
         Raises:
-            IOError: If the encrypted keyfile does not open.
+            IOError: If the encrypted keyfile does not open, and not in dryrun
+                mode.
         """
-        # Load keyfile
-        keys = None
-        with open(arguments[KEYFILE], "rb") as in_file:
-            keys = decrypt(
-                in_file.read(),
-                to_bytes(arguments[PASSWORD]),
-                to_bytes(arguments[SALT]))
-
-        if keys is None:
-            raise IOError("Unable to open file. %s" % arguments)
-
-        str_keys = to_str(keys)
-        exchange_key_map = keyfile_to_map(str_keys)
-
+        # Load arb configuration.
         with open(CONFIG_FILE, "r") as ymlfile:
             self.config = yaml.load(ymlfile)
 
+        # Load keyfile.
+        exchange_key_map = None
+        try:
+            with open(arguments[KEYFILE], "rb") as in_file:
+                keys = decrypt(
+                    in_file.read(),
+                    to_bytes(arguments[PASSWORD]),
+                    to_bytes(arguments[SALT]))
+
+            str_keys = to_str(keys)
+            exchange_key_map = keyfile_to_map(str_keys)
+        except Exception:
+            logging.error("Unable to load keyfile.", exc_info=True)
+            if not self.config[DRYRUN]:
+                raise IOError("Unable to open file. %s" % arguments)
+            else:
+                logging.info("**Dry run: continuing with program")
+
         # Get exchange configuration settings.
         self.exchange1_configs = {
-            "apiKey": exchange_key_map[self.config[EXCHANGE1]][API_KEY],
-            "secret": exchange_key_map[self.config[EXCHANGE1]][API_SECRET],
-            "nonce": ccxt.Exchange.milliseconds,
+            "nonce": ccxt.Exchange.milliseconds
         }
         self.exchange2_configs = {
-            "apiKey": exchange_key_map[self.config[EXCHANGE2]][API_KEY],
-            "secret": exchange_key_map[self.config[EXCHANGE2]][API_SECRET],
-            "nonce": ccxt.Exchange.milliseconds,
+            "nonce": ccxt.Exchange.milliseconds
         }
+
+        if exchange_key_map:
+            self.exchange1_configs['apiKey'] = (
+                exchange_key_map[self.config[EXCHANGE1]][API_KEY])
+            self.exchange1_configs['secret'] = (
+                exchange_key_map[self.config[EXCHANGE1]][API_SECRET])
+            self.exchange2_configs['apiKey'] = (
+                exchange_key_map[self.config[EXCHANGE2]][API_KEY])
+            self.exchange2_configs['secret'] = (
+                exchange_key_map[self.config[EXCHANGE2]][API_SECRET])
 
     def _setup_markets(self):
         """Set up the market objects for the algorithm to use."""
