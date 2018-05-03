@@ -1,3 +1,4 @@
+from decimal import Decimal
 import logging
 
 import ccxt
@@ -47,8 +48,8 @@ class FCFAutotrageur(Autotrageur):
             self.spread_opp = arbseeker.get_arb_opportunities_by_orderbook(
                 self.tclient1, self.tclient2, spread_low,
                 spread_high)
-        except ccxt.RequestTimeout as timeout:
-            logging.error(timeout)
+        except ccxt.NetworkError as network_error:
+            logging.error(network_error, exc_info=True)
             return False
         finally:
             if self.spread_opp is None:
@@ -73,12 +74,10 @@ class FCFAutotrageur(Autotrageur):
         """Sends emails for a new arbitrage opportunity.  Throttles if too
         frequent.
 
-        Based on preference of SPREAD_ROUNDING and MAX_EMAILS, an e-mail will
-        be sent if the current spread is not similar to previous spread AND if
-        a max email threshold has not been hit with similar spreads.
-
-        Default SPREAD_ROUNDING is 0.
-        Default MAX_EMAILS is 3.
+        Based on preference of SPREAD_ROUNDING, SPREAD_TOLERANCE and MAX_EMAILS,
+        an e-mail will be sent if the current spread is not similar to previous
+        spread AND if a max email threshold has not been hit with similar
+        spreads.
 
         Args:
             curr_spread (float): The current arbitrage spread for the arbitrage
@@ -87,26 +86,16 @@ class FCFAutotrageur(Autotrageur):
         global prev_spread
         global email_count
 
-        spread_rnd = self.config[SPREAD_ROUNDING] or 0
-        max_num_emails = self.config[MAX_EMAILS] or 3
-        spread_tol = self.config[SPREAD_TOLERANCE] or 0.5
+        max_num_emails = self.config[MAX_EMAILS]
+        spread_tol = self.config[SPREAD_TOLERANCE]
+        spread_rnd = self.config[SPREAD_ROUNDING]
 
-        rnd_curr_sprd = round(curr_spread, spread_rnd)
-        rnd_prev_sprd = round(prev_spread, spread_rnd)
+        bWithinTolerance = self._is_within_tolerance(curr_spread, prev_spread,
+                                                     spread_rnd, spread_tol)
 
-        logging.info("\nPrevious spread of: %f Current spread of: %f\n"
-                     "Rounded to: %f and %f.\nWith spread rounding of: %d, "
-                     "spread tolerance of: %f and max emails of: %d",
-                     prev_spread, curr_spread, rnd_prev_sprd, rnd_curr_sprd,
-                     spread_rnd, spread_tol, max_num_emails)
-
-        print("email count: ", email_count)
-        print("tolerance: ", str(rnd_prev_sprd - rnd_curr_sprd))
-        if (abs(rnd_prev_sprd - rnd_curr_sprd) <= spread_tol and
-            email_count == max_num_emails):
+        if bWithinTolerance and email_count == max_num_emails:
             pass
         else:
-            print("tolerance exceeded: ", str(rnd_prev_sprd - rnd_curr_sprd))
             if email_count == max_num_emails:
                 email_count = 0
             prev_spread = curr_spread
@@ -141,3 +130,33 @@ class FCFAutotrageur(Autotrageur):
             logging.error(timeout)
         except arbseeker.AbortTradeException as abort_trade:
             logging.error(abort_trade)
+
+    def _is_within_tolerance(self, curr_spread, prev_spread, spread_rnd,
+                             spread_tol):
+        """Compares the current spread with the previous spread to see if
+        within user-specified spread tolerance.
+
+        If rounding specified (spread_rnd), the current and previous spreads
+        will be rounded before check against tolerance.
+
+        Args:
+            curr_spread (float): The current spread of the arb opportunity.
+            prev_spread (float): The previous spread to compare to.
+            spread_rnd (int): Number of decimals to round the spreads to.
+            spread_tol (float): The spread tolerance to check if curr_spread
+                minus prev_spread is within.
+
+        Returns:
+            bool: True if the (current spread - previous spread) is still
+                within the tolerance.  Else, False.
+        """
+        if spread_rnd:
+            logging.info("Rounding spreads to %d decimal place", spread_rnd)
+            curr_spread = round(curr_spread, spread_rnd)
+            prev_spread = round(prev_spread, spread_rnd)
+
+        logging.info("\nPrevious spread of: %f Current spread of: %f\n"
+                     "spread tolerance of: %f", prev_spread, curr_spread,
+                     spread_tol)
+        return (abs(Decimal(str(curr_spread)) - Decimal(str(prev_spread))) <=
+                spread_tol)

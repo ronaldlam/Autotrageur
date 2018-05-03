@@ -40,7 +40,14 @@ def send_single_email(recipient, email_cfg, msg):
         recipient (str): A recipient's e-mail address.
         email_cfg (dict[]): A dictionary of e-mail configuration properties.
         msg (str): A message formatted to be written as an e-mail (non-MIME).
+
+    Raises:
+        SMTPResponseException: If an SMTP error occurs containing 'smtp_code'
+            and 'smtp_error'.
+        SMTPException: The SMTP base error exception.
+        Exception: Generic Exception thrown if non-SMTP related.
     """
+    smtp_server = None
     try:
         smtp_server = smtplib.SMTP(email_cfg['host'], email_cfg['port'])
         smtp_server.ehlo()
@@ -63,7 +70,8 @@ def send_single_email(recipient, email_cfg, msg):
         LOGGER.error("Exception encountered trying to send email: %s", e)
         raise
     finally:
-        smtp_server.quit()
+        if smtp_server:
+            smtp_server.quit()
 
 
 def send_all_emails(email_cfg_path, msg):
