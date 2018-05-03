@@ -7,7 +7,7 @@ dryrun: True # If True, will log trades instead of executing them.
 email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to send e-mails on arb opportunities.
 max_emails: 2 # Throttles after number of sent emails for similar spreads encountered, e.g. 3
 spread_rounding: # The number of decimals in which to round the spread for comparison to previous spread, e.g. 1 for one decimal place
-spread_tolerance: 0.1 # The +/- of the spread in which to send an e-mail notification.
+spread_tolerance: 0.5 # The +/- of the spread in which to send an e-mail notification.
 # For example, 0.5 would mean for a previous spread of 2.5%, a next spread of > 3.0% or < 2.0% would
 # send an email.
 
@@ -26,7 +26,7 @@ exchange2_test: false
 
 # Targeted spreads
 spread_target_low: 0
-spread_target_high: 1
+spread_target_high: 3
 
 # Targeted trade amount in USD
-target_amount: 5
+target_amount: 20000
