@@ -60,8 +60,6 @@ class Autotrageur(ABC):
             self.config = yaml.load(ymlfile)
 
         # Load keyfile.
-        keys = None
-        str_keys = None
         exchange_key_map = None
         try:
             with open(arguments[KEYFILE], "rb") as in_file:

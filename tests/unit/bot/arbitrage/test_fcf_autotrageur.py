@@ -39,7 +39,7 @@ def fcf_autotrageur():
 ])
 def test_is_within_tolerance(fcf_autotrageur, curr_spread, prev_spread,
                              spread_rnd, spread_tol, bTol):
-    bWithinTol = fcf_autotrageur._is_within_tolerance(curr_spread, prev_spread,
+    bWithinTol = FCFAutotrageur._is_within_tolerance(curr_spread, prev_spread,
                                                       spread_rnd, spread_tol)
     assert bWithinTol is bTol
 
@@ -53,7 +53,7 @@ def test_is_within_tolerance(fcf_autotrageur, curr_spread, prev_spread,
 def test_is_within_tolerance_bad(fcf_autotrageur, curr_spread, prev_spread,
                              spread_rnd, spread_tol, bTol):
     with pytest.raises((decimal.InvalidOperation, TypeError), message="Expecting a float, not a NoneType"):
-        bWithinTol = fcf_autotrageur._is_within_tolerance(curr_spread, prev_spread,
+        bWithinTol = FCFAutotrageur._is_within_tolerance(curr_spread, prev_spread,
                                                             spread_rnd, spread_tol)
         assert bWithinTol is bTol
 
@@ -80,7 +80,7 @@ def test_email_or_throttle_emailed(mocker, fcf_autotrageur, email_count,
 
 @pytest.mark.parametrize('email_count, prev_spread, curr_spread, max_emails, rnding, tol', [
     (0, 0, 0, 0, 0, 0),
-    pytest.param(0, 0, None, 0, 0, 0, marks=xfail(raises=decimal.InvalidOperation, reason="arithmetic on NoneType", strict=True)),
+    pytest.param(0, 0, None, 0, 0, 0, marks=xfail(raises=(TypeError, decimal.InvalidOperation), reason="rounding or arithmetic on NoneType", strict=True)),
     (2, 2.0, 2.0, 2, 1, 0.1),
     (2, 2.0, 2.1, 2, 1, 0.1),
     (2, 2.1, 2.0, 2, 1, 0.1)

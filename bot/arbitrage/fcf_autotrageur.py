@@ -31,6 +31,37 @@ class FCFAutotrageur(Autotrageur):
     than the specified target low.
     """
 
+    @staticmethod
+    def _is_within_tolerance(curr_spread, prev_spread, spread_rnd,
+                             spread_tol):
+        """Compares the current spread with the previous spread to see if
+        within user-specified spread tolerance.
+
+        If rounding specified (spread_rnd), the current and previous spreads
+        will be rounded before check against tolerance.
+
+        Args:
+            curr_spread (float): The current spread of the arb opportunity.
+            prev_spread (float): The previous spread to compare to.
+            spread_rnd (int): Number of decimals to round the spreads to.
+            spread_tol (float): The spread tolerance to check if curr_spread
+                minus prev_spread is within.
+
+        Returns:
+            bool: True if the (current spread - previous spread) is still
+                within the tolerance.  Else, False.
+        """
+        if spread_rnd is not None:
+            logging.info("Rounding spreads to %d decimal place", spread_rnd)
+            curr_spread = round(curr_spread, spread_rnd)
+            prev_spread = round(prev_spread, spread_rnd)
+
+        logging.info("\nPrevious spread of: %f Current spread of: %f\n"
+                     "spread tolerance of: %f", prev_spread, curr_spread,
+                     spread_tol)
+        return (abs(Decimal(str(curr_spread)) - Decimal(str(prev_spread))) <=
+                spread_tol)
+
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
 
@@ -90,12 +121,10 @@ class FCFAutotrageur(Autotrageur):
         spread_tol = self.config[SPREAD_TOLERANCE]
         spread_rnd = self.config[SPREAD_ROUNDING]
 
-        bWithinTolerance = self._is_within_tolerance(curr_spread, prev_spread,
-                                                     spread_rnd, spread_tol)
+        bWithinTolerance = FCFAutotrageur._is_within_tolerance(
+            curr_spread, prev_spread, spread_rnd, spread_tol)
 
-        if bWithinTolerance and email_count == max_num_emails:
-            pass
-        else:
+        if not bWithinTolerance or email_count < max_num_emails:
             if email_count == max_num_emails:
                 email_count = 0
             prev_spread = curr_spread
@@ -130,33 +159,3 @@ class FCFAutotrageur(Autotrageur):
             logging.error(timeout)
         except arbseeker.AbortTradeException as abort_trade:
             logging.error(abort_trade)
-
-    def _is_within_tolerance(self, curr_spread, prev_spread, spread_rnd,
-                             spread_tol):
-        """Compares the current spread with the previous spread to see if
-        within user-specified spread tolerance.
-
-        If rounding specified (spread_rnd), the current and previous spreads
-        will be rounded before check against tolerance.
-
-        Args:
-            curr_spread (float): The current spread of the arb opportunity.
-            prev_spread (float): The previous spread to compare to.
-            spread_rnd (int): Number of decimals to round the spreads to.
-            spread_tol (float): The spread tolerance to check if curr_spread
-                minus prev_spread is within.
-
-        Returns:
-            bool: True if the (current spread - previous spread) is still
-                within the tolerance.  Else, False.
-        """
-        if spread_rnd:
-            logging.info("Rounding spreads to %d decimal place", spread_rnd)
-            curr_spread = round(curr_spread, spread_rnd)
-            prev_spread = round(prev_spread, spread_rnd)
-
-        logging.info("\nPrevious spread of: %f Current spread of: %f\n"
-                     "spread tolerance of: %f", prev_spread, curr_spread,
-                     spread_tol)
-        return (abs(Decimal(str(curr_spread)) - Decimal(str(prev_spread))) <=
-                spread_tol)
