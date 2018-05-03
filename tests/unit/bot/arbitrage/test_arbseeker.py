@@ -15,6 +15,8 @@ SPREAD_HIGH = "spread_high"
 MARKETBUY_EXCHANGE = "marketbuy_exchange"
 MARKETSELL_EXCHANGE = "marketsell_exchange"
 
+TEST_SPREAD = 5
+
 
 @pytest.fixture(scope='module')
 def trader1():
@@ -70,7 +72,7 @@ def test_get_opportunities(
     mocker.patch.object(trader2, 'base')
 
     mocker.patch.object(spreadcalculator, 'calc_spread')
-    spreadcalculator.calc_spread.return_value = 5
+    spreadcalculator.calc_spread.return_value = TEST_SPREAD
 
     result = get_arb_opportunities_by_orderbook(
         trader1, trader2, spread_low, spread_high)
@@ -80,10 +82,10 @@ def test_get_opportunities(
     assert(trader1.get_adjusted_market_price_from_orderbook.call_count == 2)
     assert(trader2.get_adjusted_market_price_from_orderbook.call_count == 2)
 
-    if (5 >= spread_high):
+    if (TEST_SPREAD >= spread_high):
         target_spread = spread_high
         is_high = True
-    elif (5 <= spread_low):
+    elif (TEST_SPREAD <= spread_low):
         target_spread = spread_low
         is_high = False
     else:
@@ -108,7 +110,7 @@ def test_execute_arbitrage(
     mocker.patch.object(trader1, 'execute_market_buy')
     trader1.execute_market_buy.return_value = {
         "info": {
-            "executed_amount": 5
+            "executed_amount": TEST_SPREAD
         }
     }
 
@@ -151,7 +153,7 @@ def test_abort_arbitrage(
     mocker.patch.object(trader1, 'execute_market_buy')
     trader1.execute_market_buy.return_value = {
         "info": {
-            "executed_amount": 5
+            "executed_amount": TEST_SPREAD
         }
     }
 

@@ -8,6 +8,20 @@ def exchange():
     return ccxt_extensions.ext_gemini()
 
 
+@pytest.fixture(scope='function')
+def executor(mocker, exchange):
+    mocker.patch.object(exchange, 'create_emulated_market_buy_order')
+    mocker.patch.object(exchange, 'create_emulated_market_sell_order')
+    mocker.patch.object(exchange, 'create_market_buy_order')
+    mocker.patch.object(exchange, 'create_market_sell_order')
+    return CCXTExecutor(exchange)
+
+
+def test_constructor(mocker, exchange):
+    executor = CCXTExecutor(exchange)
+    assert(executor.exchange is exchange)
+
+
 @pytest.mark.parametrize(
     "symbol, quote_amount, asset_price, slippage", [
         ('ETH/USD', 2, 600, 1),
@@ -15,9 +29,7 @@ def exchange():
     ]
 )
 def test_create_emulated_buy(
-        mocker, exchange, symbol, quote_amount, asset_price, slippage):
-    mocker.patch.object(exchange, 'create_emulated_market_buy_order')
-    executor = CCXTExecutor(exchange)
+        executor, exchange, symbol, quote_amount, asset_price, slippage):
     args = [symbol, quote_amount, asset_price, slippage]
     executor.create_emulated_market_buy_order(*args)
     exchange.create_emulated_market_buy_order.assert_called_once()
@@ -31,9 +43,7 @@ def test_create_emulated_buy(
     ]
 )
 def test_create_emulated_sell(
-        mocker, exchange, symbol, asset_price, asset_amount, slippage):
-    mocker.patch.object(exchange, 'create_emulated_market_sell_order')
-    executor = CCXTExecutor(exchange)
+        executor, exchange, symbol, asset_price, asset_amount, slippage):
     args = [symbol, asset_price, asset_amount, slippage]
     executor.create_emulated_market_sell_order(*args)
     exchange.create_emulated_market_sell_order.assert_called_once()
@@ -46,9 +56,7 @@ def test_create_emulated_sell(
         ('BTC/USD', 3, 10000)
     ]
 )
-def test_create_buy(mocker, exchange, symbol, asset_amount, asset_price):
-    mocker.patch.object(exchange, 'create_market_buy_order')
-    executor = CCXTExecutor(exchange)
+def test_create_buy(executor, exchange, symbol, asset_amount, asset_price):
     executor.create_market_buy_order(symbol, asset_amount, asset_price)
     exchange.create_market_buy_order.assert_called_once()
     # asset_price is unused.
@@ -61,9 +69,7 @@ def test_create_buy(mocker, exchange, symbol, asset_amount, asset_price):
         ('BTC/USD', 3, 10000)
     ]
 )
-def test_create_sell(mocker, exchange, symbol, asset_amount, asset_price):
-    mocker.patch.object(exchange, 'create_market_sell_order')
-    executor = CCXTExecutor(exchange)
+def test_create_sell(executor, exchange, symbol, asset_amount, asset_price):
     executor.create_market_sell_order(symbol, asset_amount, asset_price)
     exchange.create_market_sell_order.assert_called_once()
     # asset_price is unused.
