@@ -69,7 +69,7 @@ class CCXTTrader():
         self.quote = quote
         self.exchange_name = exchange_name
         self.fetcher = CCXTFetcher(self.ccxt_exchange)
-        self.executor = DryRunExecutor(self.exchange_name) if dry_run else \
+        self.executor = DryRunExecutor(self.ccxt_exchange) if dry_run else \
             CCXTExecutor(self.ccxt_exchange)
         self.slippage = slippage
         self.target_amount = target_amount

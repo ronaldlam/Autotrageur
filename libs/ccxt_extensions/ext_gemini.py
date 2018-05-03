@@ -107,6 +107,40 @@ class ext_gemini(ccxt.gemini):
 
         return markets
 
+    def prepare_emulated_market_buy_order(
+            self, symbol, quote_amount, asset_price, slippage):
+        """Calculate data required for the ccxt market buy order.
+
+        Args:
+            symbol (str): The symbol of the market, ie. 'ETH/USD'.
+            quote_amount (float): The amount to buy in quote currency.
+            asset_price (float): The target buy price, quote per base.
+            slippage (float): The percentage off asset_price the market
+                buy will tolerate.
+
+        Returns:
+            (float, float): Tuple of asset volume and limit price.
+        """
+        # Calculated volume of asset expected to be purchased.
+        asset_volume = quote_amount / asset_price
+        # Maximum price we are willing to pay.
+        # TODO: Implement failsafes for unreasonable slippage.
+        ratio = (100.0 + slippage) / 100.0
+        limit_price = asset_price * ratio
+        a_precision = self.markets[symbol]['precision']['amount']
+        p_precision = self.markets[symbol]['precision']['price']
+
+        # Rounding is required for direct ccxt call.
+        asset_volume = round(asset_volume, a_precision)
+        limit_price = round(limit_price, p_precision)
+
+        logging.info("Gemini emulated market buy.")
+        logging.info("Estimated asset price: %s" % asset_price)
+        logging.info("Asset volume: %s" % asset_volume)
+        logging.info("Limit price: %s" % limit_price)
+
+        return (asset_volume, limit_price)
+
     def create_emulated_market_buy_order(
             self, symbol, quote_amount, asset_price, slippage):
         """Create an emulated market buy order with maximum slippage.
@@ -131,30 +165,43 @@ class ext_gemini(ccxt.gemini):
             and 'id'. The 'info' includes all response contents and
             result['id'] == result['info']['id']
         """
-        # Calculated volume of asset expected to be purchased.
-        asset_volume = quote_amount / asset_price
-        # Maximum price we are willing to pay.
-        # TODO: Implement failsafes for unreasonable slippage.
-        ratio = (100.0 + slippage) / 100.0
-        limit_price = asset_price * ratio
-        a_precision = self.markets[symbol]['precision']['amount']
-        p_precision = self.markets[symbol]['precision']['price']
-
-        # Rounding is required for direct ccxt call.
-        asset_volume = round(asset_volume, a_precision)
-        limit_price = round(limit_price, p_precision)
-
-        logging.info("Gemini emulated market buy.")
-        logging.info("Estimated asset price: %s" % asset_price)
-        logging.info("Asset volume: %s" % asset_volume)
-        logging.info("Limit price: %s" % limit_price)
-
+        (asset_volume, limit_price) = self.prepare_emulated_market_buy_order(
+            symbol, quote_amount, asset_price, slippage)
         result = self.create_limit_buy_order(
             symbol,
             asset_volume,
             limit_price,
             {"options": ["immediate-or-cancel"]})
         return result
+
+    def prepare_emulated_market_sell_order(
+            self, symbol, asset_price, asset_amount, slippage):
+        """Calculate data required for the ccxt market sell order.
+
+        Args:
+            symbol (str): The symbol of the market, ie. 'ETH/USD'.
+            asset_price (float): The price, quote per base.
+            asset_amount (float): The amount of the asset to be sold.
+            slippage (float): The percentage off asset_price the market
+                buy will tolerate.
+
+        Returns:
+            (float, float): Tuple of the rounded asset amount and limit
+                price.
+        """
+        # Minimum price we are willing to sell.
+        ratio = (100.0 - slippage) / 100.0
+        a_precision = self.markets[symbol]['precision']['amount']
+        p_precision = self.markets[symbol]['precision']['price']
+        rounded_amount = round(asset_amount, a_precision)
+        rounded_limit_price = round(asset_price * ratio, p_precision)
+
+        logging.info("Gemini emulated market sell.")
+        logging.info("Estimated asset price: %s" % asset_price)
+        logging.info("Asset volume: %s" % rounded_amount)
+        logging.info("Limit price: %s" % rounded_limit_price)
+
+        return (rounded_amount, rounded_limit_price)
 
     def create_emulated_market_sell_order(
             self, symbol, asset_price, asset_amount, slippage):
@@ -180,18 +227,9 @@ class ext_gemini(ccxt.gemini):
             and 'id'. The 'info' includes all response contents and
             result['id'] == result['info']['id']
         """
-        # Minimum price we are willing to sell.
-        ratio = (100.0 - slippage) / 100.0
-        a_precision = self.markets[symbol]['precision']['amount']
-        p_precision = self.markets[symbol]['precision']['price']
-        rounded_amount = round(asset_amount, a_precision)
-        rounded_limit_price = round(asset_price * ratio, p_precision)
-
-        logging.info("Gemini emulated market sell.")
-        logging.info("Estimated asset price: %s" % asset_price)
-        logging.info("Asset volume: %s" % rounded_amount)
-        logging.info("Limit price: %s" % rounded_limit_price)
-
+        (rounded_amount, rounded_limit_price) = (
+            self.prepare_emulated_market_sell_order(
+                symbol, asset_price, asset_amount, slippage))
         result = self.create_limit_sell_order(
             symbol,
             rounded_amount,
