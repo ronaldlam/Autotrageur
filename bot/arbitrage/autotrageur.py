@@ -9,11 +9,11 @@ from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map, to_bytes, to_str
 from bot.trader.ccxt_trader import CCXTTrader as CCXTTrader
 
+CONFIGFILE = "CONFIGFILE"
 KEYFILE = "KEYFILE"
 PASSWORD = "PASSWORD"
 SALT = "SALT"
 
-CONFIG_FILE = "configs/arb_config.yaml"
 AUTHENTICATE = "authenticate"
 DRYRUN = "dryrun"
 SLIPPAGE = "slippage"
@@ -56,7 +56,7 @@ class Autotrageur(ABC):
                 mode.
         """
         # Load arb configuration.
-        with open(CONFIG_FILE, "r") as ymlfile:
+        with open(arguments[CONFIGFILE], "r") as ymlfile:
             self.config = yaml.load(ymlfile)
 
         # Load keyfile.
