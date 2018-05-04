@@ -1,7 +1,6 @@
 import ccxt
 import pytest
 
-from tests.unit.resources.mock_exchanges import fake_binance
 from libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
 
 
@@ -87,10 +86,6 @@ last_structures = {
         'last': BTC_LAST
     }
 }
-
-@pytest.fixture()
-def ccxtfetcher_binance(fake_binance):
-    return CCXTFetcher(fake_binance)
 
 
 @pytest.mark.parametrize('exchange', [
