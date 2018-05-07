@@ -140,7 +140,7 @@ class CCXTTrader():
             float: If precision specified by exchange, the rounded asset amount
                 is returned.  Else, the asset amount is returned unchanged.
         """
-        if market_order:
+        if market_order is True:
             # Rounding is required for direct ccxt call.
             precision = self.ccxt_exchange.markets[symbol]['precision']
 
@@ -319,10 +319,11 @@ class CCXTTrader():
         """Load the markets of the exchange."""
         self.ccxt_exchange.load_markets()
 
-    def set_conversion_needed(self, flag):
+    def set_conversion_needed(self, flag=False):
         """Indicates whether a conversion is needed for the quote currency.
 
         Args:
             flag (bool): True or False depending on whether conversion needed.
+                Defaults to False.
         """
         self.conversion_needed = flag
