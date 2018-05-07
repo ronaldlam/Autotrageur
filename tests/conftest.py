@@ -51,12 +51,6 @@ def fake_binance(mocker, exc_names):
         }
     }
 
-    # # Fake urls.
-    # fake_binance_exchange.urls = {
-    #     'api': 'fake.url.com',
-    #     'test': 'fake.url.ca'
-    # }
-
     return fake_binance_exchange
 
 

@@ -3,6 +3,7 @@ from enum import Enum
 import ccxt
 import pytest
 
+import bot.currencyconverter as currencyconverter
 import bot.trader.ccxt_trader as ccxt_trader
 
 # Namespace shortcuts.
@@ -68,6 +69,110 @@ class TestCCXTTraderInit:
             assert trader.executor is fake_ccxt_executor
 
 
+class TestCalcVolByBook:
+    """For tests regarding ccxt_trader::_CCXTTrader__calc_vol_by_book."""
+
+    @pytest.mark.parametrize('bids_or_asks, target_amount, final_volume', [
+        # Good, one order, no overshoot.
+        ([
+            [10000.0, 2.0]
+        ], 20000.0, 2.0),
+        # Good, one order, negative overshoot.
+        ([
+            [11000.0, 2.0]
+        ], 20000.0, 1.8181818181818181),
+        # Good, two orders, negative overshoot.
+        ([
+            [10050.0, 1.0],
+            [10000.0, 1.0]
+        ], 20000.0, 1.995),
+        # Good, multiple orders, larger numbers, larger negative overshoot.
+        ([
+            [20055.0, 1000.0],
+            [15055.0, 3000.45],
+            [10050.0, 1000.0],
+            [10000.0, 50000.5]
+        ], 100000000.0, 7472.772525),
+        # Good, multiple orders, real case, negative overshoot.
+        ([
+            [756.87, 0.015191],
+            [756.9, 0.017835],
+            [756.91, 0.012548],
+            [756.92, 0.011226],
+            [756.93, 0.005943],
+            [756.96, 0.007264],
+            [756.97, 0.009905],
+            [756.98, 0.011225],
+            [756.99, 0.024437],
+            [757.0, 3.172266],
+            [757.54, 0.011219],
+            [757.55, 0.02178],
+            [757.56, 0.024418],
+            [757.57, 0.007258],
+            [757.58, 0.017818],
+            [757.6, 0.91544843],
+            [757.95, 0.005935],
+            [757.96, 0.01649],
+            [757.97, 0.01253],
+            [757.98, 0.021766],
+            [757.99, 10.5],
+            [758.0, 100.0],
+            [758.84, 0.02306],
+            [758.85, 0.5],
+            [758.98, 0.015796],
+            [759.0, 100.0],
+            [759.25, 112.9],
+            [759.74, 9.4],
+            [759.99, 0.6559],
+            [760.0, 1.114685],
+            [760.06, 0.015763],
+            [760.14, 9.8],
+            [760.27, 49.65],
+            [760.46, 0.015162],
+            [760.74, 0.181],
+            [760.79, 0.015763],
+            [760.88, 50.0],
+            [760.91, 496.58],
+            [761.54, 0.015727],
+            [761.9, 1.25],
+            [762.98, 0.015661],
+            [763.36, 50.015692],
+            [763.37, 58.0],
+            [763.57, 16.0],
+            [764.97, 0.015172],
+            [765.13, 17.99],
+            [765.31, 0.007],
+            [765.32, 0.015141],
+            [765.37, 54.98],
+            [766.46, 0.15]
+        ], 20000.0, 26.390243212957785)
+    ])
+    def test_calc_vol_by_book(self, mocker, fake_ccxt_trader, bids_or_asks, target_amount, final_volume):
+        volume = fake_ccxt_trader._CCXTTrader__calc_vol_by_book(bids_or_asks, target_amount)
+        assert volume == final_volume
+
+    @pytest.mark.parametrize('bids_or_asks, target_amount', [
+        # Not enough depth, one order.
+        ([
+            [10000.0, 1.0]
+        ], 20000.0),
+        # Not enough depth, two orders, minimal amounts.
+        ([
+            [10050.0, 0.001],
+            [10000.0, 0.004]
+        ], 20000.0),
+        # Not enough depth, multiple orders, large numbers.
+        ([
+            [20055.0, 100.0],
+            [15055.0, 300.45],
+            [10050.0, 100.0],
+            [10000.0, 500.5]
+        ], 1000000000.12345678)
+    ])
+    def test_calc_vol_by_book_exception(self, mocker, fake_ccxt_trader, bids_or_asks, target_amount):
+        with pytest.raises(ccxt_trader.OrderbookException):
+            fake_ccxt_trader._CCXTTrader__calc_vol_by_book(bids_or_asks, target_amount)
+
 class TestCheckExchangeLimits:
     """For tests regarding ccxt_trader::_CCXTTrader__check_exchange_limits."""
 
@@ -119,7 +224,6 @@ class TestCheckExchangeLimits:
     ])
     def test_check_exchange_limits_small(self, mocker, fake_ccxt_trader, amount, price, markets):
         self._internaltest_check_exchange_limits(mocker, fake_ccxt_trader, amount, price, markets)
-
 
     @pytest.mark.parametrize('amount, price', [
         (10000001, 9999999),
@@ -175,9 +279,7 @@ class TestCheckExchangeLimits:
     ])
     def test_check_exchange_limits_exception(self, mocker, fake_ccxt_trader, markets, amount, price):
         with pytest.raises(ccxt_trader.ExchangeLimitException):
-            fake_ccxt_trader.ccxt_exchange.markets = {}
-            mocker.patch.dict(fake_ccxt_trader.ccxt_exchange.markets, markets)
-            fake_ccxt_trader._CCXTTrader__check_exchange_limits(amount, price)
+            self._internaltest_check_exchange_limits(mocker, fake_ccxt_trader, amount, price, markets)
 
 
 class TestRoundExchangePrecision:
@@ -408,6 +510,39 @@ def test_get_full_orderbook(fake_ccxt_trader, symbols):
     fake_ccxt_trader.get_full_orderbook()
     assert fake_ccxt_trader.fetcher.get_full_orderbook.call_count == 1
     fake_ccxt_trader.fetcher.get_full_orderbook.assert_called_with(symbols['bitcoin'], symbols['usd'])
+
+
+class TestGetAdjustedMarketPriceFromOrderbook:
+    fake_bids_or_asks = [['fake', 'bids', 'asks']]
+    fake_asset_volume = 10
+    fake_target_amount = 100
+    fake_usd_value = 150
+
+    @pytest.mark.parametrize('conversion_needed', [
+        True,
+        False,
+        None
+    ])
+    def test_get_adjusted_market_price_from_orderbook(self, mocker, fake_ccxt_trader,
+                                                      conversion_needed):
+        mocker.patch.object(fake_ccxt_trader, '_CCXTTrader__calc_vol_by_book',
+            return_value=self.fake_asset_volume)
+        asset_volume = fake_ccxt_trader._CCXTTrader__calc_vol_by_book.return_value
+
+        mocker.patch.object(fake_ccxt_trader, 'target_amount', self.fake_target_amount)
+        target_amount = fake_ccxt_trader.target_amount
+
+        if conversion_needed:
+            mocker.patch.object(ccxt_trader.currencyconverter, 'convert_currencies', return_value=self.fake_usd_value)
+            mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
+
+        market_price = fake_ccxt_trader.get_adjusted_market_price_from_orderbook(self.fake_bids_or_asks)
+
+        if conversion_needed:
+            asset_usd_value = ccxt_trader.currencyconverter.convert_currencies.return_value
+            assert market_price == asset_usd_value / asset_volume
+        else:
+            assert market_price == target_amount / asset_volume
 
 
 def test_load_markets(mocker, fake_ccxt_trader):
