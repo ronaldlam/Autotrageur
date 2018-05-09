@@ -194,6 +194,11 @@ class Autotrageur(ABC):
         """Execute the trade, providing necessary failsafes."""
         pass
 
+    @abstractmethod
+    def _clean_up(self):
+        """Cleans up the state of the autotrageur."""
+        pass
+
     def _wait(self):
         """Wait for the specified polling interval."""
         time.sleep(5)
@@ -208,6 +213,7 @@ class Autotrageur(ABC):
         self._setup_markets()
 
         while True:
+            self._clean_up()
             if self._poll_opportunity():
                 self._execute_trade()
             self._wait()

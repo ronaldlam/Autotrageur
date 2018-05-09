@@ -1,3 +1,4 @@
+from enum import Enum
 import logging
 import sys
 
@@ -13,6 +14,33 @@ from libs.utilities import keys_exists
 EXTENSION_PREFIX = "ext_"
 
 
+class MarketOrderType(Enum):
+    """An Enum for Market order types.
+
+    Args:
+        Enum (str): One of: 'buy' or 'sell'.
+    """
+    BUY = 'buy',
+    SELL = 'sell'
+
+    @classmethod
+    def has_value(cls, value):
+        """Checks if a value is in the MarketOrderType Enum.
+
+        Args:
+            value (str): A string value to check against the MarketOrderType
+                Enum.
+
+        Returns:
+            bool: True if value belongs in MarketOrderType Enum. Else, false.
+        """
+        return any(value.lower() == item.value for item in cls)
+
+
+class InvalidMarketOrderTypeError(Exception):
+    """Exception thrown when invalid or unspecified MarketOrderType."""
+    pass
+
 class OrderbookException(Exception):
     """Exception for orderbook related errors."""
     pass
@@ -26,8 +54,8 @@ class ExchangeLimitException(Exception):
 class CCXTTrader():
     """CCXT Trader for performing trades."""
 
-    def __init__(self, base, quote, exchange_name, slippage, target_amount,
-        exchange_config={}, dry_run=False):
+    def __init__(self, base, quote, exchange_name, slippage,
+        quote_target_amount, exchange_config={}, dry_run=False):
         """Constructor.
 
         The trading client for interacting with the CCXT library.
@@ -43,7 +71,7 @@ class CCXTTrader():
             exchange_name (str): Desired exchange to query against.
             slippage (float): Maximum desired slippage from emulated
                 market trades.
-            target_amount (float): Targeted amount to buy or sell, in
+            quote_target_amount (float): Targeted amount to buy or sell, in
                 quote currency.
             exchange_config (dict): The exchange's configuration in
                 accordance with the ccxt library for instantiating an
@@ -72,31 +100,31 @@ class CCXTTrader():
         self.executor = DryRunExecutor(self.ccxt_exchange) if dry_run else \
             CCXTExecutor(self.ccxt_exchange)
         self.slippage = slippage
-        self.target_amount = target_amount
+        self.quote_target_amount = quote_target_amount
         self.conversion_needed = False
 
-    def __calc_vol_by_book(self, bids_or_asks, target_amount):
+    def __calc_vol_by_book(self, bids_or_asks, quote_target_amount):
         """Calculates the asset volume with which to execute a trade.
 
-        Uses data from the orderbook to calculate the asset volume (base)
-        to fulfill the target_amount (quote).
+        Uses data from the orderbook to calculate the base asset volume
+        to fulfill the quote_target_amount.
 
         Args:
             bids_or_asks (list[list(float)]): The bids or asks in the
                 form of (price, volume).
-            target_amount (float): Targeted amount to buy or sell, in
+            quote_target_amount (float): Targeted amount to buy or sell, in
                 quote currency.
 
         Raises:
             OrderbookException: If the orderbook is not deep enough.
 
         Returns:
-            float: The base asset volume required to fulfill target_amount via
-                the orderbook.
+            float: The base asset volume required to fulfill
+                quote_target_amount via the orderbook.
         """
         index = 0
         base_asset_volume = 0.0
-        remaining_amount = target_amount
+        remaining_amount = quote_target_amount
 
         # Subtract from amount until enough of the order book is eaten up by
         # the trade.
@@ -127,42 +155,17 @@ class CCXTTrader():
         symbol = "%s/%s" % (self.base, self.quote)
         limits = self.ccxt_exchange.markets[symbol]['limits']
 
-        if amount is not None and keys_exists(limits, 'amount', 'min'):
-            min_limit = limits['amount']['min']
-            if min_limit is not None and min_limit > amount:
-                raise ExchangeLimitException(
-                    "Order amount %s %s less than exchange limit %s %s." % (
-                        amount,
-                        self.base,
-                        min_limit,
-                        self.base))
-        if amount is not None and keys_exists(limits, 'amount', 'max'):
-            max_limit = limits['amount']['max']
-            if max_limit is not None and max_limit < amount:
-                raise ExchangeLimitException(
-                    "Order amount %s %s more than exchange limit %s %s." % (
-                        amount,
-                        self.base,
-                        max_limit,
-                        self.base))
-        if price is not None and keys_exists(limits, 'price', 'min'):
-            min_limit = limits['price']['min']
-            if min_limit is not None and min_limit > price:
-                raise ExchangeLimitException(
-                    "Order price %s %s less than exchange limit %s %s." % (
-                        price,
-                        self.base,
-                        min_limit,
-                        self.base))
-        if price is not None and keys_exists(limits, 'price', 'max'):
-            max_limit = limits['price']['max']
-            if max_limit is not None and max_limit < price:
-                raise ExchangeLimitException(
-                    "Order price %s %s more than exchange limit %s %s." % (
-                        price,
-                        self.base,
-                        max_limit,
-                        self.base))
+        for measure in [ ('amount', amount), ('price', price) ]:
+            for range_limit in ['min', 'max']:
+                if (measure[1] and keys_exists(limits, measure[0],
+                                               range_limit)):
+                    limit = limits[measure[0]][range_limit]
+                    if (limit and
+                        (range_limit == 'min' and limit > measure[1]) or
+                        (range_limit == 'max' and limit < measure[1])):
+                        raise ExchangeLimitException(
+                            "Order amount %s %s less than exchange limit %s %s."
+                                % (measure[1], self.base, limit, self.base))
 
     def __round_exchange_precision(self, market_order, symbol, asset_amount):
         """Rounds the asset amount by a precision provided by the exchange.
@@ -235,7 +238,7 @@ class CCXTTrader():
         symbol = "%s/%s" % (self.base, self.quote)
         market_order = self.ccxt_exchange.has['createMarketOrder']
         asset_amount = self.__round_exchange_precision(market_order, symbol,
-                                                self.target_amount / asset_price)
+            self.quote_target_amount / asset_price)
 
         # For 'emulated', We check before rounding which is not strictly
         # correct, but it is likely larger issues are at hand if the error is
@@ -249,7 +252,7 @@ class CCXTTrader():
             # Rounding will be deferred to emulated implementation.
             result = self.executor.create_emulated_market_buy_order(
                 symbol,
-                self.target_amount,
+                self.quote_target_amount,
                 asset_price,
                 self.slippage)
         else:
@@ -330,13 +333,13 @@ class CCXTTrader():
             float: Prospective price of a market buy or sell.
         """
         asset_volume = self.__calc_vol_by_book(bids_or_asks,
-            self.target_amount)
+            self.quote_target_amount)
 
         if not self.conversion_needed:
-            return self.target_amount / asset_volume
+            return self.quote_target_amount / asset_volume
         else:
             asset_usd_value = currencyconverter.convert_currencies(self.quote,
-                'USD', self.target_amount)
+                'USD', self.quote_target_amount)
             return asset_usd_value / asset_volume
 
     def load_markets(self):

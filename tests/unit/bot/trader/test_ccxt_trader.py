@@ -27,7 +27,7 @@ BTC_USD = 'BTC/USD'
 class TestCCXTTraderInit:
     ext_exchanges = ['gemini', 'bithumb']
 
-    @pytest.mark.parametrize('base, quote, exchange_name, slippage, target_amount,'
+    @pytest.mark.parametrize('base, quote, exchange_name, slippage, quote_target_amount,'
                             'exchange_config, dry_run', [
         ('BTC', 'USD', 'binance', 5.0, 50000, {}, False),
         ('BTC', 'USD', 'gemini', 5.0, 50000, {}, False),
@@ -36,7 +36,7 @@ class TestCCXTTraderInit:
         ('BTC', 'USD', 'gemini', 5.0, 50000, {}, True),
         ('BTC', 'KRW', 'bithumb', 5.0, 50000, {}, True)
     ])
-    def test_init_normal(self, base, quote, exchange_name, slippage, target_amount,
+    def test_init_normal(self, base, quote, exchange_name, slippage, quote_target_amount,
                          exchange_config, dry_run, mocker, ccxtfetcher_binance,
                          fake_ccxt_executor, fake_dryrun_executor):
         mocker.patch('bot.trader.ccxt_trader.CCXTFetcher', return_value=ccxtfetcher_binance)
@@ -53,13 +53,13 @@ class TestCCXTTraderInit:
             exchange_obj = getattr(ccxt, exchange_name)(exchange_config)
             mocker.patch.object(ccxt, exchange_name, return_value=exchange_obj)
 
-        trader = CCXTTrader(base, quote, exchange_name, slippage, target_amount,
+        trader = CCXTTrader(base, quote, exchange_name, slippage, quote_target_amount,
                             exchange_config, dry_run)
         assert trader.base == base
         assert trader.quote == quote
         assert trader.exchange_name == exchange_name
         assert trader.slippage == slippage
-        assert trader.target_amount == target_amount
+        assert trader.quote_target_amount == quote_target_amount
         assert trader.ccxt_exchange is exchange_obj
         assert trader.fetcher is ccxtfetcher_binance
 
@@ -72,7 +72,7 @@ class TestCCXTTraderInit:
 class TestCalcVolByBook:
     """For tests regarding ccxt_trader::_CCXTTrader__calc_vol_by_book."""
 
-    @pytest.mark.parametrize('bids_or_asks, target_amount, final_volume', [
+    @pytest.mark.parametrize('bids_or_asks, quote_target_amount, final_volume', [
         # Good, one order, no overshoot.
         ([
             [10000.0, 2.0]
@@ -147,11 +147,11 @@ class TestCalcVolByBook:
             [766.46, 0.15]
         ], 20000.0, 26.390243212957785)
     ])
-    def test_calc_vol_by_book(self, mocker, fake_ccxt_trader, bids_or_asks, target_amount, final_volume):
-        volume = fake_ccxt_trader._CCXTTrader__calc_vol_by_book(bids_or_asks, target_amount)
+    def test_calc_vol_by_book(self, mocker, fake_ccxt_trader, bids_or_asks, quote_target_amount, final_volume):
+        volume = fake_ccxt_trader._CCXTTrader__calc_vol_by_book(bids_or_asks, quote_target_amount)
         assert volume == final_volume
 
-    @pytest.mark.parametrize('bids_or_asks, target_amount', [
+    @pytest.mark.parametrize('bids_or_asks, quote_target_amount', [
         # Not enough depth, one order.
         ([
             [10000.0, 1.0]
@@ -169,9 +169,9 @@ class TestCalcVolByBook:
             [10000.0, 500.5]
         ], 1000000000.12345678)
     ])
-    def test_calc_vol_by_book_exception(self, mocker, fake_ccxt_trader, bids_or_asks, target_amount):
+    def test_calc_vol_by_book_exception(self, mocker, fake_ccxt_trader, bids_or_asks, quote_target_amount):
         with pytest.raises(ccxt_trader.OrderbookException):
-            fake_ccxt_trader._CCXTTrader__calc_vol_by_book(bids_or_asks, target_amount)
+            fake_ccxt_trader._CCXTTrader__calc_vol_by_book(bids_or_asks, quote_target_amount)
 
 class TestCheckExchangeLimits:
     """For tests regarding ccxt_trader::_CCXTTrader__check_exchange_limits."""
@@ -387,14 +387,14 @@ class TestExecuteMarketOrder:
             market_order_function = 'execute_market_buy'
             market_order_function_params = [self.fake_asset_price]
             round_exchange_precision_params = [create_market_order['createMarketOrder'], BTC_USD,
-                (fake_ccxt_trader.target_amount / self.fake_asset_price)]
+                (fake_ccxt_trader.quote_target_amount / self.fake_asset_price)]
 
             if create_market_order == self.fake_normal_market_order:
                 executor_function = 'create_market_buy_order'
                 executor_function_params = [BTC_USD, self.fake_rounded_amount, self.fake_asset_price]
             else:
                 executor_function = 'create_emulated_market_buy_order'
-                executor_function_params = [BTC_USD, fake_ccxt_trader.target_amount, self.fake_asset_price,
+                executor_function_params = [BTC_USD, fake_ccxt_trader.quote_target_amount, self.fake_asset_price,
                     fake_ccxt_trader.slippage]
         else:
             market_order_function = 'execute_market_sell'
@@ -517,7 +517,7 @@ def test_get_full_orderbook(mocker, fake_ccxt_trader, symbols):
 class TestGetAdjustedMarketPriceFromOrderbook:
     fake_bids_or_asks = [['fake', 'bids', 'asks']]
     fake_asset_volume = 10
-    fake_target_amount = 100
+    fake_quote_target_amount = 100
     fake_usd_value = 150
 
     @pytest.mark.parametrize('conversion_needed', [
@@ -531,8 +531,8 @@ class TestGetAdjustedMarketPriceFromOrderbook:
             return_value=self.fake_asset_volume)
         asset_volume = fake_ccxt_trader._CCXTTrader__calc_vol_by_book.return_value
 
-        mocker.patch.object(fake_ccxt_trader, 'target_amount', self.fake_target_amount)
-        target_amount = fake_ccxt_trader.target_amount
+        mocker.patch.object(fake_ccxt_trader, 'quote_target_amount', self.fake_quote_target_amount)
+        quote_target_amount = fake_ccxt_trader.quote_target_amount
 
         if conversion_needed:
             mocker.patch.object(ccxt_trader.currencyconverter, 'convert_currencies', return_value=self.fake_usd_value)
@@ -544,7 +544,7 @@ class TestGetAdjustedMarketPriceFromOrderbook:
             asset_usd_value = ccxt_trader.currencyconverter.convert_currencies.return_value
             assert market_price == asset_usd_value / asset_volume
         else:
-            assert market_price == target_amount / asset_volume
+            assert market_price == quote_target_amount / asset_volume
 
 
 def test_load_markets(mocker, fake_ccxt_trader):
