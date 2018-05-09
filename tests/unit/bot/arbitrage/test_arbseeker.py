@@ -3,6 +3,7 @@ import pytest
 from bot.arbitrage.arbseeker import get_arb_opportunities_by_orderbook
 from bot.arbitrage.arbseeker import execute_arbitrage
 import bot.arbitrage.spreadcalculator as spreadcalculator
+from bot.common.enums import SpreadOpportunity
 from bot.trader.ccxt_trader import CCXTTrader, OrderbookException
 
 
@@ -11,7 +12,7 @@ ASKS = "asks"
 
 TARGET_SPREAD = "target_spread"
 SPREAD = "spread"
-SPREAD_HIGH = "spread_high"
+SPREAD_OPP_TYPE = "spread_opp_type"
 MARKETBUY_EXCHANGE = "marketbuy_exchange"
 MARKETSELL_EXCHANGE = "marketsell_exchange"
 
@@ -70,12 +71,12 @@ def test_get_opportunities(
 
     mocker.patch.object(trader1, 'get_full_orderbook')
     mocker.patch.object(trader1, 'exchange_name')
-    mocker.patch.object(trader1, 'target_amount')
+    mocker.patch.object(trader1, 'quote_target_amount')
     mocker.patch.object(trader1, 'base')
 
     mocker.patch.object(trader2, 'get_full_orderbook')
     mocker.patch.object(trader2, 'exchange_name')
-    mocker.patch.object(trader2, 'target_amount')
+    mocker.patch.object(trader2, 'quote_target_amount')
     mocker.patch.object(trader2, 'base')
 
     mocker.patch.object(spreadcalculator, 'calc_spread')
@@ -91,27 +92,27 @@ def test_get_opportunities(
 
     if (TEST_SPREAD >= spread_high):
         target_spread = spread_high
-        is_high = True
+        spread_opp_type = SpreadOpportunity.HIGH
     elif (TEST_SPREAD <= spread_low):
         target_spread = spread_low
-        is_high = False
+        spread_opp_type = SpreadOpportunity.LOW
     else:
         assert(result == None)
         return
 
     assert(result[TARGET_SPREAD] == target_spread)
-    assert(result[SPREAD_HIGH] == is_high)
+    assert(result[SPREAD_OPP_TYPE] == spread_opp_type)
     assert(result[SPREAD] == 5)
 
 
 @pytest.mark.parametrize(
-    "target_spread, spread_high, spread", [
-        (5, True, 6),
-        (5, False, 4)
+    "target_spread, spread_opp_type, spread", [
+        (5, SpreadOpportunity.HIGH, 6),
+        (5, SpreadOpportunity.LOW, 4)
     ]
 )
 def test_execute_arbitrage(
-        mocker, trader1, trader2, target_spread, spread_high, spread):
+        mocker, trader1, trader2, target_spread, spread_opp_type, spread):
     mocker.patch.object(trader1, 'get_full_orderbook')
     mocker.patch.object(trader1, 'get_adjusted_market_price_from_orderbook')
     mocker.patch.object(trader1, 'execute_market_buy')
@@ -130,7 +131,7 @@ def test_execute_arbitrage(
 
     opportunity = {
         TARGET_SPREAD: target_spread,
-        SPREAD_HIGH: spread_high,
+        SPREAD_OPP_TYPE: spread_opp_type,
         SPREAD: spread,
         MARKETBUY_EXCHANGE: trader1,
         MARKETSELL_EXCHANGE: trader2
@@ -148,13 +149,13 @@ def test_execute_arbitrage(
 
 
 @pytest.mark.parametrize(
-    "target_spread, spread_high, spread", [
-        (5, True, 6),
-        (3, False, 2)
+    "target_spread, spread_opp_type, spread", [
+        (5, SpreadOpportunity.HIGH, 6),
+        (3, SpreadOpportunity.LOW, 2)
     ]
 )
 def test_abort_arbitrage(
-        mocker, trader1, trader2, target_spread, spread_high, spread):
+        mocker, trader1, trader2, target_spread, spread_opp_type, spread):
     mocker.patch.object(trader1, 'get_full_orderbook')
     mocker.patch.object(trader1, 'get_adjusted_market_price_from_orderbook')
     mocker.patch.object(trader1, 'execute_market_buy')
@@ -173,7 +174,7 @@ def test_abort_arbitrage(
 
     opportunity = {
         TARGET_SPREAD: target_spread,
-        SPREAD_HIGH: spread_high,
+        SPREAD_OPP_TYPE: spread_opp_type,
         SPREAD: spread,
         MARKETBUY_EXCHANGE: trader1,
         MARKETSELL_EXCHANGE: trader2

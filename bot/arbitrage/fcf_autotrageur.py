@@ -4,25 +4,13 @@ import logging
 
 import ccxt
 
-from .autotrageur import SPREAD_TARGET_HIGH, SPREAD_TARGET_LOW, AUTHENTICATE, DRYRUN
+from .autotrageur import (SPREAD_TARGET_HIGH, SPREAD_TARGET_LOW, AUTHENTICATE,
+                         DRYRUN)
 from .autotrageur import Autotrageur
 import bot.arbitrage.arbseeker as arbseeker
+from bot.common.enums import SpreadOpportunity
 from libs.email_client.simple_email_client import send_all_emails
 
-
-# Global Enum.
-class SpreadOpportunity(Enum):
-    """An enum for spread opportunity classification.
-
-    Args:
-        Enum (str): One of:
-        - none (no spread opportunity)
-        - high (forward spread opportunity)
-        - low (reverse spread opportunity)
-    """
-    NONE = 'none',
-    HIGH = 'high',
-    LOW = 'low'
 
 # Global module variables.
 prev_spread = 0
@@ -82,6 +70,12 @@ class FCFAutotrageur(Autotrageur):
         return (abs(Decimal(str(curr_spread)) - Decimal(str(prev_spread))) <=
                 spread_tol)
 
+    def _clean_up(self):
+        """Cleans up the state of the autotrageur before performing next
+        actions which may be harmed by previous state."""
+        self.spread_opp = None
+        self.message = None
+
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
 
@@ -91,7 +85,6 @@ class FCFAutotrageur(Autotrageur):
         Returns:
             bool: Whether there is an opportunity.
         """
-        self.spread_opp = None
         # TODO: Evaluate options and implement retry logic.
         try:
             # Get spread low and highs.
@@ -103,14 +96,12 @@ class FCFAutotrageur(Autotrageur):
         except ccxt.NetworkError as network_error:
             logging.error(network_error, exc_info=True)
         finally:
-            if self.spread_opp is None:
-                self._set_message(SpreadOpportunity.NONE)
+            if not self.spread_opp:
+                self._set_message(None)
                 logging.log(logging.INFO, self.message)
                 return False
-            elif self.spread_opp[arbseeker.SPREAD_HIGH]:
-                self._set_message(SpreadOpportunity.HIGH)
-            else:
-                self._set_message(SpreadOpportunity.LOW)
+
+            self._set_message(self.spread_opp[arbseeker.SPREAD_OPP_TYPE])
             return True
 
     def _set_message(self, opp_type):

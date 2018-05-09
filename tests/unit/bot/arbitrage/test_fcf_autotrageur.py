@@ -3,9 +3,10 @@ import decimal
 from ccxt import NetworkError
 import pytest
 
+from bot.common.enums import SpreadOpportunity
 import bot.arbitrage.fcf_autotrageur
 from bot.arbitrage.fcf_autotrageur import (
-    FCFAutotrageur, SpreadOpportunity, arbseeker, EMAIL_HIGH_SPREAD_HEADER,
+    FCFAutotrageur, arbseeker, email_count, prev_spread, EMAIL_HIGH_SPREAD_HEADER,
     EMAIL_LOW_SPREAD_HEADER, EMAIL_NONE_SPREAD)
 import libs.email_client.simple_email_client
 
@@ -71,30 +72,28 @@ class TestPollOpportunity:
     @pytest.mark.parametrize('is_network_err', [ True, False ])
     @pytest.mark.parametrize('spread_opp', [
         None,
-        { 'spread_high': True },
-        { 'spread_high': False },
+        { arbseeker.SPREAD_OPP_TYPE: SpreadOpportunity.HIGH },
+        { arbseeker.SPREAD_OPP_TYPE: SpreadOpportunity.LOW },
     ])
     def test_poll_opportunity(self, mocker, fcf_autotrageur, spread_opp, is_network_err):
         mocker.patch.object(fcf_autotrageur, '_set_message')
 
         mock_get_arb_opps = mocker.patch.object(arbseeker,
                 'get_arb_opportunities_by_orderbook', return_value=spread_opp)
-        mocker.patch.object(fcf_autotrageur, 'spread_opp',
-            arbseeker.get_arb_opportunities_by_orderbook.return_value, create=True)
 
         if is_network_err:
             mock_get_arb_opps.side_effect = NetworkError
-            spread_opp = None
+            fcf_autotrageur.spread_opp = None
 
         is_opportunity = fcf_autotrageur._poll_opportunity()
 
-        if spread_opp is None:
+        if fcf_autotrageur.spread_opp is None:
             assert not is_opportunity
-            fcf_autotrageur._set_message.assert_called_with(SpreadOpportunity.NONE)
-        elif spread_opp['spread_high']:
+            fcf_autotrageur._set_message.assert_called_with(None)
+        elif fcf_autotrageur.spread_opp[arbseeker.SPREAD_OPP_TYPE] is SpreadOpportunity.HIGH:
             assert is_opportunity
             fcf_autotrageur._set_message.assert_called_with(SpreadOpportunity.HIGH)
-        elif not spread_opp['spread_high']:
+        elif fcf_autotrageur.spread_opp[arbseeker.SPREAD_OPP_TYPE] is SpreadOpportunity.LOW:
             assert is_opportunity
             fcf_autotrageur._set_message.assert_called_with(SpreadOpportunity.LOW)
         else:
@@ -155,7 +154,7 @@ class TestEmailOrThrottle:
         assert bot.arbitrage.fcf_autotrageur.email_count == next_email_count
 
 @pytest.mark.parametrize('opp_type', [
-    SpreadOpportunity.NONE,
+    None,
     SpreadOpportunity.LOW,
     SpreadOpportunity.HIGH
 ])
@@ -176,7 +175,7 @@ def test_set_message(mocker, fcf_autotrageur, opp_type):
                     + fcf_autotrageur.exchange1_basequote[0]
                     + " is "
                     + str(fcf_autotrageur.spread_opp[arbseeker.SPREAD]))
-    elif opp_type is SpreadOpportunity.NONE:
+    elif opp_type is None:
         assert fcf_autotrageur.message == EMAIL_NONE_SPREAD
     else:
         pytest.fail('Unsupported spread opportunity type.')
@@ -221,3 +220,11 @@ class TestExecuteTrade():
                 mock_exec_arb.assert_called_with(fcf_autotrageur.spread_opp)
             else:
                 mock_exec_arb.assert_not_called()
+
+
+def test_clean_up(fcf_autotrageur):
+    assert fcf_autotrageur.message == 'fake message'
+    assert fcf_autotrageur.spread_opp == { arbseeker.SPREAD: 1.0 }
+    fcf_autotrageur._clean_up()
+    assert fcf_autotrageur.message is None
+    assert fcf_autotrageur.spread_opp is None

@@ -21,6 +21,9 @@ class Mocktrageur(Autotrageur):
     def _execute_trade(self):
         pass
 
+    def _clean_up(self):
+        pass
+
 
 @pytest.fixture(scope='module')
 def autotrageur():
