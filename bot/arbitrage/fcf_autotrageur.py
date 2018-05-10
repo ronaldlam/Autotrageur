@@ -1,4 +1,5 @@
 from decimal import Decimal
+from enum import Enum
 import logging
 
 import ccxt
@@ -8,16 +9,35 @@ from .autotrageur import Autotrageur
 import bot.arbitrage.arbseeker as arbseeker
 from libs.email_client.simple_email_client import send_all_emails
 
+
+# Global Enum.
+class SpreadOpportunity(Enum):
+    """An enum for spread opportunity classification.
+
+    Args:
+        Enum (str): One of:
+        - none (no spread opportunity)
+        - high (forward spread opportunity)
+        - low (reverse spread opportunity)
+    """
+    NONE = 'none',
+    HIGH = 'high',
+    LOW = 'low'
+
 # Global module variables.
 prev_spread = 0
 email_count = 0
 
-# Constants.
+# Config constants.
 EMAIL_CFG_PATH = 'email_cfg_path'
 MAX_EMAILS = 'max_emails'
 SPREAD_ROUNDING = 'spread_rounding'
 SPREAD_TOLERANCE = 'spread_tolerance'
 
+# Email message constants.
+EMAIL_HIGH_SPREAD_HEADER = "Subject: Arb Forward-Spread Alert!\nThe spread of "
+EMAIL_LOW_SPREAD_HEADER = "Subject: Arb Backward-Spread Alert!\nThe spread of "
+EMAIL_NONE_SPREAD = "No arb opportunity found."
 
 class FCFAutotrageur(Autotrageur):
     """The fiat-crypto-fiat Autotrageur.
@@ -71,6 +91,7 @@ class FCFAutotrageur(Autotrageur):
         Returns:
             bool: Whether there is an opportunity.
         """
+        self.spread_opp = None
         # TODO: Evaluate options and implement retry logic.
         try:
             # Get spread low and highs.
@@ -81,25 +102,39 @@ class FCFAutotrageur(Autotrageur):
                 spread_high)
         except ccxt.NetworkError as network_error:
             logging.error(network_error, exc_info=True)
-            return False
         finally:
             if self.spread_opp is None:
-                self.message = "No arb opportunity found."
+                self._set_message(SpreadOpportunity.NONE)
                 logging.log(logging.INFO, self.message)
                 return False
             elif self.spread_opp[arbseeker.SPREAD_HIGH]:
-                self.message = (
-                    "Subject: Arb Forward-Spread Alert!\nThe spread of "
-                    + self.exchange1_basequote[0]
-                    + " is "
-                    + str(self.spread_opp[arbseeker.SPREAD]))
+                self._set_message(SpreadOpportunity.HIGH)
             else:
-                self.message = (
-                    "Subject: Arb Backward-Spread Alert!\nThe spread of "
+                self._set_message(SpreadOpportunity.LOW)
+            return True
+
+    def _set_message(self, opp_type):
+        """Sets the message used for emails and logging based on the type of
+        spread opportunity.
+
+        Args:
+            opp_type (SpreadOpportunity): A classification of the spread
+                opportunity present.
+        """
+        if opp_type is SpreadOpportunity.LOW:
+            self.message = (
+                    EMAIL_LOW_SPREAD_HEADER
                     + self.exchange1_basequote[0]
                     + " is "
                     + str(self.spread_opp[arbseeker.SPREAD]))
-            return True
+        elif opp_type is SpreadOpportunity.HIGH:
+            self.message = (
+                    EMAIL_HIGH_SPREAD_HEADER
+                    + self.exchange1_basequote[0]
+                    + " is "
+                    + str(self.spread_opp[arbseeker.SPREAD]))
+        else:
+            self.message = EMAIL_NONE_SPREAD
 
     def _email_or_throttle(self, curr_spread):
         """Sends emails for a new arbitrage opportunity.  Throttles if too
@@ -155,7 +190,7 @@ class FCFAutotrageur(Autotrageur):
                     arbseeker.execute_arbitrage(self.spread_opp)
                 else:
                     logging.info("Trade was not executed.")
-        except ccxt.RequestTimeout as timeout:
-            logging.error(timeout)
+        except ccxt.NetworkError as network_err:
+            logging.error(network_err, exc_info=True)
         except arbseeker.AbortTradeException as abort_trade:
-            logging.error(abort_trade)
+            logging.error(abort_trade, exc_info=True)

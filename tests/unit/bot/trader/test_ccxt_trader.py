@@ -500,13 +500,15 @@ def test_connect_test_api(mocker, fake_ccxt_trader, urls):
 
 
 def test_check_wallet_balances(mocker, fake_ccxt_trader, symbols):
+    mocker.patch.object(fake_ccxt_trader.fetcher, 'fetch_free_balance')
     fake_ccxt_trader.check_wallet_balances()
     assert fake_ccxt_trader.fetcher.fetch_free_balance.call_count == 2
     assert fake_ccxt_trader.fetcher.fetch_free_balance.call_args_list == (
         [mocker.call(symbols['bitcoin']), mocker.call(symbols['usd'])])
 
 
-def test_get_full_orderbook(fake_ccxt_trader, symbols):
+def test_get_full_orderbook(mocker, fake_ccxt_trader, symbols):
+    mocker.patch.object(fake_ccxt_trader.fetcher, 'get_full_orderbook')
     fake_ccxt_trader.get_full_orderbook()
     assert fake_ccxt_trader.fetcher.get_full_orderbook.call_count == 1
     fake_ccxt_trader.fetcher.get_full_orderbook.assert_called_with(symbols['bitcoin'], symbols['usd'])

@@ -61,8 +61,6 @@ def ext_gemini_exchange():
 # ------------------ Mock fetcher fixtures ------------------------------------
 @pytest.fixture()
 def ccxtfetcher_binance(mocker, fake_binance):
-    mocker.patch.object(CCXTFetcher, 'fetch_free_balance')
-    mocker.patch.object(CCXTFetcher, 'get_full_orderbook')
     return CCXTFetcher(fake_binance)
 
 
