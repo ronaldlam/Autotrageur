@@ -79,8 +79,6 @@ class TestPollOpportunity:
 
         mock_get_arb_opps = mocker.patch.object(arbseeker,
                 'get_arb_opportunities_by_orderbook', return_value=spread_opp)
-        mocker.patch.object(fcf_autotrageur, 'spread_opp',
-            arbseeker.get_arb_opportunities_by_orderbook.return_value, create=True)
 
         if is_network_err:
             mock_get_arb_opps.side_effect = NetworkError
