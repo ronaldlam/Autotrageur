@@ -3,8 +3,9 @@ import decimal
 from ccxt import NetworkError
 import pytest
 
+import bot.arbitrage.fcf_autotrageur
 from bot.arbitrage.fcf_autotrageur import (
-    FCFAutotrageur, SpreadOpportunity, arbseeker, email_count, prev_spread, EMAIL_HIGH_SPREAD_HEADER,
+    FCFAutotrageur, SpreadOpportunity, arbseeker, EMAIL_HIGH_SPREAD_HEADER,
     EMAIL_LOW_SPREAD_HEADER, EMAIL_NONE_SPREAD)
 import libs.email_client.simple_email_client
 
@@ -13,13 +14,15 @@ xfail = pytest.mark.xfail
 
 
 @pytest.fixture()
-def fcf_autotrageur():
+def fcf_autotrageur(mocker, fake_ccxt_trader):
     f = FCFAutotrageur()
     f.config = {
         'email_cfg_path': 'fake/path/to/config.yaml',
         'spread_target_low': 1.0,
         'spread_target_high': 5.0
     }
+    mocker.patch.object(f, 'tclient1', fake_ccxt_trader, create=True)
+    mocker.patch.object(f, 'tclient2', fake_ccxt_trader, create=True)
     f.message = 'fake message'
     f.spread_opp = { arbseeker.SPREAD: 1.0 }
     return f
@@ -76,11 +79,12 @@ class TestPollOpportunity:
 
         mock_get_arb_opps = mocker.patch.object(arbseeker,
                 'get_arb_opportunities_by_orderbook', return_value=spread_opp)
-        if is_network_err:
-            mock_get_arb_opps.side_effect = NetworkError
-
         mocker.patch.object(fcf_autotrageur, 'spread_opp',
             arbseeker.get_arb_opportunities_by_orderbook.return_value, create=True)
+
+        if is_network_err:
+            mock_get_arb_opps.side_effect = NetworkError
+            spread_opp = None
 
         is_opportunity = fcf_autotrageur._poll_opportunity()
 
@@ -98,46 +102,57 @@ class TestPollOpportunity:
 
 
 class TestEmailOrThrottle:
-    @pytest.mark.parametrize('email_count, prev_spread, curr_spread, max_emails, rnding, tol', [
-        (0, 0.0, 2.0, 2, 1, 0.1),
-        (1, 2.0, 2.0, 2, 1, 0.1),
-        (2, 2.0, 5.0, 2, 1, 0.1)
-    ])
-    def test_email_or_throttle_emailed(self, mocker, fcf_autotrageur, email_count,
-                                    prev_spread, curr_spread, max_emails,
-                                    rnding, tol):
+    def _setup_pre_email(self, mocker, fcf_autotrageur, fake_email_count,
+                         fake_prev_spread, max_emails, rnding, tol):
         mock_send_all_emails = mocker.patch('bot.arbitrage.fcf_autotrageur.send_all_emails', autospec=True)
-        mocker.patch('bot.arbitrage.fcf_autotrageur.email_count', email_count)
-        mocker.patch('bot.arbitrage.fcf_autotrageur.prev_spread', prev_spread)
+        mocker.patch('bot.arbitrage.fcf_autotrageur.email_count', fake_email_count)
+        mocker.patch('bot.arbitrage.fcf_autotrageur.prev_spread', fake_prev_spread)
 
         fcf_autotrageur.config['max_emails'] = max_emails
         fcf_autotrageur.config['spread_rounding'] = rnding
         fcf_autotrageur.config['spread_tolerance'] = tol
+
+        # Check before actual call made.
+        assert bot.arbitrage.fcf_autotrageur.email_count == fake_email_count
+        assert bot.arbitrage.fcf_autotrageur.prev_spread == fake_prev_spread
+
+        return mock_send_all_emails
+
+    @pytest.mark.parametrize('fake_email_count, next_email_count, fake_prev_spread, curr_spread, max_emails, rnding, tol', [
+        (0, 1, 0.0, 2.0, 2, 1, 0.1),
+        (1, 2, 2.0, 2.0, 2, 1, 0.1),
+        (2, 1, 2.0, 5.0, 2, 1, 0.1)
+    ])
+    def test_email_or_throttle_emailed(self, mocker, fcf_autotrageur, fake_email_count,
+                                       next_email_count, fake_prev_spread, curr_spread, max_emails,
+                                       rnding, tol):
+        mock_send_all_emails = self._setup_pre_email(mocker, fcf_autotrageur, fake_email_count,
+            fake_prev_spread, max_emails, rnding, tol)
 
         fcf_autotrageur._email_or_throttle(curr_spread)
         assert mock_send_all_emails.called
 
+        # Check email_count after actual call; should be incremented by 1.
+        assert bot.arbitrage.fcf_autotrageur.email_count == next_email_count
 
-    @pytest.mark.parametrize('email_count, prev_spread, curr_spread, max_emails, rnding, tol', [
-        (0, 0, 0, 0, 0, 0),
-        pytest.param(0, 0, None, 0, 0, 0, marks=xfail(raises=(TypeError, decimal.InvalidOperation), reason="rounding or arithmetic on NoneType", strict=True)),
-        (2, 2.0, 2.0, 2, 1, 0.1),
-        (2, 2.0, 2.1, 2, 1, 0.1),
-        (2, 2.1, 2.0, 2, 1, 0.1)
+    @pytest.mark.parametrize('fake_email_count, next_email_count, fake_prev_spread, curr_spread, max_emails, rnding, tol', [
+        (0, 0, 0, 0, 0, 0, 0),
+        pytest.param(0, 0, 0, None, 0, 0, 0, marks=xfail(raises=(TypeError, decimal.InvalidOperation), reason="rounding or arithmetic on NoneType", strict=True)),
+        (2, 2, 2.0, 2.0, 2, 1, 0.1),
+        (2, 2, 2.0, 2.1, 2, 1, 0.1),
+        (2, 2, 2.1, 2.0, 2, 1, 0.1)
     ])
-    def test_email_or_throttle_throttled(self, mocker, fcf_autotrageur, email_count,
-                                    prev_spread, curr_spread, max_emails,
-                                    rnding, tol):
-        mock_send_all_emails = mocker.patch('bot.arbitrage.fcf_autotrageur.send_all_emails', autospec=True)
-        mocker.patch('bot.arbitrage.fcf_autotrageur.email_count', email_count)
-        mocker.patch('bot.arbitrage.fcf_autotrageur.prev_spread', prev_spread)
-
-        fcf_autotrageur.config['max_emails'] = max_emails
-        fcf_autotrageur.config['spread_rounding'] = rnding
-        fcf_autotrageur.config['spread_tolerance'] = tol
+    def test_email_or_throttle_throttled(self, mocker, fcf_autotrageur, fake_email_count,
+                                         next_email_count, fake_prev_spread, curr_spread, max_emails,
+                                         rnding, tol):
+        mock_send_all_emails = self._setup_pre_email(mocker, fcf_autotrageur, fake_email_count,
+            fake_prev_spread, max_emails, rnding, tol)
 
         fcf_autotrageur._email_or_throttle(curr_spread)
         assert not mock_send_all_emails.called
+
+        # Check email_count after actual call; should not be incremented by 1.
+        assert bot.arbitrage.fcf_autotrageur.email_count == next_email_count
 
 @pytest.mark.parametrize('opp_type', [
     SpreadOpportunity.NONE,
@@ -186,7 +201,7 @@ class TestExecuteTrade():
                            is_network_err, is_abort_trade_err):
         mock_email_or_throttle = mocker.patch.object(fcf_autotrageur, '_email_or_throttle')
         mock_exec_arb = mocker.patch.object(arbseeker, 'execute_arbitrage')
-        mocker.patch.dict(fcf_autotrageur.config, { 'dryrun': is_dry_run})
+        mocker.patch.dict(fcf_autotrageur.config, { 'dryrun': is_dry_run })
         mock_input = mocker.patch('builtins.input', return_value=execute_cmd)
 
         if is_network_err:

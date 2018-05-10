@@ -91,6 +91,7 @@ class FCFAutotrageur(Autotrageur):
         Returns:
             bool: Whether there is an opportunity.
         """
+        self.spread_opp = None
         # TODO: Evaluate options and implement retry logic.
         try:
             # Get spread low and highs.
