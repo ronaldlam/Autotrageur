@@ -52,8 +52,8 @@ class FCFAutotrageur(Autotrageur):
     """
 
     @staticmethod
-    def _is_within_tolerance(curr_spread, prev_spread, spread_rnd,
-                             spread_tol):
+    def __is_within_tolerance(curr_spread, prev_spread, spread_rnd,
+                              spread_tol):
         """Compares the current spread with the previous spread to see if
         within user-specified spread tolerance.
 
@@ -82,6 +82,65 @@ class FCFAutotrageur(Autotrageur):
         return (abs(Decimal(str(curr_spread)) - Decimal(str(prev_spread))) <=
                 spread_tol)
 
+    def __set_message(self, opp_type):
+        """Sets the message used for emails and logging based on the type of
+        spread opportunity.
+
+        Args:
+            opp_type (SpreadOpportunity): A classification of the spread
+                opportunity present.
+        """
+        if opp_type is SpreadOpportunity.LOW:
+            self.message = (
+                EMAIL_LOW_SPREAD_HEADER
+                + self.exchange1_basequote[0]
+                + " is "
+                + str(self.spread_opp[arbseeker.SPREAD]))
+        elif opp_type is SpreadOpportunity.HIGH:
+            self.message = (
+                EMAIL_HIGH_SPREAD_HEADER
+                + self.exchange1_basequote[0]
+                + " is "
+                + str(self.spread_opp[arbseeker.SPREAD]))
+        else:
+            self.message = EMAIL_NONE_SPREAD
+
+    def __email_or_throttle(self, curr_spread):
+        """Sends emails for a new arbitrage opportunity.  Throttles if too
+        frequent.
+
+        Based on preference of SPREAD_ROUNDING, SPREAD_TOLERANCE and MAX_EMAILS,
+        an e-mail will be sent if the current spread is not similar to previous
+        spread AND if a max email threshold has not been hit with similar
+        spreads.
+
+        Args:
+            curr_spread (float): The current arbitrage spread for the arbitrage
+                opportunity.
+        """
+        global prev_spread
+        global email_count
+
+        max_num_emails = self.config[MAX_EMAILS]
+        spread_tol = self.config[SPREAD_TOLERANCE]
+        spread_rnd = self.config[SPREAD_ROUNDING]
+
+        within_tolerance = FCFAutotrageur.__is_within_tolerance(
+            curr_spread, prev_spread, spread_rnd, spread_tol)
+
+        if not within_tolerance or email_count < max_num_emails:
+            if email_count == max_num_emails:
+                email_count = 0
+            prev_spread = curr_spread
+
+            # Continue running bot even if unable to send e-mail.
+            try:
+                send_all_emails(self.config[EMAIL_CFG_PATH], self.message)
+            except Exception:
+                logging.error(
+                    "Unable to send e-mail due to: \n", exc_info=True)
+            email_count += 1
+
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
 
@@ -104,79 +163,21 @@ class FCFAutotrageur(Autotrageur):
             logging.error(network_error, exc_info=True)
         finally:
             if self.spread_opp is None:
-                self._set_message(SpreadOpportunity.NONE)
+                self.__set_message(SpreadOpportunity.NONE)
                 logging.log(logging.INFO, self.message)
                 return False
             elif self.spread_opp[arbseeker.SPREAD_HIGH]:
-                self._set_message(SpreadOpportunity.HIGH)
+                self.__set_message(SpreadOpportunity.HIGH)
             else:
-                self._set_message(SpreadOpportunity.LOW)
+                self.__set_message(SpreadOpportunity.LOW)
             return True
-
-    def _set_message(self, opp_type):
-        """Sets the message used for emails and logging based on the type of
-        spread opportunity.
-
-        Args:
-            opp_type (SpreadOpportunity): A classification of the spread
-                opportunity present.
-        """
-        if opp_type is SpreadOpportunity.LOW:
-            self.message = (
-                    EMAIL_LOW_SPREAD_HEADER
-                    + self.exchange1_basequote[0]
-                    + " is "
-                    + str(self.spread_opp[arbseeker.SPREAD]))
-        elif opp_type is SpreadOpportunity.HIGH:
-            self.message = (
-                    EMAIL_HIGH_SPREAD_HEADER
-                    + self.exchange1_basequote[0]
-                    + " is "
-                    + str(self.spread_opp[arbseeker.SPREAD]))
-        else:
-            self.message = EMAIL_NONE_SPREAD
-
-    def _email_or_throttle(self, curr_spread):
-        """Sends emails for a new arbitrage opportunity.  Throttles if too
-        frequent.
-
-        Based on preference of SPREAD_ROUNDING, SPREAD_TOLERANCE and MAX_EMAILS,
-        an e-mail will be sent if the current spread is not similar to previous
-        spread AND if a max email threshold has not been hit with similar
-        spreads.
-
-        Args:
-            curr_spread (float): The current arbitrage spread for the arbitrage
-                opportunity.
-        """
-        global prev_spread
-        global email_count
-
-        max_num_emails = self.config[MAX_EMAILS]
-        spread_tol = self.config[SPREAD_TOLERANCE]
-        spread_rnd = self.config[SPREAD_ROUNDING]
-
-        bWithinTolerance = FCFAutotrageur._is_within_tolerance(
-            curr_spread, prev_spread, spread_rnd, spread_tol)
-
-        if not bWithinTolerance or email_count < max_num_emails:
-            if email_count == max_num_emails:
-                email_count = 0
-            prev_spread = curr_spread
-
-            # Continue running bot even if unable to send e-mail.
-            try:
-                send_all_emails(self.config[EMAIL_CFG_PATH], self.message)
-            except Exception:
-                logging.error("Unable to send e-mail due to: \n", exc_info=True)
-            email_count += 1
 
     def _execute_trade(self):
         """Execute the trade, providing necessary failsafes."""
         # TODO: Evaluate options and implement retry logic.
         try:
             logging.info(self.message)
-            self._email_or_throttle(self.spread_opp[arbseeker.SPREAD])
+            self.__email_or_throttle(self.spread_opp[arbseeker.SPREAD])
 
             if self.config[DRYRUN]:
                 logging.info("**Dry run - begin fake execution")

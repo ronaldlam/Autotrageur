@@ -323,6 +323,9 @@ class CCXTTrader():
             bids_or_asks (list[list(float)]): The bids or asks in the
                 form of (price, volume).
 
+        Raises:
+            OrderbookException: If the orderbook is not deep enough.
+
         Returns:
             float: Prospective price of a market buy or sell.
         """

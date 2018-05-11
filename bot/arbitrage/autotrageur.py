@@ -70,7 +70,7 @@ class Autotrageur(ABC):
                 dryrun mode.
 
         Returns:
-            dict: Map of the keyfile contents, or none if dryrun and
+            dict: Map of the keyfile contents, or None if dryrun and
                 unavailable.
         """
         try:

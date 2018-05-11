@@ -49,9 +49,9 @@ class TestIsWithinTolerance:
     ])
     def test_is_within_tolerance(self, fcf_autotrageur, curr_spread, prev_spread,
                                 spread_rnd, spread_tol, bTol):
-        bWithinTol = FCFAutotrageur._is_within_tolerance(curr_spread, prev_spread,
-                                                        spread_rnd, spread_tol)
-        assert bWithinTol is bTol
+        in_tolerance = FCFAutotrageur._FCFAutotrageur__is_within_tolerance(     # pylint: disable=E1101
+            curr_spread, prev_spread, spread_rnd, spread_tol)
+        assert in_tolerance is bTol
 
     @pytest.mark.parametrize('curr_spread, prev_spread, spread_rnd, spread_tol, bTol', [
         (None, None, None, None, True),
@@ -62,9 +62,9 @@ class TestIsWithinTolerance:
     def test_is_within_tolerance_bad(self, fcf_autotrageur, curr_spread, prev_spread,
                                 spread_rnd, spread_tol, bTol):
         with pytest.raises((decimal.InvalidOperation, TypeError), message="Expecting a float, not a NoneType"):
-            bWithinTol = FCFAutotrageur._is_within_tolerance(curr_spread, prev_spread,
-                                                                spread_rnd, spread_tol)
-            assert bWithinTol is bTol
+            in_tolerance = FCFAutotrageur._FCFAutotrageur__is_within_tolerance( # pylint: disable=E1101
+                curr_spread, prev_spread, spread_rnd, spread_tol)
+            assert in_tolerance is bTol
 
 
 class TestPollOpportunity:
@@ -75,7 +75,7 @@ class TestPollOpportunity:
         { 'spread_high': False },
     ])
     def test_poll_opportunity(self, mocker, fcf_autotrageur, spread_opp, is_network_err):
-        mocker.patch.object(fcf_autotrageur, '_set_message')
+        mocker.patch.object(fcf_autotrageur, '_FCFAutotrageur__set_message')
 
         mock_get_arb_opps = mocker.patch.object(arbseeker,
                 'get_arb_opportunities_by_orderbook', return_value=spread_opp)
@@ -88,13 +88,13 @@ class TestPollOpportunity:
 
         if spread_opp is None:
             assert not is_opportunity
-            fcf_autotrageur._set_message.assert_called_with(SpreadOpportunity.NONE)
+            fcf_autotrageur._FCFAutotrageur__set_message.assert_called_with(SpreadOpportunity.NONE)
         elif spread_opp['spread_high']:
             assert is_opportunity
-            fcf_autotrageur._set_message.assert_called_with(SpreadOpportunity.HIGH)
+            fcf_autotrageur._FCFAutotrageur__set_message.assert_called_with(SpreadOpportunity.HIGH)
         elif not spread_opp['spread_high']:
             assert is_opportunity
-            fcf_autotrageur._set_message.assert_called_with(SpreadOpportunity.LOW)
+            fcf_autotrageur._FCFAutotrageur__set_message.assert_called_with(SpreadOpportunity.LOW)
         else:
             pytest.fail("Shouldn't reach here.")
 
@@ -121,13 +121,13 @@ class TestEmailOrThrottle:
         (1, 2, 2.0, 2.0, 2, 1, 0.1),
         (2, 1, 2.0, 5.0, 2, 1, 0.1)
     ])
-    def test_email_or_throttle_emailed(self, mocker, fcf_autotrageur, fake_email_count,
+    def test_FCFAutotrageur__email_or_throttle_emailed(self, mocker, fcf_autotrageur, fake_email_count,
                                        next_email_count, fake_prev_spread, curr_spread, max_emails,
                                        rnding, tol):
         mock_send_all_emails = self._setup_pre_email(mocker, fcf_autotrageur, fake_email_count,
             fake_prev_spread, max_emails, rnding, tol)
 
-        fcf_autotrageur._email_or_throttle(curr_spread)
+        fcf_autotrageur._FCFAutotrageur__email_or_throttle(curr_spread)
         assert mock_send_all_emails.called
 
         # Check email_count after actual call; should be incremented by 1.
@@ -140,13 +140,13 @@ class TestEmailOrThrottle:
         (2, 2, 2.0, 2.1, 2, 1, 0.1),
         (2, 2, 2.1, 2.0, 2, 1, 0.1)
     ])
-    def test_email_or_throttle_throttled(self, mocker, fcf_autotrageur, fake_email_count,
+    def test_FCFAutotrageur__email_or_throttle_throttled(self, mocker, fcf_autotrageur, fake_email_count,
                                          next_email_count, fake_prev_spread, curr_spread, max_emails,
                                          rnding, tol):
         mock_send_all_emails = self._setup_pre_email(mocker, fcf_autotrageur, fake_email_count,
             fake_prev_spread, max_emails, rnding, tol)
 
-        fcf_autotrageur._email_or_throttle(curr_spread)
+        fcf_autotrageur._FCFAutotrageur__email_or_throttle(curr_spread)
         assert not mock_send_all_emails.called
 
         # Check email_count after actual call; should not be incremented by 1.
@@ -157,11 +157,11 @@ class TestEmailOrThrottle:
     SpreadOpportunity.LOW,
     SpreadOpportunity.HIGH
 ])
-def test_set_message(mocker, fcf_autotrageur, opp_type):
+def test_FCFAutotrageur__set_message(mocker, fcf_autotrageur, opp_type):
     mocker.patch.object(fcf_autotrageur, 'exchange1_basequote', ['BTC', 'USD'],
         create=True)
 
-    fcf_autotrageur._set_message(opp_type)
+    fcf_autotrageur._FCFAutotrageur__set_message(opp_type)
     if opp_type is SpreadOpportunity.LOW:
         assert fcf_autotrageur.message == (
                     EMAIL_LOW_SPREAD_HEADER
@@ -197,7 +197,7 @@ class TestExecuteTrade():
     ])
     def test_execute_trade(self, mocker, fcf_autotrageur, is_dry_run, execute_cmd,
                            is_network_err, is_abort_trade_err):
-        mock_email_or_throttle = mocker.patch.object(fcf_autotrageur, '_email_or_throttle')
+        mock_FCFAutotrageur__email_or_throttle = mocker.patch.object(fcf_autotrageur, '_FCFAutotrageur__email_or_throttle')
         mock_exec_arb = mocker.patch.object(arbseeker, 'execute_arbitrage')
         mocker.patch.dict(fcf_autotrageur.config, { 'dryrun': is_dry_run })
         mock_input = mocker.patch('builtins.input', return_value=execute_cmd)
@@ -208,7 +208,7 @@ class TestExecuteTrade():
             mock_exec_arb.side_effect = arbseeker.AbortTradeException
 
         fcf_autotrageur._execute_trade()
-        mock_email_or_throttle.assert_called_with(fcf_autotrageur.spread_opp[arbseeker.SPREAD])
+        mock_FCFAutotrageur__email_or_throttle.assert_called_with(fcf_autotrageur.spread_opp[arbseeker.SPREAD])
 
         if is_dry_run:
             mock_exec_arb.assert_called_with(fcf_autotrageur.spread_opp)
