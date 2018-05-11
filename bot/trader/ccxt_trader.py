@@ -160,12 +160,17 @@ class CCXTTrader():
                 if (measure[1] and keys_exists(limits, measure[0],
                                                range_limit)):
                     limit = limits[measure[0]][range_limit]
-                    if (limit and
-                        (range_limit == 'min' and limit > measure[1]) or
-                        (range_limit == 'max' and limit < measure[1])):
-                        raise ExchangeLimitException(
-                            "Order amount %s %s less than exchange limit %s %s."
-                                % (measure[1], self.base, limit, self.base))
+                    if limit:
+                        if range_limit == 'min' and limit > measure[1]:
+                            raise ExchangeLimitException(
+                            "Order %s %s %s less than exchange limit %s %s."
+                                % (measure[0], measure[1], self.base, limit,
+                                   self.base))
+                        elif range_limit == 'max' and limit < measure[1]:
+                            raise ExchangeLimitException(
+                            "Order %s %s %s more than exchange limit %s %s."
+                                % (measure[0], measure[1], self.base, limit,
+                                   self.base))
 
     def __round_exchange_precision(self, market_order, symbol, asset_amount):
         """Rounds the asset amount by a precision provided by the exchange.

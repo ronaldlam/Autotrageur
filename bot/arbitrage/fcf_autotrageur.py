@@ -150,14 +150,13 @@ class FCFAutotrageur(Autotrageur):
                 spread_high)
         except ccxt.NetworkError as network_error:
             logging.error(network_error, exc_info=True)
-        finally:
-            if self.spread_opp is None:
-                self.__set_message(None)
-                logging.log(logging.INFO, self.message)
-                return False
+        if self.spread_opp is None:
+            self.__set_message(None)
+            logging.log(logging.INFO, self.message)
+            return False
 
-            self.__set_message(self.spread_opp[arbseeker.SPREAD_OPP_TYPE])
-            return True
+        self.__set_message(self.spread_opp[arbseeker.SPREAD_OPP_TYPE])
+        return True
 
     def _execute_trade(self):
         """Execute the trade, providing necessary failsafes."""

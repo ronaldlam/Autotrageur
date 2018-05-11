@@ -249,17 +249,17 @@ class TestCheckExchangeLimits:
     def test_check_exchange_limits_big(self, mocker, fake_ccxt_trader, amount, price, markets):
         self._internaltest_check_exchange_limits(mocker, fake_ccxt_trader, amount, price, markets)
 
-    @pytest.mark.parametrize('amount, price', [
-        (10000000.00000000, 00000000.99999998),
-        (99999999.99999999, 00000000.99999998),
-        (10000000.00000000, 1000000000),
-        (99999999.99999999, 1000000000),
-        (9999999.00000000, 00000000.99999999),
-        (100000000.99999999, 00000000.99999999),
-        (9999999.00000000, 99999999.99999999),
-        (100000000.99999999, 99999999.99999999),
-        (-100000000.99999999, 99999999.99999999),
-        (100000000.99999999, -99999999.99999999),
+    @pytest.mark.parametrize('amount, price, measure, limit_type', [
+        (10000000.00000000, 00000000.99999998, 'price', 'min'),
+        (99999999.99999999, 00000000.99999998, 'price', 'min'),
+        (10000000.00000000, 1000000000, 'price', 'max'),
+        (99999999.99999999, 1000000000, 'price', 'max'),
+        (9999999.00000000, 00000000.99999999, 'amount', 'min'),
+        (100000000.99999999, 00000000.99999999, 'amount', 'max'),
+        (9999999.00000000, 99999999.99999999, 'amount', 'min'),
+        (100000000.99999999, 99999999.99999999, 'amount', 'max'),
+        (-100000000.99999999, 99999999.99999999, 'amount', 'min'),
+        (100000000.99999999, -99999999.99999999, 'amount', 'max'),
     ])
     @pytest.mark.parametrize('markets', [
         ({
@@ -277,9 +277,27 @@ class TestCheckExchangeLimits:
             }
         })
     ])
-    def test_check_exchange_limits_exception(self, mocker, fake_ccxt_trader, markets, amount, price):
-        with pytest.raises(ccxt_trader.ExchangeLimitException):
-            self._internaltest_check_exchange_limits(mocker, fake_ccxt_trader, amount, price, markets)
+    def test_check_exchange_limits_exception(self, mocker, fake_ccxt_trader,
+                                             markets, amount, price, measure,
+                                             limit_type):
+        with pytest.raises(ccxt_trader.ExchangeLimitException) as e:
+            self._internaltest_check_exchange_limits(mocker, fake_ccxt_trader,
+                amount, price, markets)
+        assert e.type == ccxt_trader.ExchangeLimitException
+
+        comparison_op = 'less' if limit_type is 'min' else 'more'
+        if measure == 'amount':
+            assert str(e.value) ==  (
+                "Order {} {} {} {} than exchange limit {} {}.".format(measure,
+                    amount, fake_ccxt_trader.base, comparison_op,
+                    markets[BTC_USD]['limits'][measure][limit_type],
+                    fake_ccxt_trader.base))
+        else:
+            assert str(e.value) ==  (
+                "Order {} {} {} {} than exchange limit {} {}.".format(measure,
+                    price, fake_ccxt_trader.base, comparison_op,
+                    markets[BTC_USD]['limits'][measure][limit_type],
+                    fake_ccxt_trader.base))
 
 
 class TestRoundExchangePrecision:
