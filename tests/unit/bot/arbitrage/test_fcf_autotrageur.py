@@ -49,7 +49,7 @@ class TestIsWithinTolerance:
     ])
     def test_is_within_tolerance(self, fcf_autotrageur, curr_spread, prev_spread,
                                 spread_rnd, spread_tol, bTol):
-        in_tolerance = FCFAutotrageur._FCFAutotrageur__is_within_tolerance(     # pylint: disable=E1101
+        in_tolerance = FCFAutotrageur._is_within_tolerance(
             curr_spread, prev_spread, spread_rnd, spread_tol)
         assert in_tolerance is bTol
 
@@ -62,7 +62,7 @@ class TestIsWithinTolerance:
     def test_is_within_tolerance_bad(self, fcf_autotrageur, curr_spread, prev_spread,
                                 spread_rnd, spread_tol, bTol):
         with pytest.raises((decimal.InvalidOperation, TypeError), message="Expecting a float, not a NoneType"):
-            in_tolerance = FCFAutotrageur._FCFAutotrageur__is_within_tolerance( # pylint: disable=E1101
+            in_tolerance = FCFAutotrageur._is_within_tolerance(
                 curr_spread, prev_spread, spread_rnd, spread_tol)
             assert in_tolerance is bTol
 

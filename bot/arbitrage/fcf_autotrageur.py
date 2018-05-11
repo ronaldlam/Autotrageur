@@ -52,7 +52,7 @@ class FCFAutotrageur(Autotrageur):
     """
 
     @staticmethod
-    def __is_within_tolerance(curr_spread, prev_spread, spread_rnd,
+    def _is_within_tolerance(curr_spread, prev_spread, spread_rnd,
                               spread_tol):
         """Compares the current spread with the previous spread to see if
         within user-specified spread tolerance.
@@ -125,7 +125,7 @@ class FCFAutotrageur(Autotrageur):
         spread_tol = self.config[SPREAD_TOLERANCE]
         spread_rnd = self.config[SPREAD_ROUNDING]
 
-        within_tolerance = FCFAutotrageur.__is_within_tolerance(
+        within_tolerance = FCFAutotrageur._is_within_tolerance(
             curr_spread, prev_spread, spread_rnd, spread_tol)
 
         if not within_tolerance or email_count < max_num_emails:
