@@ -3,7 +3,7 @@ import logging
 from googletrans import Translator
 
 import bot.arbitrage.spreadcalculator as spreadcalculator
-import bot.trader.ccxt_trader as trading_client
+from bot.trader.ccxt_trader import OrderbookException
 
 
 class AbortTradeException(Exception):
@@ -56,22 +56,22 @@ def get_arb_opportunities_by_orderbook(
     try:
         ex1_market_buy = trader1.get_adjusted_market_price_from_orderbook(
             ex1_orderbook[ASKS])
-    except trading_client.OrderbookException:
+    except OrderbookException:
         ex1_market_buy = None
     try:
         ex1_market_sell = trader1.get_adjusted_market_price_from_orderbook(
             ex1_orderbook[BIDS])
-    except trading_client.OrderbookException:
+    except OrderbookException:
         ex1_market_sell = None
     try:
         ex2_market_buy = trader2.get_adjusted_market_price_from_orderbook(
             ex2_orderbook[ASKS])
-    except trading_client.OrderbookException:
+    except OrderbookException:
         ex2_market_buy = None
     try:
         ex2_market_sell = trader2.get_adjusted_market_price_from_orderbook(
             ex2_orderbook[BIDS])
-    except trading_client.OrderbookException:
+    except OrderbookException:
         ex2_market_sell = None
 
     logging.info("%s buy of %s, %s price: %s" %
@@ -183,12 +183,10 @@ def execute_arbitrage(opportunity):
             sell_price,
             float(executed_buy_amount))
         logging.info("Sell result: %s" % sell_result)
-
+        return True
     except Exception as exception:
         t = Translator()
         decoded = exception.args[0].encode('utf-8').decode('unicode_escape')
         translation = t.translate(decoded)
         logging.error(translation.text)
         return False
-    finally:
-        return True

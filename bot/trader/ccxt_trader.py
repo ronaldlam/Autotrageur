@@ -27,7 +27,7 @@ class CCXTTrader():
     """CCXT Trader for performing trades."""
 
     def __init__(self, base, quote, exchange_name, slippage, target_amount,
-        exchange_config=None, dry_run=False):
+        exchange_config={}, dry_run=False):
         """Constructor.
 
         The trading client for interacting with the CCXT library.
@@ -69,11 +69,49 @@ class CCXTTrader():
         self.quote = quote
         self.exchange_name = exchange_name
         self.fetcher = CCXTFetcher(self.ccxt_exchange)
-        self.executor = DryRunExecutor(self.exchange_name) if dry_run else \
+        self.executor = DryRunExecutor(self.ccxt_exchange) if dry_run else \
             CCXTExecutor(self.ccxt_exchange)
         self.slippage = slippage
         self.target_amount = target_amount
         self.conversion_needed = False
+
+    def __calc_vol_by_book(self, bids_or_asks, target_amount):
+        """Calculates the asset volume with which to execute a trade.
+
+        Uses data from the orderbook to calculate the asset volume (base)
+        to fulfill the target_amount (quote).
+
+        Args:
+            bids_or_asks (list[list(float)]): The bids or asks in the
+                form of (price, volume).
+            target_amount (float): Targeted amount to buy or sell, in
+                quote currency.
+
+        Raises:
+            OrderbookException: If the orderbook is not deep enough.
+
+        Returns:
+            float: The base asset volume required to fulfill target_amount via
+                the orderbook.
+        """
+        index = 0
+        base_asset_volume = 0.0
+        remaining_amount = target_amount
+
+        # Subtract from amount until enough of the order book is eaten up by
+        # the trade.
+        while remaining_amount > 0.0 and index < len(bids_or_asks):
+            remaining_amount -= bids_or_asks[index][0] * bids_or_asks[index][1]
+            base_asset_volume += bids_or_asks[index][1]
+            index += 1
+
+        if index == len(bids_or_asks) and remaining_amount > 0.0:
+            raise OrderbookException("Order book not deep enough for trade.")
+
+        # Add the zero or negative excess amount to trim off the overshoot
+        base_asset_volume += remaining_amount / bids_or_asks[index - 1][0]
+
+        return base_asset_volume
 
     def __check_exchange_limits(self, amount, price):
         """Verify amount and price are within exchange limits.
@@ -140,7 +178,7 @@ class CCXTTrader():
             float: If precision specified by exchange, the rounded asset amount
                 is returned.  Else, the asset amount is returned unchanged.
         """
-        if market_order:
+        if market_order is True:
             # Rounding is required for direct ccxt call.
             precision = self.ccxt_exchange.markets[symbol]['precision']
 
@@ -285,28 +323,14 @@ class CCXTTrader():
             bids_or_asks (list[list(float)]): The bids or asks in the
                 form of (price, volume).
 
-        Returns:
-            float: Prospective price of a market buy or sell.
-
         Raises:
             OrderbookException: If the orderbook is not deep enough.
+
+        Returns:
+            float: Prospective price of a market buy or sell.
         """
-        index = 0
-        asset_volume = 0.0
-        remaining_amount = self.target_amount
-
-        # Subtract from amount until enough of the order book is eaten up by
-        # the trade.
-        while remaining_amount > 0.0 and index < len(bids_or_asks):
-            remaining_amount -= bids_or_asks[index][0] * bids_or_asks[index][1]
-            asset_volume += bids_or_asks[index][1]
-            index += 1
-
-        if index == len(bids_or_asks) and remaining_amount > 0.0:
-            raise OrderbookException("Order book not deep enough for trade.")
-
-        # Add the zero or negative excess amount to trim off the overshoot
-        asset_volume += remaining_amount / bids_or_asks[index - 1][0]
+        asset_volume = self.__calc_vol_by_book(bids_or_asks,
+            self.target_amount)
 
         if not self.conversion_needed:
             return self.target_amount / asset_volume
@@ -319,10 +343,11 @@ class CCXTTrader():
         """Load the markets of the exchange."""
         self.ccxt_exchange.load_markets()
 
-    def set_conversion_needed(self, flag):
+    def set_conversion_needed(self, flag=False):
         """Indicates whether a conversion is needed for the quote currency.
 
         Args:
             flag (bool): True or False depending on whether conversion needed.
+                Defaults to False.
         """
         self.conversion_needed = flag

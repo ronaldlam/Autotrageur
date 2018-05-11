@@ -40,24 +40,38 @@ def send_single_email(recipient, email_cfg, msg):
         recipient (str): A recipient's e-mail address.
         email_cfg (dict[]): A dictionary of e-mail configuration properties.
         msg (str): A message formatted to be written as an e-mail (non-MIME).
-    """
-    smtp_server = smtplib.SMTP(email_cfg['host'], email_cfg['port'])
 
+    Raises:
+        SMTPResponseException: If an SMTP error occurs containing 'smtp_code'
+            and 'smtp_error'.
+        SMTPException: The SMTP base error exception.
+        Exception: Generic Exception thrown if non-SMTP related.
+    """
+    smtp_server = None
     try:
-        # The SMTP server you're connecting to requires a sort of 'handshake'
-        # for the service to work properly. This is done using the .ehlo()
-        # function of smtplib.
+        smtp_server = smtplib.SMTP(email_cfg['host'], email_cfg['port'])
         smtp_server.ehlo()
         smtp_server.starttls()
         smtp_server.login(email_cfg['username'], email_cfg['password'])
 
         smtp_server.sendmail(email_cfg['username'], recipient, msg)
         LOGGER.info("Email sent successfully to: %s", recipient)
-    except Exception as ex:
-        LOGGER.error("Error encountered trying to send email: %s", ex)
+    except smtplib.SMTPResponseException:
+        errcode = getattr(smtp_ex, 'smtp_code')
+        errmsg = getattr(smtp_ex, 'smtp_error')
+        LOGGER.error("SMTPResponseException encountered with smpt_code: %s and"
+            " smtp_error: %s", str(errcode), errmsg)
+        raise
+    except smtplib.SMTPException as smtp_ex:
+        LOGGER.error("SMTPException encountered trying to send email: %s",
+            smtp_ex)
+        raise
+    except Exception as e:
+        LOGGER.error("Exception encountered trying to send email: %s", e)
         raise
     finally:
-        smtp_server.quit()
+        if smtp_server:
+            smtp_server.quit()
 
 
 def send_all_emails(email_cfg_path, msg):

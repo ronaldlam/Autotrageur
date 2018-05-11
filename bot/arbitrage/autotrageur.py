@@ -7,13 +7,13 @@ import yaml
 
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map, to_bytes, to_str
-from bot.trader.ccxt_trader import CCXTTrader as CCXTTrader
+from bot.trader.ccxt_trader import CCXTTrader
 
+CONFIGFILE = "CONFIGFILE"
 KEYFILE = "KEYFILE"
 PASSWORD = "PASSWORD"
 SALT = "SALT"
 
-CONFIG_FILE = "configs/arb_config.yaml"
 AUTHENTICATE = "authenticate"
 DRYRUN = "dryrun"
 SLIPPAGE = "slippage"
@@ -33,6 +33,11 @@ SPREAD_TARGET_HIGH = "spread_target_high"
 TARGET_AMOUNT = "target_amount"
 
 
+class AuthenticationError(Exception):
+    """Incorrect credentials or exchange unavailable."""
+    pass
+
+
 class Autotrageur(ABC):
     """Base class for running Autotrageur, the algorithmic trading bot.
 
@@ -45,46 +50,86 @@ class Autotrageur(ABC):
     configurations.
     """
 
+    def __load_config_file(self, file_name):
+        """Load the given config file.
+
+        Args:
+            file_name (str): The name of the file.
+        """
+        with open(file_name, "r") as ymlfile:
+            self.config = yaml.load(ymlfile)
+
+    def __load_keyfile(self, arguments):
+        """Load the keyfile given in the arguments.
+
+        Args:
+            arguments (dict): Map of the arguments passed to the program.
+
+        Raises:
+            IOError: If the encrypted keyfile does not open, and not in
+                dryrun mode.
+
+        Returns:
+            dict: Map of the keyfile contents, or None if dryrun and
+                unavailable.
+        """
+        try:
+            with open(arguments[KEYFILE], "rb") as in_file:
+                keys = decrypt(
+                    in_file.read(),
+                    to_bytes(arguments[PASSWORD]),
+                    to_bytes(arguments[SALT]))
+
+            str_keys = to_str(keys)
+            return keyfile_to_map(str_keys)
+        except Exception:
+            logging.error("Unable to load keyfile.", exc_info=True)
+            if not self.config[DRYRUN]:
+                raise IOError("Unable to open file. %s" % arguments)
+            else:
+                logging.info("**Dry run: continuing with program")
+                return None
+
     def _load_configs(self, arguments):
         """Load the configurations of the Autotrageur run.
 
         Args:
-            arguments (map): Map of the arguments passed to the program
+            arguments (dict): Map of the arguments passed to the program.
 
         Raises:
-            IOError: If the encrypted keyfile does not open.
+            IOError: If the encrypted keyfile does not open, and not in
+                dryrun mode.
         """
-        # Load keyfile
-        keys = None
-        with open(arguments[KEYFILE], "rb") as in_file:
-            keys = decrypt(
-                in_file.read(),
-                to_bytes(arguments[PASSWORD]),
-                to_bytes(arguments[SALT]))
+        # Load arb configuration.
+        self.__load_config_file(arguments[CONFIGFILE])
 
-        if keys is None:
-            raise IOError("Unable to open file. %s" % arguments)
-
-        str_keys = to_str(keys)
-        exchange_key_map = keyfile_to_map(str_keys)
-
-        with open(CONFIG_FILE, "r") as ymlfile:
-            self.config = yaml.load(ymlfile)
+        # Load keyfile.
+        exchange_key_map = self.__load_keyfile(arguments)
 
         # Get exchange configuration settings.
         self.exchange1_configs = {
-            "apiKey": exchange_key_map[self.config[EXCHANGE1]][API_KEY],
-            "secret": exchange_key_map[self.config[EXCHANGE1]][API_SECRET],
-            "nonce": ccxt.Exchange.milliseconds,
+            "nonce": ccxt.Exchange.milliseconds
         }
         self.exchange2_configs = {
-            "apiKey": exchange_key_map[self.config[EXCHANGE2]][API_KEY],
-            "secret": exchange_key_map[self.config[EXCHANGE2]][API_SECRET],
-            "nonce": ccxt.Exchange.milliseconds,
+            "nonce": ccxt.Exchange.milliseconds
         }
 
+        if exchange_key_map:
+            self.exchange1_configs['apiKey'] = (
+                exchange_key_map[self.config[EXCHANGE1]][API_KEY])
+            self.exchange1_configs['secret'] = (
+                exchange_key_map[self.config[EXCHANGE1]][API_SECRET])
+            self.exchange2_configs['apiKey'] = (
+                exchange_key_map[self.config[EXCHANGE2]][API_KEY])
+            self.exchange2_configs['secret'] = (
+                exchange_key_map[self.config[EXCHANGE2]][API_SECRET])
+
     def _setup_markets(self):
-        """Set up the market objects for the algorithm to use."""
+        """Set up the market objects for the algorithm to use.
+
+        Raises:
+            AuthenticationError: If not dryrun and authentication fails.
+        """
         # Extract the pairs and compare them to see if conversion needed to
         # USD.
         self.exchange1_basequote = self.config[EXCHANGE1_PAIR].split("/")
@@ -132,7 +177,8 @@ class Autotrageur(ABC):
             # with wrong auth credentials.
             if self.config[DRYRUN]:
                 logging.info("**Dry run: continuing with program")
-                pass
+            else:
+                raise AuthenticationError(auth_error)
 
     @abstractmethod
     def _poll_opportunity(self):

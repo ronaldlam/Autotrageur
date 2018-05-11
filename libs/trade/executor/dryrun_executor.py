@@ -3,27 +3,17 @@ import logging
 from .base_executor import BaseExecutor
 
 
-DRYRUN_FAKE_RESPONSE = {
-    "info": {
-        "order_id": "DRYRUN",
-        "id": "DRYRUN",
-        "executed_amount": 1
-    },
-    "id": "DRYRUN"
-}
-
-
 class DryRunExecutor(BaseExecutor):
     """An executor if a dry run is desired."""
 
-    def __init__(self, exchange_name):
+    def __init__(self, exchange):
         """Constructor.
 
         Args:
-            exchange_name (str): The name of the exchange; used for logging.
+            exchange (ccxt.Exchange): The ccxt exchange.
         """
-        logging.log(logging.INFO, "*** Dry run with: %s", exchange_name)
-        self.exchange_name = exchange_name
+        logging.log(logging.INFO, "*** Dry run with: %s", exchange.name)
+        self.exchange = exchange
 
     def _populate_dry_run_order(self, symbol, amount, price=0):
         """Populates a fake ideal order as a dry run response.
@@ -41,7 +31,7 @@ class DryRunExecutor(BaseExecutor):
         return {
             "info": {
                 "symbol": symbol,
-                "exchange": self.exchange_name,
+                "exchange": self.exchange.name,
                 "price": price,
                 "executed_amount": amount,
             },
@@ -64,10 +54,17 @@ class DryRunExecutor(BaseExecutor):
                 parameters.
         """
         logging.log(logging.INFO, "Arguments: %s", locals())
-        return self._populate_dry_run_order(symbol, quote_amount, asset_price)
+        (asset_volume, _) = (
+            self.exchange.prepare_emulated_market_buy_order(
+                symbol, quote_amount, asset_price, slippage)
+        )
 
-    def create_emulated_market_sell_order(self, symbol, target_amount,
-                                         asset_price, slippage):
+        # We use asset_price because it uses order book data for calculation;
+        # limit_price assumes worst case taking slippage into account.
+        return self._populate_dry_run_order(symbol, asset_volume, asset_price)
+
+    def create_emulated_market_sell_order(self, symbol, asset_price,
+                                          asset_amount, slippage):
         """When an emulated market sell order has been requested from the bot.
 
         Args:
@@ -82,7 +79,15 @@ class DryRunExecutor(BaseExecutor):
                 parameters.
         """
         logging.log(logging.INFO, "Arguments: %s", locals())
-        return self._populate_dry_run_order(symbol, target_amount, asset_price)
+        (rounded_amount, _) = (
+            self.exchange.prepare_emulated_market_sell_order(
+                symbol, asset_price, asset_amount, slippage)
+        )
+
+        # We use asset_price because it uses order book data for calculation;
+        # rounded_limit_price assumes worst case taking slippage into account.
+        return self._populate_dry_run_order(
+            symbol, rounded_amount, asset_price)
 
     def create_market_buy_order(self, symbol, asset_amount, asset_price):
         """When a market buy order has been requested from the bot.
