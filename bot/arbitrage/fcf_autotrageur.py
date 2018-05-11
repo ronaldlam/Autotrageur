@@ -4,10 +4,10 @@ import logging
 
 import ccxt
 
-from .autotrageur import (SPREAD_TARGET_HIGH, SPREAD_TARGET_LOW, AUTHENTICATE,
-                         DRYRUN)
 from .autotrageur import Autotrageur
 import bot.arbitrage.arbseeker as arbseeker
+from bot.common.config_constants import (SPREAD_TARGET_HIGH, SPREAD_TARGET_LOW,
+    DRYRUN, EMAIL_CFG_PATH, MAX_EMAILS, SPREAD_ROUNDING, SPREAD_TOLERANCE)
 from bot.common.enums import SpreadOpportunity
 from libs.email_client.simple_email_client import send_all_emails
 
@@ -16,16 +16,12 @@ from libs.email_client.simple_email_client import send_all_emails
 prev_spread = 0
 email_count = 0
 
-# Config constants.
-EMAIL_CFG_PATH = 'email_cfg_path'
-MAX_EMAILS = 'max_emails'
-SPREAD_ROUNDING = 'spread_rounding'
-SPREAD_TOLERANCE = 'spread_tolerance'
 
 # Email message constants.
 EMAIL_HIGH_SPREAD_HEADER = "Subject: Arb Forward-Spread Alert!\nThe spread of "
 EMAIL_LOW_SPREAD_HEADER = "Subject: Arb Backward-Spread Alert!\nThe spread of "
 EMAIL_NONE_SPREAD = "No arb opportunity found."
+
 
 class FCFAutotrageur(Autotrageur):
     """The fiat-crypto-fiat Autotrageur.

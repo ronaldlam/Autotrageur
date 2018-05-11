@@ -3,11 +3,11 @@ import pytest
 import yaml
 
 import bot.arbitrage.autotrageur
-from bot.arbitrage.autotrageur import (DRYRUN, EXCHANGE1, EXCHANGE1_PAIR,
+from bot.arbitrage.autotrageur import (AuthenticationError, Autotrageur)
+from bot.common.config_constants import (DRYRUN, EXCHANGE1, EXCHANGE1_PAIR,
                                        EXCHANGE1_TEST, EXCHANGE2,
                                        EXCHANGE2_PAIR, EXCHANGE2_TEST,
-                                       SLIPPAGE, TARGET_AMOUNT,
-                                       AuthenticationError, Autotrageur)
+                                       SLIPPAGE, TARGET_AMOUNT)
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map
 
