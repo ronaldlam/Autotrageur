@@ -7,30 +7,19 @@ import yaml
 
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map, to_bytes, to_str
+from bot.common.config_constants import (DRYRUN, SLIPPAGE, EXCHANGE1,
+    EXCHANGE2, EXCHANGE1_PAIR, EXCHANGE2_PAIR, EXCHANGE1_TEST, EXCHANGE2_TEST,
+    TARGET_AMOUNT)
+from bot.common.ccxt_exchange_constants import API_KEY, API_SECRET
+
 from bot.trader.ccxt_trader import CCXTTrader
 
+
+# Program argument constants.
 CONFIGFILE = "CONFIGFILE"
 KEYFILE = "KEYFILE"
 PASSWORD = "PASSWORD"
 SALT = "SALT"
-
-AUTHENTICATE = "authenticate"
-DRYRUN = "dryrun"
-SLIPPAGE = "slippage"
-EXCHANGE1 = "exchange1"
-EXCHANGE2 = "exchange2"
-EXCHANGE1_PAIR = "exchange1_pair"
-EXCHANGE2_PAIR = "exchange2_pair"
-EXCHANGE1_TEST = "exchange1_test"
-EXCHANGE2_TEST = "exchange2_test"
-
-API_KEY = "api_key"
-API_SECRET = "api_secret"
-
-SPREAD_TARGET_LOW = "spread_target_low"
-SPREAD_TARGET_HIGH = "spread_target_high"
-
-TARGET_AMOUNT = "target_amount"
 
 
 class AuthenticationError(Exception):
@@ -194,6 +183,11 @@ class Autotrageur(ABC):
         """Execute the trade, providing necessary failsafes."""
         pass
 
+    @abstractmethod
+    def _clean_up(self):
+        """Cleans up the state of the autotrageur."""
+        pass
+
     def _wait(self):
         """Wait for the specified polling interval."""
         time.sleep(5)
@@ -208,6 +202,7 @@ class Autotrageur(ABC):
         self._setup_markets()
 
         while True:
+            self._clean_up()
             if self._poll_opportunity():
                 self._execute_trade()
             self._wait()

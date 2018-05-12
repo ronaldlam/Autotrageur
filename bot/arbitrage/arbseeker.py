@@ -3,6 +3,7 @@ import logging
 from googletrans import Translator
 
 import bot.arbitrage.spreadcalculator as spreadcalculator
+from bot.common.enums import SpreadOpportunity
 from bot.trader.ccxt_trader import OrderbookException
 
 
@@ -16,7 +17,7 @@ ASKS = "asks"
 
 TARGET_SPREAD = "target_spread"
 SPREAD = "spread"
-SPREAD_HIGH = "spread_high"
+SPREAD_OPP_TYPE = "spread_opp_type"
 MARKETBUY_EXCHANGE = "marketbuy_exchange"
 MARKETSELL_EXCHANGE = "marketsell_exchange"
 
@@ -26,7 +27,8 @@ def get_arb_opportunities_by_orderbook(
     """Obtains arbitrage opportunities across two exchanges based on orderbook.
 
     Uses two real-time api clients to obtain orderbook information, calculate
-    the market buy/sell orders within the target_amount's set in the clients.
+    the market buy/sell orders to fulfill the quote target amount set in the
+    clients.
 
     Args:
         trader1 (CCXTTrader): The trading client for exchange 1.
@@ -48,6 +50,8 @@ def get_arb_opportunities_by_orderbook(
             'marketbuy_exchange': client1,
             'marketsell_exchange': client2
         }
+
+        If no spread opportunity is available, None is returned.
     """
     ex1_orderbook = trader1.get_full_orderbook()
     ex2_orderbook = trader2.get_full_orderbook()
@@ -75,16 +79,16 @@ def get_arb_opportunities_by_orderbook(
         ex2_market_sell = None
 
     logging.info("%s buy of %s, %s price: %s" %
-                 (trader1.exchange_name, trader1.target_amount,
+                 (trader1.exchange_name, trader1.quote_target_amount,
                   trader1.base, ex1_market_buy))
     logging.info("%s buy of %s, %s price: %s" %
-                 (trader2.exchange_name, trader2.target_amount,
+                 (trader2.exchange_name, trader2.quote_target_amount,
                   trader2.base, ex2_market_buy))
     logging.info("%s sell of %s, %s price: %s" %
-                 (trader1.exchange_name, trader1.target_amount,
+                 (trader1.exchange_name, trader1.quote_target_amount,
                   trader1.base, ex1_market_sell))
     logging.info("%s sell of %s, %s price: %s" %
-                 (trader2.exchange_name, trader2.target_amount,
+                 (trader2.exchange_name, trader2.quote_target_amount,
                   trader2.base, ex2_market_sell))
 
     # Calculate the spreads between exchange 1 and 2.
@@ -112,7 +116,7 @@ def get_arb_opportunities_by_orderbook(
             and ex2msell_ex1mbuy_spread >= spread_high):
         return {
             TARGET_SPREAD: spread_high,
-            SPREAD_HIGH: True,                      # Spread above the high
+            SPREAD_OPP_TYPE: SpreadOpportunity.HIGH,    # Spread above the high
             SPREAD: ex2msell_ex1mbuy_spread,
             MARKETBUY_EXCHANGE: trader1,
             MARKETSELL_EXCHANGE: trader2
@@ -121,7 +125,7 @@ def get_arb_opportunities_by_orderbook(
             and ex2mbuy_ex1msell_spread <= spread_low):
         return {
             TARGET_SPREAD: spread_low,
-            SPREAD_HIGH: False,                     # Spread below the low
+            SPREAD_OPP_TYPE: SpreadOpportunity.LOW,      # Spread below the low
             SPREAD: ex2mbuy_ex1msell_spread,
             MARKETBUY_EXCHANGE: trader2,
             MARKETSELL_EXCHANGE: trader1
@@ -147,7 +151,7 @@ def execute_arbitrage(opportunity):
     # TODO: Add balance checks before execution.
     buy_trading_client = opportunity[MARKETBUY_EXCHANGE]
     sell_trading_client = opportunity[MARKETSELL_EXCHANGE]
-    spread_high = opportunity[SPREAD_HIGH]
+    spread_opp_type = opportunity[SPREAD_OPP_TYPE]
     target_spread = opportunity[TARGET_SPREAD]
 
     asks = buy_trading_client.get_full_orderbook()[ASKS]
@@ -157,7 +161,7 @@ def execute_arbitrage(opportunity):
         buy_price = buy_trading_client.get_adjusted_market_price_from_orderbook(asks)
         sell_price = sell_trading_client.get_adjusted_market_price_from_orderbook(bids)
 
-        if spread_high:
+        if spread_opp_type is SpreadOpportunity.HIGH:
             spread = spreadcalculator.calc_spread(sell_price, buy_price)
             execute = spread >= target_spread
         else:

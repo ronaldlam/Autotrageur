@@ -4,40 +4,24 @@ import logging
 
 import ccxt
 
-from .autotrageur import SPREAD_TARGET_HIGH, SPREAD_TARGET_LOW, AUTHENTICATE, DRYRUN
 from .autotrageur import Autotrageur
 import bot.arbitrage.arbseeker as arbseeker
+from bot.common.config_constants import (SPREAD_TARGET_HIGH, SPREAD_TARGET_LOW,
+    DRYRUN, EMAIL_CFG_PATH, MAX_EMAILS, SPREAD_ROUNDING, SPREAD_TOLERANCE)
+from bot.common.enums import SpreadOpportunity
 from libs.email_client.simple_email_client import send_all_emails
 
-
-# Global Enum.
-class SpreadOpportunity(Enum):
-    """An enum for spread opportunity classification.
-
-    Args:
-        Enum (str): One of:
-        - none (no spread opportunity)
-        - high (forward spread opportunity)
-        - low (reverse spread opportunity)
-    """
-    NONE = 'none',
-    HIGH = 'high',
-    LOW = 'low'
 
 # Global module variables.
 prev_spread = 0
 email_count = 0
 
-# Config constants.
-EMAIL_CFG_PATH = 'email_cfg_path'
-MAX_EMAILS = 'max_emails'
-SPREAD_ROUNDING = 'spread_rounding'
-SPREAD_TOLERANCE = 'spread_tolerance'
 
 # Email message constants.
 EMAIL_HIGH_SPREAD_HEADER = "Subject: Arb Forward-Spread Alert!\nThe spread of "
 EMAIL_LOW_SPREAD_HEADER = "Subject: Arb Backward-Spread Alert!\nThe spread of "
 EMAIL_NONE_SPREAD = "No arb opportunity found."
+
 
 class FCFAutotrageur(Autotrageur):
     """The fiat-crypto-fiat Autotrageur.
@@ -81,6 +65,12 @@ class FCFAutotrageur(Autotrageur):
                      spread_tol)
         return (abs(Decimal(str(curr_spread)) - Decimal(str(prev_spread))) <=
                 spread_tol)
+
+    def _clean_up(self):
+        """Cleans up the state of the autotrageur before performing next
+        actions which may be harmed by previous state."""
+        self.spread_opp = None
+        self.message = None
 
     def __set_message(self, opp_type):
         """Sets the message used for emails and logging based on the type of
@@ -150,7 +140,6 @@ class FCFAutotrageur(Autotrageur):
         Returns:
             bool: Whether there is an opportunity.
         """
-        self.spread_opp = None
         # TODO: Evaluate options and implement retry logic.
         try:
             # Get spread low and highs.
@@ -161,16 +150,13 @@ class FCFAutotrageur(Autotrageur):
                 spread_high)
         except ccxt.NetworkError as network_error:
             logging.error(network_error, exc_info=True)
-        finally:
-            if self.spread_opp is None:
-                self.__set_message(SpreadOpportunity.NONE)
-                logging.log(logging.INFO, self.message)
-                return False
-            elif self.spread_opp[arbseeker.SPREAD_HIGH]:
-                self.__set_message(SpreadOpportunity.HIGH)
-            else:
-                self.__set_message(SpreadOpportunity.LOW)
-            return True
+        if self.spread_opp is None:
+            self.__set_message(None)
+            logging.log(logging.INFO, self.message)
+            return False
+
+        self.__set_message(self.spread_opp[arbseeker.SPREAD_OPP_TYPE])
+        return True
 
     def _execute_trade(self):
         """Execute the trade, providing necessary failsafes."""
