@@ -154,10 +154,10 @@ def execute_arbitrage(opportunity):
     spread_opp_type = opportunity[SPREAD_OPP_TYPE]
     target_spread = opportunity[TARGET_SPREAD]
 
-    asks = buy_trader.get_full_orderbook()[ASKS]
-    bids = sell_trader.get_full_orderbook()[BIDS]
-
     try:
+        asks = buy_trader.get_full_orderbook()[ASKS]
+        bids = sell_trader.get_full_orderbook()[BIDS]
+
         buy_price = buy_trader.get_adjusted_market_price_from_orderbook(asks)
         sell_price = sell_trader.get_adjusted_market_price_from_orderbook(bids)
 
