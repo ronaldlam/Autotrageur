@@ -6,12 +6,11 @@ import ccxt
 import yaml
 
 from libs.security.encryption import decrypt
-from libs.utilities import keyfile_to_map, to_bytes, to_str
+from libs.utilities import keyfile_to_map, to_bytes, to_str, num_to_decimal
 from bot.common.config_constants import (DRYRUN, SLIPPAGE, EXCHANGE1,
     EXCHANGE2, EXCHANGE1_PAIR, EXCHANGE2_PAIR, EXCHANGE1_TEST, EXCHANGE2_TEST,
     TARGET_AMOUNT)
 from bot.common.ccxt_exchange_constants import API_KEY, API_SECRET
-
 from bot.trader.ccxt_trader import CCXTTrader
 
 
@@ -128,16 +127,16 @@ class Autotrageur(ABC):
             self.exchange1_basequote[0],
             self.exchange1_basequote[1],
             self.config[EXCHANGE1],
-            self.config[SLIPPAGE],
-            self.config[TARGET_AMOUNT],
+            num_to_decimal(self.config[SLIPPAGE]),
+            num_to_decimal(self.config[TARGET_AMOUNT]),
             self.exchange1_configs,
             self.config[DRYRUN])
         self.tclient2 = CCXTTrader(
             self.exchange2_basequote[0],
             self.exchange2_basequote[1],
             self.config[EXCHANGE2],
-            self.config[SLIPPAGE],
-            self.config[TARGET_AMOUNT],
+            num_to_decimal(self.config[SLIPPAGE]),
+            num_to_decimal(self.config[TARGET_AMOUNT]),
             self.exchange2_configs,
             self.config[DRYRUN])
 

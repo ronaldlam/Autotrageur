@@ -1,10 +1,12 @@
 from enum import Enum
+from decimal import Decimal
 
 import ccxt
 import pytest
 
 import bot.currencyconverter as currencyconverter
 import bot.trader.ccxt_trader as ccxt_trader
+from libs.utilities import set_autotrageur_decimal_context, num_to_decimal
 
 # Namespace shortcuts.
 CCXTTrader = ccxt_trader.CCXTTrader
@@ -22,6 +24,7 @@ class OrderType(Enum):
 
 # Test constants.
 BTC_USD = 'BTC/USD'
+set_autotrageur_decimal_context()
 
 
 class TestCCXTTraderInit:
@@ -29,12 +32,12 @@ class TestCCXTTraderInit:
 
     @pytest.mark.parametrize('base, quote, exchange_name, slippage, quote_target_amount,'
                             'exchange_config, dry_run', [
-        ('BTC', 'USD', 'binance', 5.0, 50000, {}, False),
-        ('BTC', 'USD', 'gemini', 5.0, 50000, {}, False),
-        ('BTC', 'KRW', 'bithumb', 5.0, 50000, {}, False),
-        ('BTC', 'USD', 'binance', 5.0, 50000, {}, True),
-        ('BTC', 'USD', 'gemini', 5.0, 50000, {}, True),
-        ('BTC', 'KRW', 'bithumb', 5.0, 50000, {}, True)
+        ('BTC', 'USD', 'binance', Decimal('5.0'), Decimal('50000'), {}, False),
+        ('BTC', 'USD', 'gemini', Decimal('5.0'), Decimal('50000'), {}, False),
+        ('BTC', 'KRW', 'bithumb', Decimal('5.0'), Decimal('50000'), {}, False),
+        ('BTC', 'USD', 'binance', Decimal('5.0'), Decimal('50000'), {}, True),
+        ('BTC', 'USD', 'gemini', Decimal('5.0'), Decimal('50000'), {}, True),
+        ('BTC', 'KRW', 'bithumb', Decimal('5.0'), Decimal('50000'), {}, True)
     ])
     def test_init_normal(self, base, quote, exchange_name, slippage, quote_target_amount,
                          exchange_config, dry_run, mocker, ccxtfetcher_binance,
@@ -76,23 +79,23 @@ class TestCalcVolByBook:
         # Good, one order, no overshoot.
         ([
             [10000.0, 2.0]
-        ], 20000.0, 2.0),
+        ], Decimal('20000.0'), Decimal('2.0')),
         # Good, one order, negative overshoot.
         ([
             [11000.0, 2.0]
-        ], 20000.0, 1.8181818181818181),
+        ], Decimal('20000.0'), Decimal('1.818181818181818181818181818')),
         # Good, two orders, negative overshoot.
         ([
             [10050.0, 1.0],
             [10000.0, 1.0]
-        ], 20000.0, 1.995),
+        ], Decimal('20000.0'), Decimal('1.995')),
         # Good, multiple orders, larger numbers, larger negative overshoot.
         ([
             [20055.0, 1000.0],
             [15055.0, 3000.45],
             [10050.0, 1000.0],
             [10000.0, 50000.5]
-        ], 100000000.0, 7472.772525),
+        ], Decimal('100000000.0'), Decimal('7472.772525')),
         # Good, multiple orders, real case, negative overshoot.
         ([
             [756.87, 0.015191],
@@ -145,7 +148,7 @@ class TestCalcVolByBook:
             [765.32, 0.015141],
             [765.37, 54.98],
             [766.46, 0.15]
-        ], 20000.0, 26.390243212957785)
+        ], Decimal('20000.0'), Decimal('26.39024321295778364116094987'))
     ])
     def test_calc_vol_by_book(self, mocker, fake_ccxt_trader, bids_or_asks, quote_target_amount, final_volume):
         volume = fake_ccxt_trader._CCXTTrader__calc_vol_by_book(bids_or_asks, quote_target_amount)
@@ -155,19 +158,19 @@ class TestCalcVolByBook:
         # Not enough depth, one order.
         ([
             [10000.0, 1.0]
-        ], 20000.0),
+        ], Decimal('20000.0')),
         # Not enough depth, two orders, minimal amounts.
         ([
             [10050.0, 0.001],
             [10000.0, 0.004]
-        ], 20000.0),
+        ], Decimal('20000.0')),
         # Not enough depth, multiple orders, large numbers.
         ([
             [20055.0, 100.0],
             [15055.0, 300.45],
             [10050.0, 100.0],
             [10000.0, 500.5]
-        ], 1000000000.12345678)
+        ], Decimal('1000000000.12345678'))
     ])
     def test_calc_vol_by_book_exception(self, mocker, fake_ccxt_trader, bids_or_asks, quote_target_amount):
         with pytest.raises(ccxt_trader.OrderbookException):
@@ -182,15 +185,15 @@ class TestCheckExchangeLimits:
         fake_ccxt_trader._CCXTTrader__check_exchange_limits(amount, price)
 
         limits_dict = fake_ccxt_trader.ccxt_exchange.markets[BTC_USD]['limits']
-        assert amount >= limits_dict['amount']['min']
-        assert amount <= limits_dict['amount']['max']
-        assert price >= limits_dict['price']['min']
-        assert price <= limits_dict['price']['max']
+        assert amount >= num_to_decimal(limits_dict['amount']['min'])
+        assert amount <= num_to_decimal(limits_dict['amount']['max'])
+        assert price >= num_to_decimal(limits_dict['price']['min'])
+        assert price <= num_to_decimal(limits_dict['price']['max'])
 
     @pytest.mark.parametrize('amount, price', [
-        (0.1, 0.9),
-        (0.000000011, 0.00000009),
-        (0.00000002, 0.99999999)
+        (Decimal('0.1'), Decimal('0.9')),
+        (Decimal('0.000000011'), Decimal('0.00000009')),
+        (Decimal('0.00000002'), Decimal('0.99999999'))
     ])
     @pytest.mark.parametrize('markets', [
         ({
@@ -226,9 +229,9 @@ class TestCheckExchangeLimits:
         self._internaltest_check_exchange_limits(mocker, fake_ccxt_trader, amount, price, markets)
 
     @pytest.mark.parametrize('amount, price', [
-        (10000001, 9999999),
-        (99999991, 9999999),
-        (10000000.00000000, 99999999.99999999)
+        (Decimal('10000001'), Decimal('9999999')),
+        (Decimal('99999991'), Decimal('9999999')),
+        (Decimal('10000000.00000000'), Decimal('99999999.99999999'))
     ])
     @pytest.mark.parametrize('markets', [
         ({
@@ -250,16 +253,16 @@ class TestCheckExchangeLimits:
         self._internaltest_check_exchange_limits(mocker, fake_ccxt_trader, amount, price, markets)
 
     @pytest.mark.parametrize('amount, price, measure, limit_type', [
-        (10000000.00000000, 00000000.99999998, 'price', 'min'),
-        (99999999.99999999, 00000000.99999998, 'price', 'min'),
-        (10000000.00000000, 1000000000, 'price', 'max'),
-        (99999999.99999999, 1000000000, 'price', 'max'),
-        (9999999.00000000, 00000000.99999999, 'amount', 'min'),
-        (100000000.99999999, 00000000.99999999, 'amount', 'max'),
-        (9999999.00000000, 99999999.99999999, 'amount', 'min'),
-        (100000000.99999999, 99999999.99999999, 'amount', 'max'),
-        (-100000000.99999999, 99999999.99999999, 'amount', 'min'),
-        (100000000.99999999, -99999999.99999999, 'amount', 'max'),
+        (Decimal('10000000.00000000'), Decimal('00000000.99999998'), 'price', 'min'),
+        (Decimal('99999999.99999999'), Decimal('00000000.99999998'), 'price', 'min'),
+        (Decimal('10000000.00000000'), Decimal('1000000000'), 'price', 'max'),
+        (Decimal('99999999.99999999'), Decimal('1000000000'), 'price', 'max'),
+        (Decimal('9999999.00000000'), Decimal('00000000.99999999'), 'amount', 'min'),
+        (Decimal('100000000.99999999'), Decimal('00000000.99999999'), 'amount', 'max'),
+        (Decimal('9999999.00000000'), Decimal('99999999.99999999'), 'amount', 'min'),
+        (Decimal('100000000.99999999'), Decimal('99999999.99999999'), 'amount', 'max'),
+        (Decimal('-100000000.99999999'), Decimal('99999999.99999999'), 'amount', 'min'),
+        (Decimal('100000000.99999999'), Decimal('-99999999.99999999'), 'amount', 'max'),
     ])
     @pytest.mark.parametrize('markets', [
         ({
@@ -319,7 +322,7 @@ class TestRoundExchangePrecision:
                     'amount': 8
                 }
             }
-        }, 1.123456789, 1.12345679),
+        }, Decimal('1.123456789'), Decimal('1.12345678')),
         # Good, 8 precision, large number.
         ({
             BTC_USD: {
@@ -327,7 +330,7 @@ class TestRoundExchangePrecision:
                     'amount': 8
                 }
             }
-        }, 10000000.123456789, 10000000.12345679),
+        }, Decimal('10000000.123456789'), Decimal('10000000.12345678')),
         # Good, 8 precision, rounding with float ending in 5.
         ({
             BTC_USD: {
@@ -335,7 +338,7 @@ class TestRoundExchangePrecision:
                     'amount': 8
                 }
             }
-        }, 1.123456785, 1.12345678),    # NOTE: Does not round "up" to  1.12345679
+        }, Decimal('1.123456785'), Decimal('1.12345678')),    # NOTE: Does not round "up" to  1.12345679
         # Bad, 8 precision, typo, should remain unchanged.
         ({
             BTC_USD: {
@@ -343,7 +346,7 @@ class TestRoundExchangePrecision:
                     'amountt': 8
                 }
             }
-        }, 1.123456789, 1.123456789)
+        }, Decimal('1.123456789'), Decimal('1.123456789'))
     ])
     @pytest.mark.parametrize('market_order', [True, 'emulated', False])
     def test_round_exchange_precision(self, mocker, fake_ccxt_trader, precision,
@@ -364,7 +367,7 @@ class TestRoundExchangePrecision:
             'precision': {
                 'amount': 8
             }
-        }, 1.123456789, 1.123456789,
+        }, Decimal('1.123456789'), Decimal('1.123456789'),
         marks=xfail(raises=KeyError, reason="Missing symbol key", strict=True)),
         # Bad, typo precision key, expect KeyError exception.
         pytest.param({
@@ -373,7 +376,7 @@ class TestRoundExchangePrecision:
                     'amount': 8
                 }
             }
-        }, 1.123456789, 1.123456789,
+        }, Decimal('1.123456789'), Decimal('1.123456789'),
         marks=xfail(raises=KeyError, reason="Typo precision key", strict=True))
     ])
     def test_round_exchange_precision_bad(self, mocker, fake_ccxt_trader, precision,
@@ -392,9 +395,9 @@ class TestExecuteMarketOrder:
     """For tests regarding ccxt_trader::execute_market_buy and
        ccxt_trader::execute_market_sell."""
 
-    fake_asset_price = 100.00
+    fake_asset_price = Decimal('100.00')
     fake_result = { 'fake': 'result' }
-    fake_rounded_amount = 2.333
+    fake_rounded_amount = Decimal('2.333')
     fake_normal_market_order = { 'createMarketOrder': True }
     fake_emulated_market_order = { 'createMarketOrder': 'emulated' }
 
@@ -534,9 +537,9 @@ def test_get_full_orderbook(mocker, fake_ccxt_trader, symbols):
 
 class TestGetAdjustedMarketPriceFromOrderbook:
     fake_bids_or_asks = [['fake', 'bids', 'asks']]
-    fake_asset_volume = 10
-    fake_quote_target_amount = 100
-    fake_usd_value = 150
+    fake_asset_volume = Decimal('10')
+    fake_quote_target_amount = Decimal('100')
+    fake_usd_value = Decimal('150')
 
     @pytest.mark.parametrize('conversion_needed', [
         True,
@@ -559,7 +562,7 @@ class TestGetAdjustedMarketPriceFromOrderbook:
         market_price = fake_ccxt_trader.get_adjusted_market_price_from_orderbook(self.fake_bids_or_asks)
 
         if conversion_needed:
-            asset_usd_value = ccxt_trader.currencyconverter.convert_currencies.return_value
+            asset_usd_value = ccxt_trader.currencyconverter.convert_currencies.return_value     # pylint: disable=no-member
             assert market_price == asset_usd_value / asset_volume
         else:
             assert market_price == quote_target_amount / asset_volume

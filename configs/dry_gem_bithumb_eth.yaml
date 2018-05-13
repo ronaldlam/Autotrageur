@@ -1,7 +1,7 @@
 # Exchange configurations for autotrageur.py
 
 # Dry Run functionality.
-dryrun: True # If True, will log trades instead of executing them.
+dryrun: true # If True, will log trades instead of executing them.
 
 # Email configuration, and email options.
 email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to send e-mails on arb opportunities.

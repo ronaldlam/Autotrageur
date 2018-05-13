@@ -6,11 +6,15 @@ https://github.com/minimaxir/big-list-of-naughty-strings
 
 import base64
 import json
+from decimal import Decimal
 
 import pytest
 
-from libs.utilities import keyfile_to_map, to_bytes, to_str, keys_exists
-from libs.utilities import IncorrectFormatException
+from libs.utilities import (IncorrectFormatException, keyfile_to_map,
+                            keys_exists, num_to_decimal,
+                            set_autotrageur_decimal_context,
+                            set_human_friendly_decimal_context, to_bytes,
+                            to_str)
 
 keyfile_labels = [
     "valid",
@@ -178,6 +182,26 @@ def test_keys_exists_attribute_error(dictionary, args):
 def test_not_keys_exists(args):
     """Tests keys_exists for False"""
     assert not(keys_exists(keyfile_to_map_result, *args))
+
+
+@pytest.mark.parametrize("input, result", [
+    (None, None),
+    (1, Decimal('1')),
+    (1.000, Decimal('1.000')),
+    (125123152112513, Decimal('125123152112513')),
+    (1234567890.1234567, Decimal('1234567890.1234567')),
+    (-1, Decimal('-1')),
+    (-1.000, Decimal('-1.000')),
+    (-125123152112513, Decimal('-125123152112513')),
+    (-1234567890.1234567, Decimal('-1234567890.1234567')),
+    ('-1', Decimal('-1')),
+    ('-1.000', Decimal('-1.000')),
+    ('-125123152112513', Decimal('-125123152112513')),
+    ('-1234567890.123456789012345678', Decimal('-1234567890.123456789012345678')),
+    ('-1234567890.1234567890123456789', Decimal('-1234567890.1234567890123456789')),
+])
+def test_num_to_decimal(input, result):
+    assert(num_to_decimal(input) == result)
 
 
 keyfile_to_map_result = {

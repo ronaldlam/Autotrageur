@@ -9,7 +9,7 @@ import libs.ccxt_extensions as ccxt_extensions
 from libs.trade.executor.ccxt_executor import CCXTExecutor
 from libs.trade.executor.dryrun_executor import DryRunExecutor
 from libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
-from libs.utilities import keys_exists
+from libs.utilities import keys_exists, num_to_decimal
 
 EXTENSION_PREFIX = "ext_"
 
@@ -69,10 +69,10 @@ class CCXTTrader():
             quote (str): The quote (second) token/currency of the
                 exchange pair.
             exchange_name (str): Desired exchange to query against.
-            slippage (float): Maximum desired slippage from emulated
+            slippage (Decimal): Maximum desired slippage from emulated
                 market trades.
-            quote_target_amount (float): Targeted amount to buy or sell, in
-                quote currency.
+            quote_target_amount (Decimal): Targeted amount to buy or
+                sell, in quote currency.
             exchange_config (dict): The exchange's configuration in
                 accordance with the ccxt library for instantiating an
                 exchange, ex.
@@ -103,41 +103,48 @@ class CCXTTrader():
         self.quote_target_amount = quote_target_amount
         self.conversion_needed = False
 
-    def __calc_vol_by_book(self, bids_or_asks, quote_target_amount):
+    def __calc_vol_by_book(self, orders, quote_target_amount):
         """Calculates the asset volume with which to execute a trade.
 
         Uses data from the orderbook to calculate the base asset volume
         to fulfill the quote_target_amount.
 
         Args:
-            bids_or_asks (list[list(float)]): The bids or asks in the
+            orders (list[list(float)]): The bids or asks in the
                 form of (price, volume).
-            quote_target_amount (float): Targeted amount to buy or sell, in
-                quote currency.
+            quote_target_amount (Decimal): Targeted amount to buy or
+                sell, in quote currency.
 
         Raises:
             OrderbookException: If the orderbook is not deep enough.
 
         Returns:
-            float: The base asset volume required to fulfill
-                quote_target_amount via the orderbook.
+            Decimal: The base asset volume required to fulfill
+                target_amount via the orderbook.
         """
         index = 0
-        base_asset_volume = 0.0
+        base_asset_volume = num_to_decimal(0.0)
         remaining_amount = quote_target_amount
+        ZERO = num_to_decimal(0.0)
+
+        # The decimal orders.
+        d_orders = []
+        for entry in orders:
+            d_orders.append(
+                [num_to_decimal(entry[0]), num_to_decimal(entry[1])])
 
         # Subtract from amount until enough of the order book is eaten up by
         # the trade.
-        while remaining_amount > 0.0 and index < len(bids_or_asks):
-            remaining_amount -= bids_or_asks[index][0] * bids_or_asks[index][1]
-            base_asset_volume += bids_or_asks[index][1]
+        while remaining_amount > ZERO and index < len(d_orders):
+            remaining_amount -= d_orders[index][0] * d_orders[index][1]
+            base_asset_volume += d_orders[index][1]
             index += 1
 
-        if index == len(bids_or_asks) and remaining_amount > 0.0:
+        if index == len(d_orders) and remaining_amount > ZERO:
             raise OrderbookException("Order book not deep enough for trade.")
 
         # Add the zero or negative excess amount to trim off the overshoot
-        base_asset_volume += remaining_amount / bids_or_asks[index - 1][0]
+        base_asset_volume += remaining_amount / d_orders[index - 1][0]
 
         return base_asset_volume
 
@@ -145,8 +152,8 @@ class CCXTTrader():
         """Verify amount and price are within exchange limits.
 
         Args:
-            amount (float): Amount of the base asset to trade.
-            price (float): Price of base asset in quote currency.
+            amount (Decimal): Amount of the base asset to trade.
+            price (Decimal): Price of base asset in quote currency.
 
         Raises:
             ExchangeLimitException: If asset buy amount is outside
@@ -159,7 +166,7 @@ class CCXTTrader():
             for range_limit in ['min', 'max']:
                 if (measure[1] and keys_exists(limits, measure[0],
                                                range_limit)):
-                    limit = limits[measure[0]][range_limit]
+                    limit = num_to_decimal(limits[measure[0]][range_limit])
                     if limit:
                         if range_limit == 'min' and limit > measure[1]:
                             raise ExchangeLimitException(
@@ -176,15 +183,16 @@ class CCXTTrader():
         """Rounds the asset amount by a precision provided by the exchange.
 
         Args:
-            market_order (bool or string): Is one of: True, False, 'emulated'
-                to specify if market order is supported, not supported,
-                or emulated.
+            market_order (bool or string): Is one of: True, False,
+                'emulated' to specify if market order is supported, not
+                supported, or emulated.
             symbol (string): The token pair symbol. E.g. 'ETH/USD'
-            asset_amount (float): The amount that is to be rounded.
+            asset_amount (Decimal): The amount that is to be rounded.
 
         Returns:
-            float: If precision specified by exchange, the rounded asset amount
-                is returned.  Else, the asset amount is returned unchanged.
+            Decimal: If precision specified by exchange, the rounded
+                asset amount is returned.  Else, the asset amount is
+                returned unchanged.
         """
         if market_order is True:
             # Rounding is required for direct ccxt call.
@@ -228,7 +236,7 @@ class CCXTTrader():
         """Execute a market buy order.
 
         Args:
-            asset_price (float): Target asset price for the trade.
+            asset_price (Decimal): Target asset price for the trade.
 
         Raises:
             NotImplementedError: If not implemented.
@@ -237,8 +245,8 @@ class CCXTTrader():
 
         Returns:
             dict[dict, int]: Dictionary of response, includes 'info'
-                and 'id'. The 'info' includes all raw response contents and
-                result['id'] == result['info']['id']
+                and 'id'. The 'info' includes all raw response contents
+                and result['id'] == result['info']['id']
         """
         symbol = "%s/%s" % (self.base, self.quote)
         market_order = self.ccxt_exchange.has['createMarketOrder']
@@ -271,9 +279,9 @@ class CCXTTrader():
         """Execute a market sell order.
 
         Args:
-            asset_price (float): Target asset price for exchanges with
+            asset_price (Decimal): Target asset price for exchanges with
                 no market sell support.
-            asset_amount (float): Target amount of the asset to be sold.
+            asset_amount (Decimal): Target amount of the asset to be sold.
 
         Raises:
             NotImplementedError: If not implemented.
@@ -335,7 +343,7 @@ class CCXTTrader():
             OrderbookException: If the orderbook is not deep enough.
 
         Returns:
-            float: Prospective price of a market buy or sell.
+            Decimal: Prospective price of a market buy or sell.
         """
         asset_volume = self.__calc_vol_by_book(bids_or_asks,
             self.quote_target_amount)

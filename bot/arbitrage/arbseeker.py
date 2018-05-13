@@ -5,6 +5,7 @@ from googletrans import Translator
 import bot.arbitrage.spreadcalculator as spreadcalculator
 from bot.common.enums import SpreadOpportunity
 from bot.trader.ccxt_trader import OrderbookException
+from libs.utilities import num_to_decimal
 
 
 class AbortTradeException(Exception):
@@ -33,10 +34,10 @@ def get_arb_opportunities_by_orderbook(
     Args:
         trader1 (CCXTTrader): The trading client for exchange 1.
         trader2 (CCXTTrader): The trading client for exchange 2.
-        spread_low (int): Spread lower boundary in that if the spread crosses
-            this, a reverse-arb opportunity exists.
-        spread_high (int): Spread upper boundary in that if the spread crosses
-            this, a forward-arb opportunity exists.
+        spread_low (Decimal): Spread lower boundary in that if the
+            spread crosses this, a reverse-arb opportunity exists.
+        spread_high (Decimal): Spread upper boundary in that if the
+            spread crosses this, a forward-arb opportunity exists.
 
     Returns:
         dict: A dictionary containing details of the spread opportunity. It
@@ -44,8 +45,8 @@ def get_arb_opportunities_by_orderbook(
         market buy and the exchange to perform the market sell. Ex:
 
         {
-            'target_spread': 10,
-            'spread': 2.333,
+            'target_spread': Decimal('10'),
+            'spread': Decimal('2.333'),
             'spread_high': True,
             'marketbuy_exchange': client1,
             'marketsell_exchange': client2
@@ -185,7 +186,7 @@ def execute_arbitrage(opportunity):
 
         sell_result = sell_trading_client.execute_market_sell(
             sell_price,
-            float(executed_buy_amount))
+            num_to_decimal(executed_buy_amount))
         logging.info("Sell result: %s" % sell_result)
         return True
     except Exception as exception:
