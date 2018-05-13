@@ -128,22 +128,22 @@ def keys_exists(dictionary, *keys):
     return True
 
 
-def num_to_decimal(input):
+def num_to_decimal(num):
     """Return decimal object given float, int or str input.
 
     Args:
-        input (float/int/str): The input.
+        num (float/int/str): The input.
 
     Raises:
-        InvalidOperation: If input cannot be converted.
+        InvalidOperation: If num cannot be converted.
 
     Returns:
         Decimal: The Decimal representation of the float.
     """
-    if input is None:
+    if num is None:
         return None
 
-    return Decimal(str(input))
+    return Decimal(str(num))
 
 
 def set_autotrageur_decimal_context():
