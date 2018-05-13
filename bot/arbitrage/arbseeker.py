@@ -91,13 +91,13 @@ def get_arb_opportunities_by_orderbook(
                  (trader2.exchange_name, trader2.quote_target_amount,
                   trader2.base, ex2_market_sell))
 
-    # Calculate the spreads between exchange 1 and 2.
-    # TODO: We need to feed in the fees in order to more accurately calculate
-    # the spread.
+    # Calculate the spreads between exchange 1 and 2, including taker fees.
     ex2msell_ex1mbuy_spread = spreadcalculator.calc_spread(
-        ex2_market_sell, ex1_market_buy)
+        ex2_market_sell, ex1_market_buy, trader1.get_taker_fee(),
+        trader2.get_taker_fee())
     ex2mbuy_ex1msell_spread = spreadcalculator.calc_spread(
-        ex2_market_buy, ex1_market_sell)
+        ex2_market_buy, ex1_market_sell, trader1.get_taker_fee(),
+        trader2.get_taker_fee())
 
     logging.info("Ex2 (%s) sell Ex1 (%s) buy spread: (%s)" %
                  (trader2.exchange_name,
@@ -137,7 +137,7 @@ def get_arb_opportunities_by_orderbook(
 def execute_arbitrage(opportunity):
     """Execute the arbitrage trade.
 
-    The TradingClient's store information about the ticker, target, and
+    The CCXTTraders store information about the ticker, target, and
     exchange details. We verify that the numbers are correct once more
     before execution.
 
@@ -149,23 +149,25 @@ def execute_arbitrage(opportunity):
         bool: True if succeeded
     """
     # TODO: Add balance checks before execution.
-    buy_trading_client = opportunity[MARKETBUY_EXCHANGE]
-    sell_trading_client = opportunity[MARKETSELL_EXCHANGE]
+    buy_trader = opportunity[MARKETBUY_EXCHANGE]
+    sell_trader = opportunity[MARKETSELL_EXCHANGE]
     spread_opp_type = opportunity[SPREAD_OPP_TYPE]
     target_spread = opportunity[TARGET_SPREAD]
 
-    asks = buy_trading_client.get_full_orderbook()[ASKS]
-    bids = sell_trading_client.get_full_orderbook()[BIDS]
+    asks = buy_trader.get_full_orderbook()[ASKS]
+    bids = sell_trader.get_full_orderbook()[BIDS]
 
     try:
-        buy_price = buy_trading_client.get_adjusted_market_price_from_orderbook(asks)
-        sell_price = sell_trading_client.get_adjusted_market_price_from_orderbook(bids)
+        buy_price = buy_trader.get_adjusted_market_price_from_orderbook(asks)
+        sell_price = sell_trader.get_adjusted_market_price_from_orderbook(bids)
 
         if spread_opp_type is SpreadOpportunity.HIGH:
-            spread = spreadcalculator.calc_spread(sell_price, buy_price)
+            spread = spreadcalculator.calc_spread(sell_price, buy_price,
+                buy_trader.get_taker_fee(), sell_trader.get_taker_fee())
             execute = spread >= target_spread
         else:
-            spread = spreadcalculator.calc_spread(buy_price, sell_price)
+            spread = spreadcalculator.calc_spread(buy_price, sell_price,
+                buy_trader.get_taker_fee(), sell_trader.get_taker_fee())
             execute = spread <= target_spread
 
         if not execute:
@@ -179,11 +181,11 @@ def execute_arbitrage(opportunity):
             raise AbortTradeException(message)
 
         logging.info("Buy price: %s, Sell price %s" % (buy_price, sell_price))
-        buy_result = buy_trading_client.execute_market_buy(buy_price)
+        buy_result = buy_trader.execute_market_buy(buy_price)
         logging.info("Buy result: %s" % buy_result)
         executed_buy_amount = buy_result["info"]["executed_amount"]
 
-        sell_result = sell_trading_client.execute_market_sell(
+        sell_result = sell_trader.execute_market_sell(
             sell_price,
             float(executed_buy_amount))
         logging.info("Sell result: %s" % sell_result)

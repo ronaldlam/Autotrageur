@@ -347,6 +347,10 @@ class CCXTTrader():
                 'USD', self.quote_target_amount)
             return asset_usd_value / asset_volume
 
+    def get_taker_fee(self):
+        """Obtains the exchange's takers fee."""
+        return self.ccxt_exchange.fees['trading']['taker']
+
     def load_markets(self):
         """Load the markets of the exchange."""
         self.ccxt_exchange.load_markets()
