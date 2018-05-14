@@ -2,6 +2,11 @@ import logging
 
 import ccxt
 
+from libs.utilities import num_to_decimal
+
+
+HUNDRED = num_to_decimal(100.0)
+
 
 class ext_gemini(ccxt.gemini):
     """Subclass of ccxt's gemini.py for internal use.
@@ -119,19 +124,19 @@ class ext_gemini(ccxt.gemini):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            quote_amount (float): The amount to buy in quote currency.
-            asset_price (float): The target buy price, quote per base.
-            slippage (float): The percentage off asset_price the market
+            quote_amount (Decimal): The amount to buy in quote currency.
+            asset_price (Decimal): The target buy price, quote per base.
+            slippage (Decimal): The percentage off asset_price the market
                 buy will tolerate.
 
         Returns:
-            (float, float): Tuple of asset volume and limit price.
+            (Decimal, Decimal): Tuple of asset volume and limit price.
         """
         # Calculated volume of asset expected to be purchased.
         asset_volume = quote_amount / asset_price
         # Maximum price we are willing to pay.
         # TODO: Implement failsafes for unreasonable slippage.
-        ratio = (100.0 + slippage) / 100.0
+        ratio = (HUNDRED + slippage) / HUNDRED
         limit_price = asset_price * ratio
         a_precision = self.markets[symbol]['precision']['amount']
         p_precision = self.markets[symbol]['precision']['price']
@@ -161,9 +166,9 @@ class ext_gemini(ccxt.gemini):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            quote_amount (float): The amount to buy in quote currency.
-            asset_price (float): The target buy price, quote per base.
-            slippage (float): The percentage off asset_price the market
+            quote_amount (Decimal): The amount to buy in quote currency.
+            asset_price (Decimal): The target buy price, quote per base.
+            slippage (Decimal): The percentage off asset_price the market
                 buy will tolerate.
 
         Returns:
@@ -186,17 +191,17 @@ class ext_gemini(ccxt.gemini):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            asset_price (float): The price, quote per base.
-            asset_amount (float): The amount of the asset to be sold.
-            slippage (float): The percentage off asset_price the market
+            asset_price (Decimal): The price, quote per base.
+            asset_amount (Decimal): The amount of the asset to be sold.
+            slippage (Decimal): The percentage off asset_price the market
                 buy will tolerate.
 
         Returns:
-            (float, float): Tuple of the rounded asset amount and limit
+            (Decimal, Decimal): Tuple of the rounded asset amount and limit
                 price.
         """
         # Minimum price we are willing to sell.
-        ratio = (100.0 - slippage) / 100.0
+        ratio = (HUNDRED - slippage) / HUNDRED
         a_precision = self.markets[symbol]['precision']['amount']
         p_precision = self.markets[symbol]['precision']['price']
         rounded_amount = round(asset_amount, a_precision)
@@ -223,9 +228,9 @@ class ext_gemini(ccxt.gemini):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            asset_price (float): The price, quote per base.
-            asset_amount (float): The amount of the asset to be sold.
-            slippage (float): The percentage off asset_price the market
+            asset_price (Decimal): The price, quote per base.
+            asset_amount (Decimal): The amount of the asset to be sold.
+            slippage (Decimal): The percentage off asset_price the market
                 buy will tolerate.
 
         Returns:

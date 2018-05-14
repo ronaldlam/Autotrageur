@@ -1,4 +1,31 @@
+from decimal import (ROUND_DOWN, ROUND_HALF_UP, Clamped, Context, Decimal,
+                     DefaultContext, DivisionByZero, FloatOperation,
+                     InvalidOperation, Overflow, Subnormal, Underflow,
+                     getcontext, setcontext)
+
 FIXED_KEYFILE_LABELS = ["exchange", "api_key", "api_secret"]
+
+# Context for console output.
+# Note the list ordering, the + operator appends to the first list, so
+# this does not change the default context.
+HUMAN_READABLE_CONTEXT = Context(
+    traps=[FloatOperation] + [k for k, v in DefaultContext.traps.items() if v],
+    rounding=ROUND_HALF_UP          # What you learn in school.
+)
+
+# Context for trading.
+AUTOTRAGEUR_CONTEXT = Context(
+    traps=[
+        FloatOperation,
+        Overflow,
+        Underflow,
+        Subnormal,
+        InvalidOperation,
+        Clamped,
+        DivisionByZero
+    ],
+    rounding=ROUND_DOWN             # Rounds towards zero.
+)
 
 
 class IncorrectFormatException(Exception):
@@ -99,3 +126,31 @@ def keys_exists(dictionary, *keys):
         except KeyError:
             return False
     return True
+
+
+def num_to_decimal(num):
+    """Return decimal object given float, int or str input.
+
+    Args:
+        num (float/int/str): The input.
+
+    Raises:
+        InvalidOperation: If num cannot be converted.
+
+    Returns:
+        Decimal: The Decimal representation of the float.
+    """
+    if num is None:
+        return None
+
+    return Decimal(str(num))
+
+
+def set_autotrageur_decimal_context():
+    """Set the default Autotrageur decimal context for trading usage."""
+    setcontext(AUTOTRAGEUR_CONTEXT)
+
+
+def set_human_friendly_decimal_context():
+    """Set the intuitive decimal context for console output usage."""
+    setcontext(HUMAN_READABLE_CONTEXT)

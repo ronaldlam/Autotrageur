@@ -18,14 +18,14 @@ def convert_currencies(from_curr, to_curr, amount):
     Args:
         from_curr (str): Ticker of currency to convert from.
         to_curr (str): Ticker of currency to convert to.
-        amount (int): The amount of currency to convert.
+        amount (Decimal): The amount of currency to convert.
 
     Raises:
         UnacceptableAmountException: Thrown when the amount of currency is
                                      less than 0.
 
     Returns:
-        int: The converted amount of currency.
+        Decimal: The converted amount of currency.
     """
     if amount < 0:
         raise UnacceptableAmountException("The amount to be converted must be greater than 0")

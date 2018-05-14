@@ -1,4 +1,8 @@
 import logging
+from libs.utilities import num_to_decimal
+
+
+ZERO = num_to_decimal('0')
 
 
 def calc_spread(exc1_price, exc2_price, exc1_fee, exc2_fee):
@@ -8,15 +12,15 @@ def calc_spread(exc1_price, exc2_price, exc1_fee, exc2_fee):
     returning.
 
     Args:
-        exc1_price (float): The first price from the first exchange.
-        exc2_price (float): The second price from the second exchange.
-        exc1_fee (float): The first fee from the first exchange.  Expected as a
+        exc1_price (Decimal): The first price from the first exchange.
+        exc2_price (Decimal): The second price from the second exchange.
+        exc1_fee (Decimal): The first fee from the first exchange.  Expected as a
             percentage in ratio form (e.g. 0.01 for 1%).
-        exc2_fee (float): The second fee from the second exchange.  Expected as
+        exc2_fee (Decimal): The second fee from the second exchange.  Expected as
             a percentage in ratio form (e.g. 0.01 for 1%).
 
     Returns:
-        float: The calculated spread as a percentage.
+        Decimal: The calculated spread as a percentage.
     """
     # TODO: Should we format here?
     # TODO: Need to make more robust.
@@ -25,14 +29,14 @@ def calc_spread(exc1_price, exc2_price, exc1_fee, exc2_fee):
             "None input: (exc1_price, exc2_price) = (%s, %s)" %
                 (exc1_price, exc2_price))
         return None
-    elif exc1_price <= 0 or exc2_price <= 0:
+    elif exc1_price <= ZERO or exc2_price <= ZERO:
         logging.warning(
             "Negative input: (exc1_price, exc2_price) = (%s, %s)" %
                 (exc1_price, exc2_price))
         return None
     else:
-        raw_spread = (exc1_price/exc2_price - 1) * 100
-        spread_post_fees = raw_spread - (exc1_fee * 100 + exc2_fee * 100)
+        raw_spread = (exc1_price/exc2_price - num_to_decimal(1)) * num_to_decimal(100)
+        spread_post_fees = raw_spread - (exc1_fee * num_to_decimal(100) + exc2_fee * num_to_decimal(100))
 
         logging.info("Calculated raw spread of: {}".format(raw_spread))
         logging.info("Spread post-fees: {}".format(spread_post_fees))

@@ -117,6 +117,8 @@ def test_load_configs(mocker, autotrageur, keyfile_loaded):
 def test_setup_markets(
         mocker, autotrageur, ex1_test, ex2_test, client_quote_usd,
         balance_check, dryrun):
+    fake_slippage = 0.25
+    fake_target_amount = 12345
     fake_pair = 'fake/pair'
     placeholder = 'fake'
     trader = mocker.patch('bot.arbitrage.autotrageur.CCXTTrader')
@@ -128,8 +130,8 @@ def test_setup_markets(
         EXCHANGE2_PAIR: fake_pair,
         EXCHANGE1: placeholder,
         EXCHANGE2: placeholder,
-        SLIPPAGE: placeholder,
-        TARGET_AMOUNT: placeholder,
+        SLIPPAGE: fake_slippage,
+        TARGET_AMOUNT: fake_target_amount,
         EXCHANGE1_TEST: ex1_test,
         EXCHANGE2_TEST: ex2_test,
         DRYRUN: dryrun
