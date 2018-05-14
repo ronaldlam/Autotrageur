@@ -1,4 +1,4 @@
-import decimal
+from decimal import Decimal, InvalidOperation
 
 from ccxt import NetworkError
 import pytest
@@ -30,39 +30,39 @@ def fcf_autotrageur(mocker, fake_ccxt_trader):
 
 class TestIsWithinTolerance:
     @pytest.mark.parametrize('curr_spread, prev_spread, spread_rnd, spread_tol, bTol', [
-        (0, 0, 0, 0, True),
-        (0, 0, None, 0, True),
-        (0, 0, 0, 1, True),
-        (0, 0, None, 1, True),
-        (0.0, 1.0, 1, 1.0, True),
-        (0.0, 1.0, None, 1.0, True),
-        (1.0, 0.0, 1, 1.0, True),
-        (1.0, 0.0, None, 1.0, True),
-        (0.0, 1.1, 1, 1.0, False),
-        (0.0, 1.1, None, 1.0, False),
-        (100.001, 100.002, None, 0.001, True),
-        (100.001, 100.002, 0, 0.001, True),
-        (100.001, 100.002, 100, 0.001, True),
-        (100.001, 100.002, None, 0.0001, False),
-        (1000000.12345678, 1000000.12345679, None, 0.00000001, True),
-        (1000000.12345678, 1000000.12345679, 1, 0.00000001, True),
-        (1000000.12345678, 1000000.12345679, None, 0.000000001, False)
+        (Decimal('0'), Decimal('0'), 0, Decimal('0'), True),
+        (Decimal('0'), Decimal('0'), None, Decimal('0'), True),
+        (Decimal('0'), Decimal('0'), 0, Decimal('1'), True),
+        (Decimal('0'), Decimal('0'), None, Decimal('1'), True),
+        (Decimal('0.0'), Decimal('1.0'), 1, Decimal('1.0'), True),
+        (Decimal('0.0'), Decimal('1.0'), None, Decimal('1.0'), True),
+        (Decimal('1.0'), Decimal('0.0'), 1, Decimal('1.0'), True),
+        (Decimal('1.0'), Decimal('0.0'), None, Decimal('1.0'), True),
+        (Decimal('0.0'), Decimal('1.1'), 1, Decimal('1.0'), False),
+        (Decimal('0.0'), Decimal('1.1'), None, Decimal('1.0'), False),
+        (Decimal('100.001'), Decimal('100.002'), None, Decimal('0.001'), True),
+        (Decimal('100.001'), Decimal('100.002'), 0, Decimal('0.001'), True),
+        (Decimal('100.001'), Decimal('100.002'), 20, Decimal('0.001'), True),
+        (Decimal('100.001'), Decimal('100.002'), None, Decimal('0.0001'), False),
+        (Decimal('1000000.12345678'), Decimal('1000000.12345679'), None, Decimal('0.00000001'), True),
+        (Decimal('1000000.12345678'), Decimal('1000000.12345679'), 1, Decimal('0.00000001'), True),
+        (Decimal('1000000.12345678'), Decimal('1000000.12345679'), None, Decimal('0.000000001'), False)
     ])
-    def test_is_within_tolerance(self, fcf_autotrageur, curr_spread, prev_spread,
-                                spread_rnd, spread_tol, bTol):
+    def test_is_within_tolerance(
+        self, curr_spread, prev_spread, spread_rnd, spread_tol, bTol):
         in_tolerance = FCFAutotrageur._is_within_tolerance(
             curr_spread, prev_spread, spread_rnd, spread_tol)
         assert in_tolerance is bTol
 
     @pytest.mark.parametrize('curr_spread, prev_spread, spread_rnd, spread_tol, bTol', [
         (None, None, None, None, True),
-        (None, 1, 1, 0.1, True),
-        (1, None, 1, 0.1, True),
-        (1, 1, 1, None, True)
+        (None, Decimal('1'), 1, Decimal('0.1'), True),
+        (Decimal('1'), None, 1, Decimal('0.1'), True),
+        (Decimal('1'), Decimal('1'), 1, None, True)
     ])
-    def test_is_within_tolerance_bad(self, fcf_autotrageur, curr_spread, prev_spread,
-                                spread_rnd, spread_tol, bTol):
-        with pytest.raises((decimal.InvalidOperation, TypeError), message="Expecting a float, not a NoneType"):
+    def test_is_within_tolerance_bad(
+        self, curr_spread, prev_spread, spread_rnd, spread_tol, bTol):
+        with pytest.raises((InvalidOperation, TypeError), message="Expecting a Decimal or int, not a NoneType"):
             in_tolerance = FCFAutotrageur._is_within_tolerance(
                 curr_spread, prev_spread, spread_rnd, spread_tol)
             assert in_tolerance is bTol
@@ -118,9 +118,9 @@ class TestEmailOrThrottle:
         return mock_send_all_emails
 
     @pytest.mark.parametrize('fake_email_count, next_email_count, fake_prev_spread, curr_spread, max_emails, rnding, tol', [
-        (0, 1, 0.0, 2.0, 2, 1, 0.1),
-        (1, 2, 2.0, 2.0, 2, 1, 0.1),
-        (2, 1, 2.0, 5.0, 2, 1, 0.1)
+        (0, 1, Decimal('0.0'), Decimal('2.0'), 2, 1, 0.1),
+        (1, 2, Decimal('2.0'), Decimal('2.0'), 2, 1, 0.1),
+        (2, 1, Decimal('2.0'), Decimal('5.0'), 2, 1, 0.1)
     ])
     def test_FCFAutotrageur__email_or_throttle_emailed(self, mocker, fcf_autotrageur, fake_email_count,
                                        next_email_count, fake_prev_spread, curr_spread, max_emails,
@@ -135,11 +135,11 @@ class TestEmailOrThrottle:
         assert bot.arbitrage.fcf_autotrageur.email_count == next_email_count
 
     @pytest.mark.parametrize('fake_email_count, next_email_count, fake_prev_spread, curr_spread, max_emails, rnding, tol', [
-        (0, 0, 0, 0, 0, 0, 0),
-        pytest.param(0, 0, 0, None, 0, 0, 0, marks=xfail(raises=(TypeError, decimal.InvalidOperation), reason="rounding or arithmetic on NoneType", strict=True)),
-        (2, 2, 2.0, 2.0, 2, 1, 0.1),
-        (2, 2, 2.0, 2.1, 2, 1, 0.1),
-        (2, 2, 2.1, 2.0, 2, 1, 0.1)
+        (0, 0, Decimal('0'), Decimal('0'), 0, 0, 0),
+        pytest.param(0, 0, Decimal('0'), None, 0, 0, 0, marks=xfail(raises=(TypeError, InvalidOperation), reason="rounding or arithmetic on NoneType", strict=True)),
+        (2, 2, Decimal('2.0'), Decimal('2.0'), 2, 1, 0.1),
+        (2, 2, Decimal('2.0'), Decimal('2.1'), 2, 1, 0.1),
+        (2, 2, Decimal('2.1'), Decimal('2.0'), 2, 1, 0.1)
     ])
     def test_FCFAutotrageur__email_or_throttle_throttled(self, mocker, fcf_autotrageur, fake_email_count,
                                          next_email_count, fake_prev_spread, curr_spread, max_emails,

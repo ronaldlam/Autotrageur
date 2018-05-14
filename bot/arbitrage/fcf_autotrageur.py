@@ -1,19 +1,22 @@
+import logging
 from decimal import Decimal
 from enum import Enum
-import logging
 
 import ccxt
 
-from .autotrageur import Autotrageur
 import bot.arbitrage.arbseeker as arbseeker
 from bot.common.config_constants import (SPREAD_TARGET_HIGH, SPREAD_TARGET_LOW,
     DRYRUN, EMAIL_CFG_PATH, MAX_EMAILS, SPREAD_ROUNDING, SPREAD_TOLERANCE)
 from bot.common.enums import SpreadOpportunity
 from libs.email_client.simple_email_client import send_all_emails
+from libs.utilities import (num_to_decimal, set_autotrageur_decimal_context,
+                            set_human_friendly_decimal_context)
+
+from .autotrageur import Autotrageur
 
 
 # Global module variables.
-prev_spread = 0
+prev_spread = Decimal('0')
 email_count = 0
 
 
@@ -45,16 +48,18 @@ class FCFAutotrageur(Autotrageur):
         will be rounded before check against tolerance.
 
         Args:
-            curr_spread (float): The current spread of the arb opportunity.
-            prev_spread (float): The previous spread to compare to.
+            curr_spread (Decimal): The current spread of the arb opportunity.
+            prev_spread (Decimal): The previous spread to compare to.
             spread_rnd (int): Number of decimals to round the spreads to.
-            spread_tol (float): The spread tolerance to check if curr_spread
+            spread_tol (Decimal): The spread tolerance to check if curr_spread
                 minus prev_spread is within.
 
         Returns:
             bool: True if the (current spread - previous spread) is still
                 within the tolerance.  Else, False.
         """
+        set_human_friendly_decimal_context()
+
         if spread_rnd is not None:
             logging.info("Rounding spreads to %d decimal place", spread_rnd)
             curr_spread = round(curr_spread, spread_rnd)
@@ -63,8 +68,12 @@ class FCFAutotrageur(Autotrageur):
         logging.info("\nPrevious spread of: %f Current spread of: %f\n"
                      "spread tolerance of: %f", prev_spread, curr_spread,
                      spread_tol)
-        return (abs(Decimal(str(curr_spread)) - Decimal(str(prev_spread))) <=
-                spread_tol)
+
+        within_tolerance = (abs(curr_spread - prev_spread) <= spread_tol)
+
+        set_autotrageur_decimal_context()
+
+        return within_tolerance
 
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
@@ -105,14 +114,14 @@ class FCFAutotrageur(Autotrageur):
         spreads.
 
         Args:
-            curr_spread (float): The current arbitrage spread for the arbitrage
+            curr_spread (Decimal): The current arbitrage spread for the arbitrage
                 opportunity.
         """
         global prev_spread
         global email_count
 
         max_num_emails = self.config[MAX_EMAILS]
-        spread_tol = self.config[SPREAD_TOLERANCE]
+        spread_tol = num_to_decimal(self.config[SPREAD_TOLERANCE])
         spread_rnd = self.config[SPREAD_ROUNDING]
 
         within_tolerance = FCFAutotrageur._is_within_tolerance(
@@ -143,8 +152,8 @@ class FCFAutotrageur(Autotrageur):
         # TODO: Evaluate options and implement retry logic.
         try:
             # Get spread low and highs.
-            spread_low = self.config[SPREAD_TARGET_LOW]
-            spread_high = self.config[SPREAD_TARGET_HIGH]
+            spread_low = num_to_decimal(self.config[SPREAD_TARGET_LOW])
+            spread_high = num_to_decimal(self.config[SPREAD_TARGET_HIGH])
             self.spread_opp = arbseeker.get_arb_opportunities_by_orderbook(
                 self.tclient1, self.tclient2, spread_low,
                 spread_high)

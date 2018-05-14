@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import ccxt
 import pytest
 
@@ -87,4 +89,4 @@ def fake_dryrun_executor(mocker, ext_gemini_exchange):
 def fake_ccxt_trader(mocker, symbols, exc_names, ccxtfetcher_binance, fake_ccxt_executor):
     mocker.patch('libs.trade.fetcher.ccxt_fetcher.CCXTFetcher', return_value=ccxtfetcher_binance)
     mocker.patch('libs.trade.executor.ccxt_executor.CCXTExecutor', return_value=fake_ccxt_executor)
-    return CCXTTrader(symbols['bitcoin'], symbols['usd'], exc_names['binance'], 3.0, 20000.0)
+    return CCXTTrader(symbols['bitcoin'], symbols['usd'], exc_names['binance'], Decimal('3.0'), Decimal('20000.0'))

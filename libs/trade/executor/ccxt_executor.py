@@ -13,9 +13,9 @@ class CCXTExecutor(BaseExecutor):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            quote_amount (float): The amount to buy in quote currency.
-            asset_price (float): The target buy price, quote per base.
-            slippage (float): The percentage off asset_price the market
+            quote_amount (Decimal): The amount to buy in quote currency.
+            asset_price (Decimal): The target buy price, quote per base.
+            slippage (Decimal): The percentage off asset_price the market
                 buy will tolerate.
 
         Returns:
@@ -34,9 +34,9 @@ class CCXTExecutor(BaseExecutor):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            asset_price (float): The price, quote per base.
-            asset_amount (float): The amount of the asset to be sold.
-            slippage (float): The percentage off asset_price the market
+            asset_price (Decimal): The price, quote per base.
+            asset_amount (Decimal): The amount of the asset to be sold.
+            slippage (Decimal): The percentage off asset_price the market
                 buy will tolerate.
 
         Returns:
@@ -54,8 +54,8 @@ class CCXTExecutor(BaseExecutor):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            asset_amount (float): The amount of asset to be bought.
-            asset_price (float); The target buy price, quote per base. (Unused)
+            asset_amount (Decimal): The amount of asset to be bought.
+            asset_price (Decimal); The target buy price, quote per base. (Unused)
 
         Returns:
             dict: The order result from the ccxt exchange.
@@ -68,8 +68,8 @@ class CCXTExecutor(BaseExecutor):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            asset_amount (float): The amount of asset to be sold.
-            asset_price (float); The target sell price, quote per base. (Unused)
+            asset_amount (Decimal): The amount of asset to be sold.
+            asset_price (Decimal); The target sell price, quote per base. (Unused)
 
         Returns:
             dict: The order result from the ccxt exchange.

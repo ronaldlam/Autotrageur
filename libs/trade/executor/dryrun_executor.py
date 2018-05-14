@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 
 from .base_executor import BaseExecutor
 
@@ -15,18 +16,18 @@ class DryRunExecutor(BaseExecutor):
         logging.log(logging.INFO, "*** Dry run with: %s", exchange.name)
         self.exchange = exchange
 
-    def _populate_dry_run_order(self, symbol, amount, price=0):
+    def _populate_dry_run_order(self, symbol, amount, price=Decimal('0')):
         """Populates a fake ideal order as a dry run response.
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            amount (float): The amount to buy or sell.
-            price (int, optional): The target price to buy or sell.
+            amount (Decimal): The amount to buy or sell.
+            price (Decimal, optional): The target price to buy or sell.
                 Used in emulated buy/sell orders.  Defaults to 0.
 
         Returns:
-            dict: A pre-defined order dictionary populated with the calling
-            function's parameters.
+            dict: A pre-defined order dictionary populated with the
+                calling function's parameters.
         """
         return {
             "info": {
@@ -44,14 +45,14 @@ class DryRunExecutor(BaseExecutor):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            quote_amount (float): The amount to buy in quote currency.
-            asset_price (float): The target buy price, quote per base.
-            slippage (float): The percentage off asset_price the market
-                buy will tolerate.
+            quote_amount (Decimal): The amount to buy in quote currency.
+            asset_price (Decimal): The target buy price, quote per base.
+            slippage (Decimal): The percentage off asset_price the
+                market buy will tolerate.
 
         Returns:
-            dict: A pre-defined order dictionary populated with the function's
-                parameters.
+            dict: A pre-defined order dictionary populated with the
+                function's parameters.
         """
         logging.log(logging.INFO, "Arguments: %s", locals())
         (asset_volume, _) = (
@@ -69,14 +70,14 @@ class DryRunExecutor(BaseExecutor):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            asset_price (float): The price, quote per base.
-            asset_amount (float): The amount of the asset to be sold.
-            slippage (float): The percentage off asset_price the market
-                buy will tolerate.
+            asset_price (Decimal): The price, quote per base.
+            asset_amount (Decimal): The amount of the asset to be sold.
+            slippage (Decimal): The percentage off asset_price the
+                market buy will tolerate.
 
         Returns:
-            dict: A pre-defined order dictionary populated with the function's
-                parameters.
+            dict: A pre-defined order dictionary populated with the
+                function's parameters.
         """
         logging.log(logging.INFO, "Arguments: %s", locals())
         (rounded_amount, _) = (
@@ -94,12 +95,12 @@ class DryRunExecutor(BaseExecutor):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            asset_amount (float): The amount of asset to be bought.
-            asset_price (float); The target buy price, quote per base.
+            asset_amount (Decimal): The amount of asset to be bought.
+            asset_price (Decimal); The target buy price, quote per base.
 
         Returns:
-            dict: A pre-defined order dictionary populated with the function's
-                parameters.
+            dict: A pre-defined order dictionary populated with the
+                function's parameters.
         """
         logging.log(logging.INFO, "Arguments: %s", locals())
         return self._populate_dry_run_order(symbol, asset_amount, asset_price)
@@ -109,12 +110,13 @@ class DryRunExecutor(BaseExecutor):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            asset_amount (float): The amount of asset to be sold.
-            asset_price (float); The target sell price, quote per base.
+            asset_amount (Decimal): The amount of asset to be sold.
+            asset_price (Decimal); The target sell price, quote per
+                base.
 
         Returns:
-            dict: A pre-defined order dictionary populated with the function's
-                parameters.
+            dict: A pre-defined order dictionary populated with the
+                function's parameters.
         """
         logging.log(logging.INFO, "Arguments: %s", locals())
         return self._populate_dry_run_order(symbol, asset_amount, asset_price)

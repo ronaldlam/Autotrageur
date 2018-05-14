@@ -1,30 +1,34 @@
+from decimal import Decimal
+
 import pytest
 
 import libs.ccxt_extensions as ccxt_extensions
 
 
 BUY_PARAMS = [
-    ('ETH/USD', 10000, 600, 1, 0),
-    ('ETH/USD', 10000, 665, 1.6, 1),
-    ('ETH/USD', 10000, 665, 1.5, 2),
-    ('BTC/USD', 10000, 10000, 0.5, 3),
-    ('ETH/USD', 10000, 600, 0, 4),
-    pytest.param('ETH/USD', 10000, 0, 1, 5,
+    ('ETH/USD', Decimal('10000'), Decimal('600'), Decimal('1'), 0),
+    ('ETH/USD', Decimal('10000'), Decimal('665'), Decimal('1.6'), 1),
+    ('ETH/USD', Decimal('10000'), Decimal('665'), Decimal('1.5'), 2),
+    ('BTC/USD', Decimal('10000'), Decimal('10000'), Decimal('0.5'), 3),
+    ('ETH/USD', Decimal('10000'), Decimal('600'), Decimal('0'), 4),
+    pytest.param('ETH/USD', Decimal('10000'), Decimal('0'), Decimal('1'), 5,
         marks=pytest.mark.xfail(strict=True, raises=ZeroDivisionError)),
-    ('ETH/USD', 0, 600, 1, 6),
-    ('ETH/USD', 10000.41, 600, 1, 7),
-    ('ETH/USD', 10000, 665.41, 1.6, 8),
-    ('ETH/USD', 10000.51, 665.51, 1.5, 9),
+    ('ETH/USD', Decimal('0'), Decimal('600'), Decimal('1'), 6),
+    ('ETH/USD', Decimal('10000.41'), Decimal('600'), Decimal('1'), 7),
+    ('ETH/USD', Decimal('10000'), Decimal('665.41'), Decimal('1.6'), 8),
+    ('ETH/USD', Decimal('10000.51'), Decimal('665.51'), Decimal('1.5'), 9),
 ]
 
 SELL_PARAMS = [
-    ('ETH/USD', 600, 5, 1, 0),
-    ('ETH/USD', 634, 5.3, 1.11, 1),
-    ('ETH/USD', 600, 5.12341, 1, 2),
-    ('ETH/USD', 600.12, 5, 1, 3),
-    ('BTC/USD', 10000, 2, 1.134, 4),
-    ('BTC/USD', 12345, 6, 7, 5),
+    ('ETH/USD', Decimal('600'), Decimal('5'), Decimal('1'), 0),
+    ('ETH/USD', Decimal('634'), Decimal('5.3'), Decimal('1.11'), 1),
+    ('ETH/USD', Decimal('600'), Decimal('5.12341'), Decimal('1'), 2),
+    ('ETH/USD', Decimal('600.12'), Decimal('5'), Decimal('1'), 3),
+    ('BTC/USD', Decimal('10000'), Decimal('2'), Decimal('1.134'), 4),
+    ('BTC/USD', Decimal('12345'), Decimal('6'), Decimal('7'), 5),
 ]
+
+HUNDRED = Decimal('100')
 
 
 @pytest.fixture(scope='module')
@@ -51,7 +55,7 @@ def buy_results(request):
     # NOTE: The parentheses matter for the ratio calculation here.
     # The third test will fail due to floating point inaccuracies.
     result_price = round(
-        asset_price * ((100.0 + slippage) / 100.0), PRECISION[symbol]['price'])
+        asset_price * ((HUNDRED + slippage) / HUNDRED), PRECISION[symbol]['price'])
 
     return (result_volume, result_price)
 
@@ -65,7 +69,7 @@ def sell_results(request):
 
     result_amount = round(asset_amount, PRECISION[symbol]['amount'])
     result_price = round(
-        asset_price * ((100.0 - slippage) / 100.0), PRECISION[symbol]['price'])
+        asset_price * ((HUNDRED - slippage) / HUNDRED), PRECISION[symbol]['price'])
 
     return (result_amount, result_price)
 
