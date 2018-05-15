@@ -357,7 +357,7 @@ class CCXTTrader():
 
     def get_taker_fee(self):
         """Obtains the exchange's takers fee."""
-        return self.ccxt_exchange.fees['trading']['taker']
+        return self.fetcher.fetch_taker_fees()
 
     def load_markets(self):
         """Load the markets of the exchange."""

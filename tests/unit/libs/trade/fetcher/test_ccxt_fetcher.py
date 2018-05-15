@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import ccxt
 import pytest
 
@@ -8,8 +10,8 @@ xfail = pytest.mark.xfail
 
 
 # Test constants.
-MAKER_FEE = 0.25
-TAKER_FEE = 0.10
+MAKER_FEE = Decimal('0.25')
+TAKER_FEE = Decimal('0.10')
 BTC_FREE_BALANCE = 1.50
 USD_FREE_BALANCE = 123.00
 BTC_LAST = 120.00
@@ -110,7 +112,7 @@ def test_init(exchange):
 def test_fetch_maker_fees(mocker, ccxtfetcher_binance, fee_structure_key, maker_fee):
     mocker.patch.object(ccxtfetcher_binance.exchange, 'fees', fee_structures[fee_structure_key])
     maker_fees = ccxtfetcher_binance.fetch_maker_fees()
-    assert type(maker_fees) is float
+    assert type(maker_fees) is Decimal
     assert maker_fees == MAKER_FEE
 
 
@@ -125,7 +127,7 @@ def test_fetch_maker_fees(mocker, ccxtfetcher_binance, fee_structure_key, maker_
 def test_fetch_taker_fees(mocker, ccxtfetcher_binance, fee_structure_key, taker_fee):
     mocker.patch.object(ccxtfetcher_binance.exchange, 'fees', fee_structures[fee_structure_key])
     taker_fees = ccxtfetcher_binance.fetch_taker_fees()
-    assert type(taker_fees) is float
+    assert type(taker_fees) is Decimal
     assert taker_fees == TAKER_FEE
 
 

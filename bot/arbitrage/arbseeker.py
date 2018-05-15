@@ -94,11 +94,11 @@ def get_arb_opportunities_by_orderbook(
 
     # Calculate the spreads between exchange 1 and 2, including taker fees.
     ex2msell_ex1mbuy_spread = spreadcalculator.calc_spread(
-        ex2_market_sell, ex1_market_buy, trader1.get_taker_fee(),
-        trader2.get_taker_fee())
+        ex2_market_sell, ex1_market_buy, trader2.get_taker_fee(),
+        trader1.get_taker_fee())
     ex2mbuy_ex1msell_spread = spreadcalculator.calc_spread(
-        ex2_market_buy, ex1_market_sell, trader1.get_taker_fee(),
-        trader2.get_taker_fee())
+        ex2_market_buy, ex1_market_sell, trader2.get_taker_fee(),
+        trader1.get_taker_fee())
 
     logging.info("Ex2 (%s) sell Ex1 (%s) buy spread: (%s)" %
                  (trader2.exchange_name,

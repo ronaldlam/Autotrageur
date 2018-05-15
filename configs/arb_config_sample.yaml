@@ -14,12 +14,12 @@ spread_tolerance: # The +/- of the spread in which to send an e-mail notificatio
 # Percentage downside of limit order slippage tolerable for market order emulations
 slippage: # Important for Gemini, eg. 3
 
-# Exchange 1
+# Exchange 1 - This is the exchange to be used as the default denominator.
 exchange1: # Name of first exchange, eg. binance
 exchange1_pair: # Name of target pair, eg. ETH/USDT
 exchange1_test: # Whether to connect to test API, eg. true
 
-# Exchange 2
+# Exchange 2 - This is the exchange to be used as the default numerator.
 exchange2: # Name of second exchange, eg. bithumb
 exchange2_pair: # Name of target pair, eg. ETH/KRW
 exchange2_test: # Whether to connect to test API, eg. false

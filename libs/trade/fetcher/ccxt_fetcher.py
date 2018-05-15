@@ -1,5 +1,8 @@
 import logging
+
 import ccxt
+
+from libs.utilities import num_to_decimal
 
 
 class CCXTFetcher():
@@ -30,10 +33,10 @@ class CCXTFetcher():
             NotImplementedError: If not accessible through ccxt.
 
         Returns:
-            float: The maker fee, given as a ratio.
+            Decimal: The maker fee, given as a ratio.
         """
         if self.exchange.fees["trading"]["maker"]:
-            return self.exchange.fees["trading"]["maker"]
+            return num_to_decimal(self.exchange.fees["trading"]["maker"])
         else:
             logging.error(
                 "Maker fees should be verified for %s" % self.exchange.id)
@@ -49,10 +52,10 @@ class CCXTFetcher():
             NotImplementedError: If not accessible through ccxt.
 
         Returns:
-            float: The taker fee, given as a ratio.
+            Decimal: The taker fee, given as a ratio.
         """
         if self.exchange.fees["trading"]["taker"]:
-            return self.exchange.fees["trading"]["taker"]
+            return num_to_decimal(self.exchange.fees["trading"]["taker"])
         else:
             logging.error(
                 "Taker fees should be verified for %s" % self.exchange.id)

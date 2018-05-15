@@ -575,6 +575,11 @@ def test_load_markets(mocker, fake_ccxt_trader):
     fake_ccxt_trader.ccxt_exchange.load_markets.assert_called_with()
 
 
+def test_get_taker_fee(mocker, fake_ccxt_trader):
+    mocker.patch.object(fake_ccxt_trader.fetcher, 'fetch_taker_fees')
+    fake_ccxt_trader.get_taker_fee()
+    fake_ccxt_trader.fetcher.fetch_taker_fees.assert_called_with()
+
 @pytest.mark.parametrize('is_conv_needed', [ True, False, None ])
 def test_set_conversion_needed(fake_ccxt_trader, is_conv_needed):
     fake_ccxt_trader.set_conversion_needed(is_conv_needed)
