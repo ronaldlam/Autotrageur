@@ -182,7 +182,25 @@ PRECISION = {
         'quote': 10,
         'amount': 6,
         'price': 5,
-    }
+    },
+    'ZEC/USD': {
+        'base': 8,
+        'quote': 2,
+        'amount': 6,
+        'price': 2,
+    },
+    'ZEC/BTC': {
+        'base': 8,
+        'quote': 10,
+        'amount': 6,
+        'price': 5,
+    },
+    'ZEC/ETH': {
+        'base': 8,
+        'quote': 8,
+        'amount': 6,
+        'price': 4,
+    },
 }
 
 LIMITS = {
@@ -215,5 +233,35 @@ LIMITS = {
             'min': None,
             'max': None,
         }
-    }
+    },
+    'ZEC/USD': {
+        'amount': {
+            'min': 0.001,
+            'max': None,
+        },
+        'price': {
+            'min': None,
+            'max': None,
+        }
+    },
+    'ZEC/BTC': {
+        'amount': {
+            'min': 0.001,
+            'max': None,
+        },
+        'price': {
+            'min': None,
+            'max': None,
+        }
+    },
+    'ZEC/ETH': {
+        'amount': {
+            'min': 0.001,
+            'max': None,
+        },
+        'price': {
+            'min': None,
+            'max': None,
+        }
+    },
 }
