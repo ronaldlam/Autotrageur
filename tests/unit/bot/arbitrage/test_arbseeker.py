@@ -79,8 +79,8 @@ def test_get_opportunities(
     mocker.patch.object(trader2, 'quote_target_amount')
     mocker.patch.object(trader2, 'base')
 
-    mocker.patch.object(spreadcalculator, 'calc_spread')
-    spreadcalculator.calc_spread.return_value = TEST_SPREAD
+    mocker.patch.object(spreadcalculator, 'calc_variable_spread')
+    spreadcalculator.calc_variable_spread.return_value = TEST_SPREAD
 
     result = get_arb_opportunities_by_orderbook(
         trader1, trader2, spread_low, spread_high)
@@ -126,8 +126,8 @@ def test_execute_arbitrage(
     mocker.patch.object(trader2, 'get_adjusted_market_price_from_orderbook')
     mocker.patch.object(trader2, 'execute_market_sell')
 
-    mocker.patch.object(spreadcalculator, 'calc_spread')
-    spreadcalculator.calc_spread.return_value = spread
+    mocker.patch.object(spreadcalculator, 'calc_variable_spread')
+    spreadcalculator.calc_variable_spread.return_value = spread
 
     opportunity = {
         TARGET_SPREAD: target_spread,
@@ -169,8 +169,8 @@ def test_abort_arbitrage(
     mocker.patch.object(trader2, 'get_adjusted_market_price_from_orderbook')
     mocker.patch.object(trader2, 'execute_market_sell')
 
-    mocker.patch.object(spreadcalculator, 'calc_spread')
-    spreadcalculator.calc_spread.return_value = 4
+    mocker.patch.object(spreadcalculator, 'calc_variable_spread')
+    spreadcalculator.calc_variable_spread.return_value = 4
 
     opportunity = {
         TARGET_SPREAD: target_spread,

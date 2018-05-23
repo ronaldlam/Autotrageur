@@ -7,8 +7,80 @@ NEGATIVE_ONE = num_to_decimal(-1)
 HUNDRED = num_to_decimal(100)
 
 
-def calc_spread(exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee):
-    """Calculates the spread between two prices.
+def __is_invalid_price(exc2_num_price, exc1_denom_price):
+    """Checks price inputs to see if either are None, zero, or negative.
+
+    Args:
+        exc2_num_price (Decimal): The price from exchange 2, to be used as
+            the numerator for forward spread opportunities.
+        exc1_denom_price (Decimal): The price from exchange 1, to be used as
+            the denominator for forward spread opportunities.
+
+    Returns:
+        bool: Returns True if either price given was None, zero, or negative.
+            Else, False.
+    """
+    if exc2_num_price is None or exc1_denom_price is None:
+        logging.warning(
+            "None input: (exc2_num_price, exc1_denom_price) = (%s, %s)" %
+                (exc2_num_price, exc1_denom_price))
+        return True
+    elif exc2_num_price <= ZERO or exc1_denom_price <= ZERO:
+        logging.warning(
+            "Negative input: (exc2_num_price, exc1_denom_price) = (%s, %s)" %
+                (exc2_num_price, exc1_denom_price))
+        return True
+    else:
+        return False
+
+def calc_fixed_spread(exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee):
+    """Calculates the fixed spread between two prices.  Will not change the
+    denominator and calculates a more absolute spread between two prices.
+
+    Subtracts the given exchange trading fees from the calculated spread before
+    returning.
+
+    Args:
+        exc2_num_price (Decimal): The price from exchange 2, to be used as
+            the numerator for forward spread opportunities.
+        exc1_denom_price (Decimal): The price from exchange 1, to be used as
+            the denominator for forward spread opportunities.
+        exc2_fee (Decimal): The trading fee from the second exchange.  Expected
+            as a percentage in ratio form (e.g. 0.01 for 1%).
+        exc1_fee (Decimal): The trading fee from the first exchange.  Expected
+            as a percentage in ratio form (e.g. 0.01 for 1%).
+
+    Returns:
+        Decimal: The calculated spread as a percentage.  Positive indicates a
+            forward spread opportunity.  Negative indicates a reverse spread
+            opportunity.  Returns None if either input price is None, zero or
+            negative.
+    """
+    if __is_invalid_price(exc2_num_price, exc1_denom_price):
+        return None
+    else:
+        raw_spread = ((exc2_num_price - exc1_denom_price)
+                       / exc1_denom_price
+                       * 100)
+        weighted_fees = calc_trade_fees(exc2_num_price, exc1_denom_price,
+            exc2_fee, exc1_fee)
+
+        # The spread after fees.
+        spread_post_fees = raw_spread - weighted_fees
+        if raw_spread < 0:
+            spread_post_fees = raw_spread + weighted_fees
+        else:
+            spread_post_fees = raw_spread - weighted_fees
+
+        logging.info("Calculated raw spread of: {}".format(raw_spread))
+        logging.info("Spread post-fees: {}".format(spread_post_fees))
+
+        return spread_post_fees
+
+
+def calc_variable_spread(exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee):
+    """Calculates the variable spread between two prices. Will change the
+    denominator to calculate a more relative spread.
 
     Subtracts the given exchange trading fees from the calculated spread before
     returning.
@@ -44,17 +116,10 @@ def calc_spread(exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee):
     Returns:
         Decimal: The calculated spread as a percentage.  Positive indicates a
             forward spread opportunity.  Negative indicates a reverse spread
-            opportunity.
+            opportunity.  Returns None if either input price is None, zero or
+            negative.
     """
-    if exc2_num_price is None or exc1_denom_price is None:
-        logging.warning(
-            "None input: (exc2_num_price, exc1_denom_price) = (%s, %s)" %
-                (exc2_num_price, exc1_denom_price))
-        return None
-    elif exc2_num_price <= ZERO or exc1_denom_price <= ZERO:
-        logging.warning(
-            "Negative input: (exc2_num_price, exc1_denom_price) = (%s, %s)" %
-                (exc2_num_price, exc1_denom_price))
+    if __is_invalid_price(exc2_num_price, exc1_denom_price):
         return None
     else:
         is_fwd_spread = exc2_num_price >= exc1_denom_price
