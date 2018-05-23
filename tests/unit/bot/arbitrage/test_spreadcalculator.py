@@ -1,10 +1,18 @@
-from decimal import Decimal
+from decimal import Decimal, DefaultContext, setcontext
 
 import pytest
 
 import bot.arbitrage.spreadcalculator as spreadcalculator
+from libs.utilities import set_autotrageur_decimal_context
 
 
+@pytest.fixture(scope="module", autouse=True)
+def set_default_context():
+    setcontext(DefaultContext)
+    yield
+    set_autotrageur_decimal_context()
+
+# Test parameters.
 price_params_return_none = [
     (None, None),
     (None, Decimal('100.00')),
