@@ -73,7 +73,8 @@ def calc_fixed_spread(exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee):
             spread_post_fees = raw_spread - weighted_fees
 
         logging.info("Calculated raw spread of: {}".format(raw_spread))
-        logging.info("Spread post-fees: {}".format(spread_post_fees))
+        logging.info("Spread post-fees: {} with weighted fees of: {}".format(
+            spread_post_fees, weighted_fees))
 
         return spread_post_fees
 

@@ -93,10 +93,10 @@ def get_arb_opportunities_by_orderbook(
                   trader2.base, ex2_market_sell))
 
     # Calculate the spreads between exchange 1 and 2, including taker fees.
-    ex2msell_ex1mbuy_spread = spreadcalculator.calc_variable_spread(
+    ex2msell_ex1mbuy_spread = spreadcalculator.calc_fixed_spread(
         ex2_market_sell, ex1_market_buy, trader2.get_taker_fee(),
         trader1.get_taker_fee())
-    ex2mbuy_ex1msell_spread = spreadcalculator.calc_variable_spread(
+    ex2mbuy_ex1msell_spread = spreadcalculator.calc_fixed_spread(
         ex2_market_buy, ex1_market_sell, trader2.get_taker_fee(),
         trader1.get_taker_fee())
 
@@ -163,11 +163,11 @@ def execute_arbitrage(opportunity):
         sell_price = sell_trader.get_adjusted_market_price_from_orderbook(bids)
 
         if spread_opp_type is SpreadOpportunity.HIGH:
-            spread = spreadcalculator.calc_variable_spread(sell_price, buy_price,
+            spread = spreadcalculator.calc_fixed_spread(sell_price, buy_price,
                 buy_trader.get_taker_fee(), sell_trader.get_taker_fee())
             execute = spread >= target_spread
         else:
-            spread = spreadcalculator.calc_variable_spread(buy_price, sell_price,
+            spread = spreadcalculator.calc_fixed_spread(buy_price, sell_price,
                 buy_trader.get_taker_fee(), sell_trader.get_taker_fee())
             execute = spread <= target_spread
 
