@@ -1,6 +1,38 @@
+from enum import Enum
 import logging
 
+import thirdparty.cryCompare.history as tokenhistory
+
 LOGGER = logging.getLogger()
+
+# CryptoCompare limitations
+CC_MAX_ROWS = 2000
+
+
+class TimeInterval(Enum):
+    """An enum for time intervals
+
+    Args:
+        Enum (int): One of:
+        - Minute
+        - Hour
+        - Day
+    """
+    MINUTE = 'minute'
+    HOUR = 'hour'
+    DAY = 'day'
+
+    @classmethod
+    def has_value(cls, value):
+        """Checks if a value is in the TimeInterval Enum.
+
+        Args:
+            value (str): A string value to check against the TimeInterval Enum.
+
+        Returns:
+            bool: True if value belongs in TimeInterval Enum. Else, false.
+        """
+        return any(value.lower() == item.value for item in cls)
 
 
 class HistoryFetcher():
@@ -11,15 +43,12 @@ class HistoryFetcher():
 
         Args:
             history_query_params (HistoryQueryParams): Object containing the
-                query parameters for obtaining historical prices from an API.
+                query parameters for obtaining historical prices from
+                CryptoCompare API.
         """
-        # TODO: Create an exception to raise and re-instantiate this.
-        if not isinstance(history_query_params, HistoryQueryParams):
-            LOGGER.warning("Instantiating a HistoryFetcher without \
-                            HistoryQueryParams as a parameter")
-        super(HistoryFetcher, self).__init__(
-            history_query_params.base, history_query_params.quote,
-            history_query_params.exchange)
+        self.base = history_query_params.base
+        self.quote = history_query_params.quote
+        self.exchange = history_query_params.exchange
         self.extraParams = history_query_params.extraParams
         self.sign = history_query_params.sign
         self.tryConversion = history_query_params.tryConversion
@@ -27,6 +56,44 @@ class HistoryFetcher():
         self.limit = history_query_params.limit
         self.toTs = history_query_params.toTs
         self.allData = history_query_params.allData
+
+    def get_token_history(self, interval):
+        """Obtains the token's price history.
+
+        Args:
+            interval (str): Time interval between each price point of the history.
+
+        Returns:
+            list[dict]: A list of rows containing historical price points of the
+                token being fetched.
+        """
+        history_data_points = []
+        limit = self.limit
+        while limit > 0:
+            if interval == TimeInterval.MINUTE.value:
+                history_data_points[0:0] = tokenhistory.histoMinute(
+                    self.base, self.quote,
+                    self.exchange, self.extraParams,
+                    self.sign, self.tryConversion,
+                    self.aggregate, limit, self.toTs)
+            elif interval == TimeInterval.HOUR.value:
+                history_data_points[0:0] = tokenhistory.histoHour(
+                    self.base, self.quote,
+                    self.exchange, self.extraParams,
+                    self.sign, self.tryConversion,
+                    self.aggregate, limit, self.toTs)
+            elif interval == TimeInterval.DAY.value:
+                history_data_points[0:0] = tokenhistory.histoDay(
+                    self.base, self.quote,
+                    self.exchange, self.extraParams,
+                    self.sign, self.tryConversion,
+                    self.aggregate, limit, self.toTs,
+                    self.allData)
+            if history_data_points:
+                self.toTs = history_data_points[0]['time']
+                print(self.toTs)
+            limit -= CC_MAX_ROWS
+        return history_data_points
 
 
 class HistoryQueryParams:
@@ -37,7 +104,7 @@ class HistoryQueryParams:
 
     def __init__(self, base, quote, exchange=None, extraParams=None,
                  sign=False, tryConversion=True, aggregate=None, limit=None,
-                 toTs=None, allData=None):
+                 toTs=None, allData=False):
         """Constructor.
 
         Args:
@@ -53,14 +120,14 @@ class HistoryQueryParams:
             tryConversion (bool, optional): If set to false, it will try to get
                 only direct trading values.  Defaults to True.
             aggregate (int, optional): Time period to aggregate the data over
-                (for daily it's days, for hourly it's hours and for minute
-                histo it's minutes). Defaults to None.
+                (for daily it's day, for hourly it's hour and for minute
+                it's minute). Defaults to None.
             limit (int, optional): Number of data points to return.  Max is
                 2000.  Defaults to None.
             toTs (int, optional): Last unix timestamp to return data for.
                 Defaults to None, the present timestamp.
             allData (bool, optional): Returns all data (only available on
-                histo day).  Defaults to None.
+                histo day).  Defaults to False.
         """
         self.base = base
         self.quote = quote
