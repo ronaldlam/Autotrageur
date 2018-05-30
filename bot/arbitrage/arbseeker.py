@@ -93,9 +93,9 @@ def get_arb_opportunities_by_orderbook(
                   trader2.base, ex2_market_sell))
 
     # Calculate the spreads between exchange 1 and 2, including taker fees.
-    ex2msell_ex1mbuy_spread = spreadcalculator.calc_fixed_spread(
-        ex2_market_sell, ex1_market_buy, trader2.get_taker_fee(),
-        trader1.get_taker_fee())
+    ex1mbuy_ex2msell_spread = spreadcalculator.calc_fixed_spread(
+        ex1_market_buy, ex2_market_sell, trader1.get_taker_fee(),
+        trader2.get_taker_fee())
     ex2mbuy_ex1msell_spread = spreadcalculator.calc_fixed_spread(
         ex2_market_buy, ex1_market_sell, trader2.get_taker_fee(),
         trader1.get_taker_fee())
@@ -103,7 +103,7 @@ def get_arb_opportunities_by_orderbook(
     logging.info("Ex2 (%s) sell Ex1 (%s) buy spread: (%s)" %
                  (trader2.exchange_name,
                   trader1.exchange_name,
-                  ex2msell_ex1mbuy_spread))
+                  ex1mbuy_ex2msell_spread))
     logging.info("Ex2 (%s) buy Ex1 (%s) sell spread: (%s)" %
                  (trader2.exchange_name,
                   trader1.exchange_name,
@@ -113,12 +113,12 @@ def get_arb_opportunities_by_orderbook(
     # market selling on exchange 2, market buying on exchange 1.
     # If at or below spread_low, we can perform the reverse arbitrage by market
     # selling on exchange 1, market buying on exchange 2.
-    if (ex2msell_ex1mbuy_spread is not None
-            and ex2msell_ex1mbuy_spread >= spread_high):
+    if (ex1mbuy_ex2msell_spread is not None
+            and ex1mbuy_ex2msell_spread >= spread_high):
         return {
             TARGET_SPREAD: spread_high,
             SPREAD_OPP_TYPE: SpreadOpportunity.HIGH,    # Spread above the high
-            SPREAD: ex2msell_ex1mbuy_spread,
+            SPREAD: ex1mbuy_ex2msell_spread,
             MARKETBUY_EXCHANGE: trader1,
             MARKETSELL_EXCHANGE: trader2
         }
@@ -163,7 +163,7 @@ def execute_arbitrage(opportunity):
         sell_price = sell_trader.get_adjusted_market_price_from_orderbook(bids)
 
         if spread_opp_type is SpreadOpportunity.HIGH:
-            spread = spreadcalculator.calc_fixed_spread(sell_price, buy_price,
+            spread = spreadcalculator.calc_fixed_spread(buy_price, sell_price,
                 buy_trader.get_taker_fee(), sell_trader.get_taker_fee())
             execute = spread >= target_spread
         else:
