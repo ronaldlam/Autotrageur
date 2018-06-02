@@ -4,24 +4,22 @@
 # -------------------GENERAL SETTINGS------------------------------------------
 
 # (String) The base currency of the trading pair (e.g. "ETH" of "ETH/USD" pair).
-base: btc
+base:
 # (String) The quote currency of the trading pair (e.g. "USD" of "ETH/USD" pair).
-quote: usd
+quote:
 # (String) The name of the exchange to obtain historical data (e.g. "Gemini").
-exchange: gemini
+exchange:
 # (String) Time Interval to retrieve historical.  One of 'day', 'hour', 'minute'.
-interval: minute
+interval:
 # (Int) Number of data points to return. E.g. 365 for daily will be 365 days.
 # Maximum for minute data is approximately 10080 for 7 days worth.
-limit: 10080
+limit:
 
 # ----------------DATA SETTINGS------------------------------------------------
 # (String) The database name.
-db_name: minute
+db_name:
 # (String) The database user.
-db_user: root
-# (String) The database password.
-db_password: r and d
+db_user:
 
 
 # ----------------CSV SETTINGS-------------------------------------------------
