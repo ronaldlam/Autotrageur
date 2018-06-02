@@ -3,7 +3,13 @@
 Updates database with historical prices of a trading pair.
 
 Usage:
-    history_to_db.py CONFIGFILE
+    history_to_db.py CONFIGFILE DBPWFILE PASSWORD SALT
+
+Description:
+    CONFIGFILE          Supplies trading pair, time interval, exchange, db info, etc.
+    DBPWFILE            The encrypted file containing the database password.
+    PASSWORD            The password for decrypting the DBPWFILE.
+    SALT                The salt for decrypting the DBPWFILE.
 """
 
 from enum import Enum
@@ -24,6 +30,9 @@ import yaml
 
 from libs.trade.fetcher.history_fetcher import (HistoryFetcher,
     HistoryQueryParams, TimeInterval)
+from libs.fiat_symbols import FIAT_SYMBOLS
+from libs.security.encryption import decrypt
+from libs.utilities import to_bytes, to_str
 
 # Constants
 SECONDS_PER_MINUTE = 60
@@ -68,9 +77,15 @@ def get_most_recent_rounded_timestamp(interval):
             return curr_time - (curr_time % SECONDS_PER_DAY)
 
 if __name__ == "__main__":
-    arguments = docopt(__doc__, version="HistoryToDB 0.1")
+    args = docopt(__doc__, version="HistoryToDB 0.1")
 
-    with open(arguments['CONFIGFILE'], "r") as in_configfile:
+    with open(args['DBPWFILE'], 'rb') as db_pw:
+        db_password = to_str(decrypt(
+            db_pw.read(),
+            to_bytes(args['PASSWORD']),
+            to_bytes(args['SALT'])))
+
+    with open(args['CONFIGFILE'], 'r') as in_configfile:
         config = yaml.load(in_configfile)
 
     # General config.
@@ -82,7 +97,6 @@ if __name__ == "__main__":
 
     # DB config.
     db_user = config['db_user']
-    db_password = config['db_password']
     db_name = config['db_name']
     if not TimeInterval.has_value(interval):
         raise IncompatibleTimeIntervalError("Time interval must be one of:"
@@ -123,14 +137,14 @@ if __name__ == "__main__":
     # Connect to DB, create table if needed and insert data.
     db=MySQLdb.connect(user=db_user, passwd=db_password, db=db_name)
     cursor = db.cursor()
-
+    dec_prec = '(11, 2)' if quotecurr.upper() in FIAT_SYMBOLS else '(18,9)'
     tablename = ''.join([exchange, basecurr, quotecurr, interval])
     cursor.execute("CREATE TABLE IF NOT EXISTS " + tablename +
         "(time INT(11) UNSIGNED NOT NULL,\n"
-        "close DECIMAL(11, 2) UNSIGNED NOT NULL,\n"
-        "high DECIMAL(11, 2) UNSIGNED NOT NULL,\n"
-        "low DECIMAL(11, 2) UNSIGNED NOT NULL,\n"
-        "open DECIMAL(11, 2) UNSIGNED NOT NULL,\n"
+        "close DECIMAL" + dec_prec + " UNSIGNED NOT NULL,\n"
+        "high DECIMAL" + dec_prec + " UNSIGNED NOT NULL,\n"
+        "low DECIMAL" + dec_prec + " UNSIGNED NOT NULL,\n"
+        "open DECIMAL" + dec_prec + " UNSIGNED NOT NULL,\n"
         "volumefrom DECIMAL(13, 4) UNSIGNED NOT NULL,\n"
         "volumeto DECIMAL(13, 4) UNSIGNED NOT NULL,\n"
         "vwap DECIMAL(13, 4) UNSIGNED NOT NULL,\n"
@@ -138,12 +152,12 @@ if __name__ == "__main__":
         "quote VARCHAR(10) NOT NULL,\n"
         "exchange VARCHAR(28) NOT NULL,\n"
         "PRIMARY KEY (time));")
-    cursor.executemany("INSERT IGNORE INTO " + tablename + "(time, close, high, low, open, volumefrom, volumeto, vwap, base, quote, exchange)\n"
-        "VALUES (%(time)s, %(close)s, %(high)s, %(low)s, %(open)s, %(volumefrom)s, %(volumeto)s, %(vwap)s, %(base)s, %(quote)s, %(exchange)s)",
+    cursor.executemany("INSERT IGNORE INTO "
+        + tablename
+        + "(time, close, high, low, open, volumefrom, volumeto, vwap, base,"
+        + " quote, exchange)\n"
+        + "VALUES (%(time)s, %(close)s, %(high)s, %(low)s, %(open)s,"
+        + " %(volumefrom)s, %(volumeto)s, %(vwap)s, %(base)s, %(quote)s,"
+        + " %(exchange)s)",
         price_history)
     db.commit()
-    # import sqlalchemy
-    # engine = sqlalchemy.create_engine('mysql://root:r and d@localhost', echo=True)
-    # engine.execute('CREATE DATABASE IF NOT EXISTS ' + interval)
-    # engine.execute('USE ' + interval)
-    # pricedf.to_sql(con=engine, name=exchange + basecurr + quotecurr + interval, index=False, if_exists='append')
