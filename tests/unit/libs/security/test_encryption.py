@@ -1,6 +1,6 @@
 import pytest
 
-from libs.security.encryption import encrypt, decrypt
+from libs.security.encryption import encrypt, decrypt, SALT_LEN
 import libs.security.encryption
 
 
@@ -24,7 +24,7 @@ class MockFernet():
         # Enforce type checking, throws TypeError on mismatch
         self.key + ciphertext
         assert(self.key == ciphertext[0:len(self.key)])
-        return ciphertext[len(self.key):]
+        return ciphertext[len(self.key):-SALT_LEN]
 
 
 def get_mock_fernet(key):
@@ -40,21 +40,18 @@ libs.security.encryption.get_fernet = get_mock_fernet
 libs.security.encryption.get_scrypt = get_mock_scrypt
 
 
-@pytest.mark.parametrize("pt, pw, salt", [
-    (b"", b"", b""),
-    (b"pt", b"", b""),
-    (b"", b"pw", b""),
-    (b"", b"", b"salt"),
-    (b"", b"pw", b"salt"),
-    (b"pt", b"", b"salt"),
-    (b"pt", b"pw", b""),
-    (b"plaintext", b"pw", b"salt"),
-    (b"very long message", b"password", b"pepper")
+@pytest.mark.parametrize("pt, pw", [
+    (b"", b""),
+    (b"", b"pw"),
+    (b"pt", b""),
+    (b"pt", b"pw"),
+    (b"plaintext", b"pw"),
+    (b"very long message", b"password")
 ])
-def test_encrypt(pt, pw, salt):
-    ct = encrypt(pt, pw, salt)
+def test_encrypt(pt, pw):
+    ct = encrypt(pt, pw)
     if len(pt) > 0:
-        assert(pt == ct[-len(pt):])
+        assert(pt == ct[-len(pt) - SALT_LEN:-SALT_LEN])
     else:
         assert(pt == b"")
 
@@ -69,22 +66,19 @@ def test_encrypt(pt, pw, salt):
 def test_encrypt_no_salt(pt, pw):
     ct = encrypt(pt, pw)
     if len(pt) > 0:
-        assert(pt == ct[-len(pt):])
+        assert(pt == ct[-len(pt) - SALT_LEN:-SALT_LEN])
     else:
         assert(pt == b"")
 
 
-@pytest.mark.parametrize("pt, pw, salt", [
-    ("plaintext", b"pw", b"salt"),
-    (b"plaintext", "pw", b"salt"),
-    (b"plaintext", b"pw", "salt"),
-    (b"plaintext", "pw", "salt"),
-    ("plaintext", b"pw", "salt"),
-    ("plaintext", "pw", b"salt"),
+@pytest.mark.parametrize("pt, pw", [
+    ("plaintext", b"pw"),
+    (b"plaintext", "pw"),
+    ("plaintext", "pw"),
 ])
-def test_bad_encrypt(pt, pw, salt):
+def test_bad_encrypt(pt, pw):
     with pytest.raises(TypeError):
-        encrypt(pt, pw, salt)
+        encrypt(pt, pw)
 
 
 @pytest.fixture
@@ -94,30 +88,23 @@ def plaintext():
 
 @pytest.fixture
 def ciphertext():
-    return encrypt(b"plaintext", b"pw", b"salt")
+    return encrypt(b"plaintext", b"pw")
 
 
-@pytest.mark.parametrize("pw, salt", [
-    (b"pw", b"salt"),
-    pytest.param(b"", b"salt",
-        marks=pytest.mark.xfail(raises=AssertionError, strict=True)),
-    pytest.param(b"pw", b"",
-        marks=pytest.mark.xfail(raises=AssertionError, strict=True)),
-    pytest.param(b"", b"",
+@pytest.mark.parametrize("pw", [
+    (b"pw"),
+    pytest.param(b"",
         marks=pytest.mark.xfail(raises=AssertionError, strict=True))
 ])
-def test_decrypt(plaintext, ciphertext, pw, salt):
-    assert(plaintext == decrypt(ciphertext, pw, salt))
+def test_decrypt(plaintext, ciphertext, pw):
+    assert(plaintext == decrypt(ciphertext, pw))
 
 
-@pytest.mark.parametrize("ct, pw, salt", [
-    ("ciphertext", b"pw", b"salt"),
-    (b"ciphertext", "pw", b"salt"),
-    (b"ciphertext", b"pw", "salt"),
-    (b"ciphertext", "pw", "salt"),
-    ("ciphertext", b"pw", "salt"),
-    ("ciphertext", "pw", b"salt"),
+@pytest.mark.parametrize("ct, pw", [
+    ("ciphertext", b"pw"),
+    (b"ciphertext", "pw"),
+    ("ciphertext", "pw")
 ])
-def test_bad_decrypt(ct, pw, salt):
+def test_bad_decrypt(ct, pw):
     with pytest.raises(TypeError):
-        decrypt(ct, pw, salt)
+        decrypt(ct, pw)

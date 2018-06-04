@@ -1,9 +1,14 @@
 import base64
+import os
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+
+
+# Length used for the random salt.
+SALT_LEN = 32
 
 
 def get_fernet(key):
@@ -36,35 +41,34 @@ def get_scrypt(salt):
         backend=default_backend())
 
 
-def encrypt(plaintext, password, salt=b"0"):
-    """Return encrypted data.
+def encrypt(plaintext, password):
+    """Return encrypted data.  Uses a 32-byte random salt.
 
     Args:
         plaintext (bytes): The data to encrypt.
         password (bytes): The password to encrypt data with.
-        salt (int, optional): Defaults to 0. The salt for the password.
 
     Returns:
-        bytes: Encrypted data.
+        bytes: Encrypted data with salt appended.
     """
+    salt = os.urandom(SALT_LEN)
     kdf = get_scrypt(salt)
     key = base64.urlsafe_b64encode(kdf.derive(password))
     f = get_fernet(key)
-    return f.encrypt(plaintext)
+    return f.encrypt(plaintext) + salt
 
 
-def decrypt(ciphertext, password, salt=b"0"):
+def decrypt(ciphertext, password):
     """Return decrypted data.
 
     Args:
-        ciphertext (bytes): The encrypted data.
+        ciphertext (bytes): The encrypted data, with appended 32-byte salt.
         password (bytes): The password to encrypt data with.
-        salt (int, optional): Defaults to 0. The salt for the password.
 
     Returns:
         bytes: The plaintext data.
     """
-    kdf = get_scrypt(salt)
+    kdf = get_scrypt(ciphertext[-SALT_LEN:])
     key = base64.urlsafe_b64encode(kdf.derive(password))
     f = get_fernet(key)
     return f.decrypt(ciphertext)
