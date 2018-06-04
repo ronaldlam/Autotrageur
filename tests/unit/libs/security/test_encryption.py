@@ -6,7 +6,7 @@ import libs.security.encryption
 
 # Mocked third parties with simplified functionality
 class MockScrypt():
-    def __init__(self, salt):
+    def __init__(self, salt, pi_mode=False):
         self.salt = salt
 
     def derive(self, password):
@@ -31,8 +31,8 @@ def get_mock_fernet(key):
     return MockFernet(key)
 
 
-def get_mock_scrypt(salt):
-    return MockScrypt(salt)
+def get_mock_scrypt(salt, pi_mode):
+    return MockScrypt(salt, pi_mode)
 
 
 # Replace libraries with mocked functions.

@@ -4,7 +4,7 @@ Creates an encrypted file encrypted-<file-name> containing of the
 specified api key data.
 
 Usage:
-    encrypt_file.py FILE PASSWORD
+    encrypt_file.py FILE PASSWORD PI_MODE
 """
 
 from docopt import docopt
@@ -18,10 +18,11 @@ if __name__ == "__main__":
 
     file_name = arguments["FILE"]
     password = to_bytes(arguments["PASSWORD"])
+    pi_mode = arguments["PI_MODE"]
 
     with open(file_name, "rb") as in_file:
         plaintext = in_file.read()
-        ciphertext = encrypt(plaintext, password)
+        ciphertext = encrypt(plaintext, password, pi_mode)
         split_file_name = file_name.split("/")
         split_file_name[-1] = "encrypted-" + split_file_name[-1]
         new_file_name = "/".join(split_file_name)
