@@ -1,38 +1,12 @@
-from enum import Enum
 import logging
 
+from libs.time_utils import TimeInterval
 import thirdparty.cryCompare.history as tokenhistory
 
 LOGGER = logging.getLogger()
 
 # CryptoCompare limitations
 CC_MAX_ROWS = 2000
-
-
-class TimeInterval(Enum):
-    """An enum for time intervals
-
-    Args:
-        Enum (int): One of:
-        - Minute
-        - Hour
-        - Day
-    """
-    MINUTE = 'minute'
-    HOUR = 'hour'
-    DAY = 'day'
-
-    @classmethod
-    def has_value(cls, value):
-        """Checks if a value is in the TimeInterval Enum.
-
-        Args:
-            value (str): A string value to check against the TimeInterval Enum.
-
-        Returns:
-            bool: True if value belongs in TimeInterval Enum. Else, false.
-        """
-        return any(value.lower() == item.value for item in cls)
 
 
 class HistoryFetcher():

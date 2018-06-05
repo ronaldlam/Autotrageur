@@ -22,14 +22,10 @@ import pandas as pd
 import yaml
 
 from libs.trade.fetcher.history_fetcher import (HistoryFetcher,
-    HistoryQueryParams, TimeInterval)
+    HistoryQueryParams)
+from libs.time_utils import TimeInterval, get_most_recent_rounded_timestamp
 
 # Constants
-SECONDS_PER_MINUTE = 60
-SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60
-SECONDS_PER_DAY = SECONDS_PER_HOUR * 24
-DAY_PER_YEAR = 365
-HOUR_IN_YEAR = DAY_PER_YEAR * 24
 CSV_COL_HEADERS = [
         'time',
         'close',
@@ -49,22 +45,6 @@ class IncompatibleTimeIntervalError(Exception):
         """Raised when a value does not belong within the TimeInterval Enum."""
         pass
 
-def get_most_recent_rounded_timestamp(interval):
-        """Obtains the most recent, rounded timestamp.
-
-        Args:
-            interval (str): The time interval.  One of 'day', 'hour', 'minute'.
-
-        Returns:
-            float: The most recent, rounded timestamp.
-        """
-        curr_time = time.time()
-        if interval == TimeInterval.MINUTE.value:
-            return curr_time - (curr_time % SECONDS_PER_MINUTE)
-        elif interval == TimeInterval.HOUR.value:
-            return curr_time - (curr_time % SECONDS_PER_HOUR)
-        elif interval == TimeInterval.DAY.value:
-            return curr_time - (curr_time % SECONDS_PER_DAY)
 
 if __name__ == "__main__":
     arguments = docopt(__doc__, version="HistoryToCSV 0.1")
