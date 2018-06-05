@@ -3,8 +3,10 @@ import time
 from abc import ABC, abstractmethod
 
 import ccxt
+import schedule
 import yaml
 
+from libs.fiat_symbols import FIAT_SYMBOLS
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map, to_bytes, to_str, num_to_decimal
 from bot.common.config_constants import (DRYRUN, SLIPPAGE, EXCHANGE1,
@@ -150,10 +152,19 @@ class Autotrageur(ABC):
         self.tclient1.load_markets()
         self.tclient2.load_markets()
 
-        # NOTE: Assumes the quote pair is 'USD' or 'USDT' for V1.
+        # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
+        # to USD fiat.
         for tclient in list((self.tclient1, self.tclient2)):
-            if (tclient.quote != 'USD') and (tclient.quote != 'USDT'):
-                tclient.set_conversion_needed(True)
+            if ((tclient.quote in FIAT_SYMBOLS)
+                and (tclient.quote != 'USD')
+                and (tclient.quote != 'USDT')):
+                logging.info("Set fiat conversion to USD as necessary for: {}"
+                    " with quote: {}".format(tclient.exchange_name,
+                                             tclient.quote))
+                tclient.conversion_needed = True
+                tclient.set_conversion()
+                # TODO: Adjust interval once real-time forex implemented.
+                schedule.every().hour.do(tclient.set_conversion)
 
         try:
             self.tclient1.check_wallet_balances()
@@ -201,6 +212,7 @@ class Autotrageur(ABC):
         self._setup_markets()
 
         while True:
+            schedule.run_pending()
             self._clean_up()
             if self._poll_opportunity():
                 self._execute_trade()
