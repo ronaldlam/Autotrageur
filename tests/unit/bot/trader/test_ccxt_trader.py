@@ -65,6 +65,8 @@ class TestCCXTTraderInit:
         assert trader.exchange_name == exchange_name
         assert trader.slippage == slippage
         assert trader.quote_target_amount == quote_target_amount
+        assert trader.conversion_needed is False
+        assert trader.forex_quote_target is None
         assert trader.ccxt_exchange is exchange_obj
         assert trader.fetcher is ccxtfetcher_binance
 

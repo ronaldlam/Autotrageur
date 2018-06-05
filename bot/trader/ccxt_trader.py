@@ -375,3 +375,5 @@ class CCXTTrader():
         """
         self.forex_quote_target = currencyconverter.convert_currencies(
             'USD', self.quote, self.quote_target_amount)
+        logging.info("forex_quote_target set to {}".format(
+            self.forex_quote_target))

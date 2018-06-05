@@ -3,6 +3,7 @@ import time
 from abc import ABC, abstractmethod
 
 import ccxt
+import schedule
 import yaml
 
 from libs.fiat_symbols import FIAT_SYMBOLS
@@ -162,6 +163,8 @@ class Autotrageur(ABC):
                                              tclient.quote))
                 tclient.conversion_needed = True
                 tclient.set_conversion()
+                # TODO: Adjust interval once real-time forex implemented.
+                schedule.every().hour.do(tclient.set_conversion)
 
         try:
             self.tclient1.check_wallet_balances()
@@ -209,6 +212,7 @@ class Autotrageur(ABC):
         self._setup_markets()
 
         while True:
+            schedule.run_pending()
             self._clean_up()
             if self._poll_opportunity():
                 self._execute_trade()
