@@ -81,12 +81,12 @@ def test_bad_encrypt(pt, pw):
         encrypt(pt, pw)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def plaintext():
     return b"plaintext"
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def ciphertext():
     return encrypt(b"plaintext", b"pw")
 
