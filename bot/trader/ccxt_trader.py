@@ -41,6 +41,7 @@ class InvalidMarketOrderTypeError(Exception):
     """Exception thrown when invalid or unspecified MarketOrderType."""
     pass
 
+
 class OrderbookException(Exception):
     """Exception for orderbook related errors."""
     pass
@@ -48,6 +49,11 @@ class OrderbookException(Exception):
 
 class ExchangeLimitException(Exception):
     """Exception for exchange limit breaches."""
+    pass
+
+
+class NoForexQuoteException(Exception):
+    """Exception when requiring a forex quote target but none present."""
     pass
 
 
@@ -102,6 +108,7 @@ class CCXTTrader():
         self.slippage = slippage
         self.quote_target_amount = quote_target_amount
         self.conversion_needed = False
+        self.forex_quote_target = None
 
     def __calc_vol_by_book(self, orders, quote_target_amount):
         """Calculates the asset volume with which to execute a trade.
@@ -345,25 +352,26 @@ class CCXTTrader():
         Returns:
             Decimal: Prospective price of a market buy or sell.
         """
-        asset_volume = self.__calc_vol_by_book(bids_or_asks,
-            self.quote_target_amount)
-
-        if not self.conversion_needed:
-            return self.quote_target_amount / asset_volume
+        if self.conversion_needed:
+            if self.forex_quote_target is None:
+                 raise NoForexQuoteException("Inaccurate target for orderbook."
+                    "  Set a forex quote target.")
+            target_amount = self.forex_quote_target
         else:
-            asset_usd_value = currencyconverter.convert_currencies(self.quote,
-                'USD', self.quote_target_amount)
-            return asset_usd_value / asset_volume
+            target_amount = self.quote_target_amount
+
+        asset_volume = self.__calc_vol_by_book(bids_or_asks, target_amount)
+        return self.quote_target_amount / asset_volume
 
     def load_markets(self):
         """Load the markets of the exchange."""
         self.ccxt_exchange.load_markets()
 
-    def set_conversion_needed(self, flag=False):
-        """Indicates whether a conversion is needed for the quote currency.
+    def set_conversion(self):
+        """Setup necessary parameters when dealing with a foreign currency as
+        quote.
 
-        Args:
-            flag (bool): True or False depending on whether conversion needed.
-                Defaults to False.
+        `forex_quote_target` is set when the quote currency is not USD.
         """
-        self.conversion_needed = flag
+        self.forex_quote_target = currencyconverter.convert_currencies(
+            'USD', self.quote, self.quote_target_amount)
