@@ -15,6 +15,9 @@ class UnacceptableAmountException(Exception):
 def convert_currencies(from_curr, to_curr, amount):
     """Converts a specified amount of currency into another currency.
 
+    NOTE: forex_python will return a `Decimal` type if it detects that a
+    `Decimal` was used as the amount input.
+
     Args:
         from_curr (str): Ticker of currency to convert from.
         to_curr (str): Ticker of currency to convert to.
