@@ -42,12 +42,12 @@ price_fees_exceptions_params = [
     (Decimal('100.00'), Decimal('100.00'),  0.01, Decimal('0.10')),
 ]
 
-@pytest.mark.parametrize('price1, price2', price_params_return_none)
-def test_is_invalid_price_true(price1, price2):
-    result = spreadcalculator.__is_invalid_price(price1, price2)
+@pytest.mark.parametrize('buy_price, sell_price', price_params_return_none)
+def test_is_invalid_price_true(buy_price, sell_price):
+    result = spreadcalculator.__is_invalid_price(buy_price, sell_price)
     assert result is True
 
-@pytest.mark.parametrize('price1, price2', [
+@pytest.mark.parametrize('buy_price, sell_price', [
     (Decimal('0.000001'), Decimal('0.000001')),
     (Decimal('0.000001'), Decimal('100.00')),
     (Decimal('0.000001'), Decimal('999999')),
@@ -55,12 +55,12 @@ def test_is_invalid_price_true(price1, price2):
     (Decimal('100'), Decimal('999999')),
     (Decimal('100.00'), Decimal('0.000001'))
 ])
-def test_is_invalid_price_false(price1, price2):
-    result = spreadcalculator.__is_invalid_price(price1, price2)
+def test_is_invalid_price_false(buy_price, sell_price):
+    result = spreadcalculator.__is_invalid_price(buy_price, sell_price)
     assert result is False
 
 class TestCalcSpread:
-    @pytest.mark.parametrize('exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee, spread', [
+    @pytest.mark.parametrize('buy_price, sell_price, exc2_fee, exc1_fee, spread', [
         # Double of the numerator 50% fees cancel out to 0.
         (Decimal('1'), Decimal('2'), Decimal('0.5'), Decimal('0.0'), Decimal('0')),
         # More realistic scenario with 1% fees.
@@ -76,19 +76,17 @@ class TestCalcSpread:
         # Inverse of above. Reverse spread opportunity, around -3%, with fees, longer precision.
         (Decimal('105000.12963069'), Decimal('100000.12345678'), Decimal('0.01'), Decimal('0.0095238'), Decimal('-6.612244000952553935197867780')),
     ])
-    def test_calc_fixed_spread(self, mocker, exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee, spread):
-        result_spread = spreadcalculator.calc_fixed_spread(exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee)
-
-        # spreadcalculator.calc_trade_fees.assert_called_with(exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee) # pylint: disable=no-member
+    def test_calc_fixed_spread(self, mocker, buy_price, sell_price, exc2_fee, exc1_fee, spread):
+        result_spread = spreadcalculator.calc_fixed_spread(buy_price, sell_price, exc2_fee, exc1_fee)
         assert result_spread == spread
 
-    @pytest.mark.parametrize('exc2_num_price, exc1_denom_price', price_params_return_none)
+    @pytest.mark.parametrize('buy_price, sell_price', price_params_return_none)
     @pytest.mark.parametrize('exc2_fee, exc1_fee', fee_params_return_none)
-    def test_calc_fixed_spread_return_none(self, exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee):
-        result_spread = spreadcalculator.calc_fixed_spread(exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee)
+    def test_calc_fixed_spread_return_none(self, buy_price, sell_price, exc2_fee, exc1_fee):
+        result_spread = spreadcalculator.calc_fixed_spread(buy_price, sell_price, exc2_fee, exc1_fee)
         assert result_spread is None
 
-    @pytest.mark.parametrize('exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee', price_fees_exceptions_params)
-    def test_calc_fixed_spread_exceptions(self, exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee):
+    @pytest.mark.parametrize('buy_price, sell_price, exc2_fee, exc1_fee', price_fees_exceptions_params)
+    def test_calc_fixed_spread_exceptions(self, buy_price, sell_price, exc2_fee, exc1_fee):
         with pytest.raises(TypeError, reason='mixed float and decimal arithmetic'):
-            spreadcalculator.calc_fixed_spread(exc2_num_price, exc1_denom_price, exc2_fee, exc1_fee)
+            spreadcalculator.calc_fixed_spread(buy_price, sell_price, exc2_fee, exc1_fee)
