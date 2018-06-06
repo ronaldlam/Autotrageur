@@ -14,13 +14,10 @@ import time
 from forex_python.converter import CurrencyRates, RatesNotAvailableError
 
 import libs.csv.csvmaker as csvmaker
+from libs.time_utils import SECONDS_PER_DAY, DAYS_PER_YEAR
 
 
 # Constants.
-DAYS_PER_YEAR = 365
-SECONDS_PER_MINUTE = 60
-SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60
-SECONDS_PER_DAY = SECONDS_PER_HOUR * 24
 CSV_COL_HEADERS = ['date', 'forex_rate', 'base', 'quote']
 BASE_CURRENCY = 'EUR'
 QUOTE_CURRENCY = 'USD'
