@@ -5,6 +5,11 @@ specified api key data.
 
 Usage:
     encrypt_file.py FILE PASSWORD PI_MODE
+
+Description:
+    FILE                    The file to encrypt, with plaintext.
+    PASSWORD                The password which to encrypt the file with.
+    PI_MODE                 Whether this is to be used with the raspberry pi or on a full desktop.
 """
 
 from docopt import docopt
