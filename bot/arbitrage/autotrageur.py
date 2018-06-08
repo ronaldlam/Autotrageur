@@ -20,7 +20,6 @@ from bot.trader.ccxt_trader import CCXTTrader
 CONFIGFILE = "CONFIGFILE"
 KEYFILE = "KEYFILE"
 PASSWORD = "PASSWORD"
-PI_MODE = "PI_MODE"
 
 
 class AuthenticationError(Exception):
@@ -68,7 +67,7 @@ class Autotrageur(ABC):
                 keys = decrypt(
                     in_file.read(),
                     to_bytes(arguments[PASSWORD]),
-                    arguments[PI_MODE])
+                    arguments['--pi-mode'])
 
             str_keys = to_str(keys)
             return keyfile_to_map(str_keys)

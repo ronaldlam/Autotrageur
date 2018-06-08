@@ -3,7 +3,10 @@
 Executes trades based on simple arbitrage strategy
 
 Usage:
-    run_autotrageur.py KEYFILE PASSWORD CONFIGFILE PI_MODE
+    run_autotrageur.py KEYFILE PASSWORD CONFIGFILE [--pi-mode]
+
+Options:
+    --pi-mode               Whether this is to be used with the raspberry pi or on a full desktop.
 
 Description:
     KEYFILE                 The encrypted Keyfile containing relevant api keys.

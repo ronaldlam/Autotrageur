@@ -4,12 +4,14 @@ Creates an encrypted file encrypted-<file-name> containing of the
 specified api key data.
 
 Usage:
-    encrypt_file.py FILE PASSWORD PI_MODE
+    encrypt_file.py FILE PASSWORD [--pi-mode]
+
+Options:
+    --pi-mode               Whether this is to be used with the raspberry pi or on a full desktop.
 
 Description:
     FILE                    The file to encrypt, with plaintext.
     PASSWORD                The password which to encrypt the file with.
-    PI_MODE                 Whether this is to be used with the raspberry pi or on a full desktop.
 """
 
 from docopt import docopt
@@ -23,7 +25,7 @@ if __name__ == "__main__":
 
     file_name = arguments["FILE"]
     password = to_bytes(arguments["PASSWORD"])
-    pi_mode = arguments["PI_MODE"]
+    pi_mode = arguments["--pi-mode"]
 
     with open(file_name, "rb") as in_file:
         plaintext = in_file.read()
