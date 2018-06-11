@@ -3,13 +3,15 @@
 Updates database with historical prices of a trading pair.
 
 Usage:
-    history_to_db.py CONFIGFILE DBPWFILE PASSWORD SALT
+    history_to_db.py CONFIGFILE DBPWFILE PASSWORD [--pi-mode]
+
+Options:
+    --pi-mode               Whether this is to be used with the raspberry pi or on a full desktop.
 
 Description:
     CONFIGFILE          Supplies trading pair, time interval, exchange, db info, etc.
     DBPWFILE            The encrypted file containing the database password.
     PASSWORD            The password for decrypting the DBPWFILE.
-    SALT                The salt for decrypting the DBPWFILE.
 """
 
 from enum import Enum
@@ -58,12 +60,12 @@ class IncompatibleTimeIntervalError(Exception):
 
 if __name__ == "__main__":
     args = docopt(__doc__, version="HistoryToDB 0.1")
-
+    print(args)
     with open(args['DBPWFILE'], 'rb') as db_pw:
         db_password = to_str(decrypt(
             db_pw.read(),
             to_bytes(args['PASSWORD']),
-            to_bytes(args['SALT'])))
+            args['--pi-mode']))
 
     with open(args['CONFIGFILE'], 'r') as in_configfile:
         config = yaml.load(in_configfile)
