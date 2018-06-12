@@ -12,13 +12,14 @@ CC_MAX_ROWS = 2000
 class HistoryFetcher():
     """Fetcher for historical data."""
 
-    def __init__(self, history_query_params):
+    def __init__(self, history_query_params, interval):
         """Constructor.
 
         Args:
             history_query_params (HistoryQueryParams): Object containing the
                 query parameters for obtaining historical prices from
                 CryptoCompare API.
+            interval (TimeInterval): one of 'day', 'hour', 'minute'
         """
         self.base = history_query_params.base
         self.quote = history_query_params.quote
@@ -30,6 +31,7 @@ class HistoryFetcher():
         self.limit = history_query_params.limit
         self.toTs = history_query_params.toTs
         self.allData = history_query_params.allData
+        self.interval = interval
 
     def get_token_history(self, interval):
         """Obtains the token's price history.
@@ -65,7 +67,6 @@ class HistoryFetcher():
                     self.allData)
             if history_data_points:
                 self.toTs = history_data_points[0]['time']
-                print(self.toTs)
             limit -= CC_MAX_ROWS
         return history_data_points
 
