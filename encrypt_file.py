@@ -13,6 +13,7 @@ Description:
     FILE                    The file to encrypt, with plaintext.
 """
 import getpass
+
 from docopt import docopt
 
 from libs.security.encryption import encrypt
