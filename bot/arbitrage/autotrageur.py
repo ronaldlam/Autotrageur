@@ -1,3 +1,4 @@
+import getpass
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -19,7 +20,6 @@ from bot.trader.ccxt_trader import CCXTTrader
 # Program argument constants.
 CONFIGFILE = "CONFIGFILE"
 KEYFILE = "KEYFILE"
-PASSWORD = "PASSWORD"
 
 
 class AuthenticationError(Exception):
@@ -51,6 +51,8 @@ class Autotrageur(ABC):
     def __load_keyfile(self, arguments):
         """Load the keyfile given in the arguments.
 
+        Prompts user for a passphrase to decrypt the encrypted keyfile.
+
         Args:
             arguments (dict): Map of the arguments passed to the program.
 
@@ -63,10 +65,11 @@ class Autotrageur(ABC):
                 unavailable.
         """
         try:
+            pw = getpass.getpass()
             with open(arguments[KEYFILE], "rb") as in_file:
                 keys = decrypt(
                     in_file.read(),
-                    to_bytes(arguments[PASSWORD]),
+                    to_bytes(pw),
                     arguments['--pi-mode'])
 
             str_keys = to_str(keys)
