@@ -6,7 +6,7 @@ async-timeout==2.0.1
 attrs==17.4.0
 autopep8==1.3.4
 cchardet==2.1.1
-ccxt==1.13.133
+ccxt==1.14.119
 certifi==2018.1.18
 cffi==1.11.5
 chardet==3.0.4
@@ -26,9 +26,11 @@ matplotlib==2.2.2
 mccabe==0.6.1
 more-itertools==4.1.0
 multidict==4.1.0
+mysqlclient==1.3.12
 numpy==1.14.2
 pandas==0.22.0
 pluggy==0.6.0
+psutil==5.4.5
 py==1.5.3
 pycares==2.3.0
 pycodestyle==2.3.1

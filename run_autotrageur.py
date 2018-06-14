@@ -3,7 +3,15 @@
 Executes trades based on simple arbitrage strategy
 
 Usage:
-    run_autotrageur.py KEYFILE PASSWORD SALT CONFIGFILE
+    run_autotrageur.py KEYFILE CONFIGFILE [--pi-mode]
+
+Options:
+    --pi-mode               Whether this is to be used with the raspberry pi or on a full desktop.
+
+Description:
+    KEYFILE                 The encrypted Keyfile containing relevant api keys.
+    CONFIGFILE              The config file, modeled under configs/arb_config_sample.yaml for use with the bot.
+    PI_MODE                 Whether this is to be used with the raspberry pi or on a full desktop.
 """
 
 import logging

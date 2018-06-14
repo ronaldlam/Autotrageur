@@ -6,29 +6,26 @@ Usage:
     history_to_csv.py CONFIGFILE
 """
 
+from enum import Enum
 import os
 import sys
 import inspect
+import time
 
 # Add parent dir onto the sys.path.
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
-from enum import Enum
-import time
-
-import thirdparty.cryCompare.history as tokenhistory
 from docopt import docopt
 import pandas as pd
 import yaml
 
+from libs.trade.fetcher.history_fetcher import (HistoryFetcher,
+    HistoryQueryParams)
+from libs.time_utils import TimeInterval, get_most_recent_rounded_timestamp
+
 # Constants
-SECONDS_PER_MINUTE = 60
-SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60
-SECONDS_PER_DAY = SECONDS_PER_HOUR * 24
-DAYS_PER_YEAR = 365
-HOURS_IN_YEAR = DAYS_PER_YEAR * 24
 CSV_COL_HEADERS = [
         'time',
         'close',
@@ -43,144 +40,10 @@ CSV_COL_HEADERS = [
         'exchange'
 ]
 
-# CryptoCompare limitations
-CC_MAX_ROWS = 2000
-
-
-class TimeInterval(Enum):
-    """An enum for time intervals
-
-    Args:
-        Enum (int): One of:
-        - Minutes
-        - Hours
-        - Days
-    """
-    MINUTES = 'minutes'
-    HOURS = 'hours'
-    DAYS = 'days'
-
-    @classmethod
-    def has_value(cls, value):
-        """Checks if a value is in the TimeInterval Enum.
-
-        Args:
-            value (str): A string value to check against the TimeInterval Enum.
-
-        Returns:
-            bool: True if value belongs in TimeInterval Enum. Else, false.
-        """
-        return any(value.lower() == item.value for item in cls)
-
 
 class IncompatibleTimeIntervalError(Exception):
         """Raised when a value does not belong within the TimeInterval Enum."""
         pass
-
-
-class HistoryQueryParams:
-    """Encapsulates query parameters necessary for token history.
-
-    See: https://min-api.cryptocompare.com/
-    """
-
-    def __init__(self, base, quote, exchange=None, extraParams=None,
-                 sign=False, tryConversion=True, aggregate=None, limit=None,
-                 toTs=None, allData=False):
-        """Constructor.
-
-        Args:
-            base (str): The base (first) token/currency of the exchange pair.
-            quote (str): The quote (second) token/currency of the exchange pair.
-            exchange (str, optional): Desired exchange to query against.
-                Defaults to CryptoCompare's CCCAGG if None given.
-            extraParams (str, optional): Extra parameters.  For example, your
-                app name. Defaults to None.
-            sign (bool, optional): If set to True, the server will sign the
-                requests, this is useful for
-                usage in smart contracts.  Defaults to False.
-            tryConversion (bool, optional): If set to false, it will try to get
-                only direct trading values.  Defaults to True.
-            aggregate (int, optional): Time period to aggregate the data over
-                (for daily it's days, for hourly it's hours and for minute
-                it's minutes). Defaults to None.
-            limit (int, optional): Number of data points to return.  Max is
-                2000.  Defaults to None.
-            toTs (int, optional): Last unix timestamp to return data for.
-                Defaults to None, the present timestamp.
-            allData (bool, optional): Returns all data (only available on
-                histo day).  Defaults to False.
-        """
-        self.base = base
-        self.quote = quote
-        self.exchange = exchange
-        self.extraParams = extraParams
-        self.sign = sign
-        self.tryConversion = tryConversion
-        self.aggregate = aggregate
-        self.limit = limit
-        self.toTs = toTs
-        self.allData = allData
-
-
-def get_most_recent_rounded_timestamp(interval):
-    """Obtains the most recent, rounded timestamp.
-
-    Args:
-        interval (str): The time interval.  One of 'days', 'hours', 'minutes'.
-
-    Returns:
-        float: The most recent, rounded timestamp.
-    """
-    curr_time = time.time()
-    if interval == TimeInterval.MINUTES.value:
-        return curr_time - (curr_time % SECONDS_PER_MINUTE)
-    elif interval == TimeInterval.HOURS.value:
-        return curr_time - (curr_time % SECONDS_PER_HOUR)
-    elif interval == TimeInterval.DAYS.value:
-        return curr_time - (curr_time % SECONDS_PER_DAY)
-
-
-def get_token_history(history_params, interval):
-    """Obtains the token's price history.
-
-    Args:
-        history_params (HistoryQueryParams): Object containing the necessary
-            query parameters for acquiring the token's price history through
-            API.
-        interval (str): Time interval between each price point of the history.
-
-    Returns:
-        list[dict]: A list of rows containing historical price points of the
-            token being fetched.
-    """
-    history_data_points = []
-    limit = history_params.limit
-    while limit > 0:
-        if interval == TimeInterval.MINUTES.value:
-            history_data_points[0:0] = tokenhistory.histoMinute(
-                history_params.base, history_params.quote,
-                history_params.exchange, history_params.extraParams,
-                history_params.sign, history_params.tryConversion,
-                history_params.aggregate, limit, history_params.toTs)
-        elif interval == TimeInterval.HOURS.value:
-            history_data_points[0:0] = tokenhistory.histoHour(
-                history_params.base, history_params.quote,
-                history_params.exchange, history_params.extraParams,
-                history_params.sign, history_params.tryConversion,
-                history_params.aggregate, limit, history_params.toTs)
-        elif interval == TimeInterval.DAYS.value:
-            history_data_points[0:0] = tokenhistory.histoDay(
-                history_params.base, history_params.quote,
-                history_params.exchange, history_params.extraParams,
-                history_params.sign, history_params.tryConversion,
-                history_params.aggregate, limit, history_params.toTs,
-                history_params.allData)
-        if history_data_points:
-            history_params.toTs = history_data_points[0]['time']
-            print(history_params.toTs)
-        limit -= CC_MAX_ROWS
-    return history_data_points
 
 
 if __name__ == "__main__":
@@ -200,7 +63,7 @@ if __name__ == "__main__":
                             str(limit), '.csv'])
     if not TimeInterval.has_value(interval):
         raise IncompatibleTimeIntervalError("Time interval must be one of:"
-                                            "'days', 'hours', 'minutes'.")
+                                            "'day', 'hour', 'minute'.")
     if os.path.exists(filename):
         sys.exit(filename + " already exists.  Please use another name or move "
                  "the file.")
@@ -221,8 +84,8 @@ if __name__ == "__main__":
     history_params = HistoryQueryParams(
         basecurr, quotecurr, exchange, None, None, None, 1,
         limit, toTs)
-    price_history = get_token_history(
-        history_params, interval)
+    history_fetcher = HistoryFetcher(history_params)
+    price_history = history_fetcher.get_token_history(interval)
 
     # Add the additional columns for the csv, through pandas.
     pricedf = pd.DataFrame(price_history, columns=CSV_COL_HEADERS)

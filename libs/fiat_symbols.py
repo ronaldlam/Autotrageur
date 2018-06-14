@@ -109,3 +109,4 @@ FIAT_SYMBOLS = [
     'YER',
     'ZWD'
 ]
+
