@@ -61,31 +61,25 @@ class CCXTFetcher():
                 "Taker fees should be verified for %s" % self.exchange.id)
             raise NotImplementedError("Manually verify fees please.")
 
-    def fetch_free_balance(self, asset):
-        """Fetch balance of the given asset in the account.
+    def fetch_free_balances(self, base, quote):
+        """Fetch balance of the base and quote assets in the account.
 
         Args:
-            asset (string): The balance of the given asset
+            base (string): The base asset ticker.
+            quote (string): The quote asset ticker.
 
         Returns:
-            float: The balances of the given asset.
+            (Decimal, Decimal): The balances of the base and quote asset.
         """
+        # if (self.exchange.id == 'gemini'):
+        #     return (num_to_decimal('40'),
+        #         num_to_decimal('20000'))
+        # else:
+        #     return (num_to_decimal('40'),
+        #         num_to_decimal('20000000'))
         balance = self.exchange.fetch_balance()
-        return balance[asset]["free"]
-
-    def fetch_last_price(self, base, quote):
-        """Fetches the last transacted price of the token pair.
-
-        Args:
-            base (str): The base currency of the token pair.
-            quote (str): The quote currency of the token pair.
-
-        Returns:
-            int: The last transacted price of the token pair.
-        """
-        pairsequence = (base, "/", quote)
-        ticker = self.exchange.fetch_ticker(''.join(pairsequence))
-        return str(ticker['last'])
+        return (num_to_decimal(balance[base]['free']),
+                num_to_decimal(balance[quote]['free']))
 
     def get_full_orderbook(self, base, quote):
         """Gets the full orderbook (bids and asks) from the exchange.

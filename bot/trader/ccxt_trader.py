@@ -61,7 +61,7 @@ class CCXTTrader():
     """CCXT Trader for performing trades."""
 
     def __init__(self, base, quote, exchange_name, slippage,
-        quote_target_amount, exchange_config={}, dry_run=False):
+        exchange_config={}, dry_run=False):
         """Constructor.
 
         The trading client for interacting with the CCXT library.
@@ -77,8 +77,6 @@ class CCXTTrader():
             exchange_name (str): Desired exchange to query against.
             slippage (Decimal): Maximum desired slippage from emulated
                 market trades.
-            quote_target_amount (Decimal): Targeted amount to buy or
-                sell, in quote currency.
             exchange_config (dict): The exchange's configuration in
                 accordance with the ccxt library for instantiating an
                 exchange, ex.
@@ -106,9 +104,15 @@ class CCXTTrader():
         self.executor = DryRunExecutor(self.ccxt_exchange) if dry_run else \
             CCXTExecutor(self.ccxt_exchange)
         self.slippage = slippage
-        self.quote_target_amount = quote_target_amount
+
+        # Initialized variables not from config.
+        self.quote_target_amount = num_to_decimal(0.0)
         self.conversion_needed = False
-        self.forex_quote_target = None
+        self.forex_ratio = None
+
+        if dry_run:
+            self.base_bal = num_to_decimal(0.0)
+            self.quote_bal = num_to_decimal(0.0)
 
     def __calc_vol_by_book(self, orders, quote_target_amount):
         """Calculates the asset volume with which to execute a trade.
@@ -224,20 +228,28 @@ class CCXTTrader():
                 "Test connection to %s not implemented." %
                 self.ccxt_exchange.id)
 
-    def check_wallet_balances(self):
-        """Checks the wallet balances of the base and quote currencies on the
-        exchange.
+    def fetch_wallet_balances(self):
+        """Fetches and saves the wallet balances of the base and quote
+        currencies on the exchange.
+
+        Note that quote balances are in USD.
 
         TODO: Should implement some fail-fast mechanism here, if wallet
             balances do not meet a minimum.
         """
-        for currency in [self.base, self.quote]:
-            balance = self.fetcher.fetch_free_balance(currency)
-            logging.log(logging.INFO,
-                        "Balance of %s on %s: %s" % (
-                            currency,
-                            self.exchange_name,
-                            balance))
+        self.base_bal, self.quote_bal = self.fetcher.fetch_free_balances(
+            self.base, self.quote)
+        if self.conversion_needed:
+            self.quote_bal /= self.forex_ratio
+        logging.log(logging.INFO,
+                    "%s balances:\n"
+                    "%s: %s\n"
+                    "%s: %s\n" % (
+                        self.exchange_name,
+                        self.base,
+                        self.base_bal,
+                        self.quote,
+                        self.quote_bal))
 
     def execute_market_buy(self, asset_price):
         """Execute a market buy order.
@@ -257,6 +269,7 @@ class CCXTTrader():
         """
         symbol = "%s/%s" % (self.base, self.quote)
         market_order = self.ccxt_exchange.has['createMarketOrder']
+        # TODO: Take into account exchange fees.
         asset_amount = self.__round_exchange_precision(market_order, symbol,
             self.quote_target_amount / asset_price)
 
@@ -353,10 +366,10 @@ class CCXTTrader():
             Decimal: Prospective price of a market buy or sell.
         """
         if self.conversion_needed:
-            if self.forex_quote_target is None:
+            if self.forex_ratio is None:
                  raise NoForexQuoteException("Inaccurate target for orderbook."
-                    "  Set a forex quote target.")
-            target_amount = self.forex_quote_target
+                    "  Set a forex ratio.")
+            target_amount = self.forex_ratio * self.quote_target_amount
         else:
             target_amount = self.quote_target_amount
 
@@ -371,13 +384,11 @@ class CCXTTrader():
         """Load the markets of the exchange."""
         self.ccxt_exchange.load_markets()
 
-    def set_conversion(self):
-        """Setup necessary parameters when dealing with a foreign currency as
-        quote.
+    def set_forex_ratio(self):
+        """Get foreign currency per USD.
 
         `forex_quote_target` is set when the quote currency is not USD.
         """
-        self.forex_quote_target = currencyconverter.convert_currencies(
-            'USD', self.quote, self.quote_target_amount)
-        logging.info("forex_quote_target set to {}".format(
-            self.forex_quote_target))
+        self.forex_ratio = currencyconverter.convert_currencies(
+            'USD', self.quote, num_to_decimal(1))
+        logging.info("forex_ratio set to {}".format(self.forex_ratio))

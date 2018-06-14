@@ -58,7 +58,7 @@ class TestCCXTTraderInit:
             exchange_obj = getattr(ccxt, exchange_name)(exchange_config)
             mocker.patch.object(ccxt, exchange_name, return_value=exchange_obj)
 
-        trader = CCXTTrader(base, quote, exchange_name, slippage, quote_target_amount,
+        trader = CCXTTrader(base, quote, exchange_name, slippage,
                             exchange_config, dry_run)
         assert trader.base == base
         assert trader.quote == quote
@@ -66,7 +66,7 @@ class TestCCXTTraderInit:
         assert trader.slippage == slippage
         assert trader.quote_target_amount == quote_target_amount
         assert trader.conversion_needed is False
-        assert trader.forex_quote_target is None
+        assert trader.forex_ratio is None
         assert trader.ccxt_exchange is exchange_obj
         assert trader.fetcher is ccxtfetcher_binance
 

@@ -11,9 +11,6 @@ spread_tolerance: 0.5 # The +/- of the spread in which to send an e-mail notific
 # For example, 0.5 would mean for a previous spread of 2.5%, a next spread of > 3.0% or < 2.0% would
 # send an email.
 
-# Percentage downside of limit order slippage tolerable for emulations
-slippage: 3
-
 # Exchange 1
 exchange1: gemini
 exchange1_pair: ETH/USD
@@ -24,9 +21,13 @@ exchange2: bithumb
 exchange2_pair: ETH/KRW
 exchange2_test: false
 
-# Targeted spreads
-spread_target_low: 0
-spread_target_high: 3
-
-# Targeted trade amount in USD
-target_amount: 20000
+# Historical max spread to exchange 1.
+h_to_e1_max: 3
+# Historical max spread to exchange 2.
+h_to_e2_max: 5
+# The minimum spread increment for considering trade targets.
+spread_min: 0.05
+# The minimum volume trade in USD.
+vol_min: 1000
+# Percentage downside of limit order slippage tolerable for market order emulations
+slippage: 3 # Important for Gemini, eg. 3

@@ -1,6 +1,6 @@
 import pytest
 
-from bot.arbitrage.arbseeker import get_arb_opportunities_by_orderbook
+from bot.arbitrage.arbseeker import get_spreads_by_ob
 from bot.arbitrage.arbseeker import execute_arbitrage
 import bot.arbitrage.spreadcalculator as spreadcalculator
 from bot.common.enums import SpreadOpportunity
@@ -82,7 +82,7 @@ def test_get_opportunities(
     mocker.patch.object(spreadcalculator, 'calc_fixed_spread')
     spreadcalculator.calc_fixed_spread.return_value = TEST_SPREAD
 
-    result = get_arb_opportunities_by_orderbook(
+    result = get_spreads_by_ob(
         trader1, trader2, spread_low, spread_high)
 
     trader1.get_full_orderbook.assert_called_once()

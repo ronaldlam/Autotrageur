@@ -146,19 +146,6 @@ def test_fetch_free_balance(mocker, asset, balance_structure_key, asset_free_bal
     assert free_balance == asset_free_balance
 
 
-@pytest.mark.parametrize('base, quote, last_key, asset_last_price', [
-    pytest.param('BTC', 'USD', 'none', BTC_LAST, marks=xfail(raises=TypeError, reason="NoneType object is not subscriptable", strict=True)),
-    pytest.param('BTC', 'USD', 'empty', BTC_LAST, marks=xfail(raises=KeyError, reason="No keys in empty dict", strict=True)),
-    pytest.param('BTC', 'USD', 'no_last', BTC_LAST, marks=xfail(raises=KeyError, reason="No last key", strict=True)),
-    ('BTC', 'USD', 'full', BTC_LAST)
-])
-def test_fetch_last_price(mocker, ccxtfetcher_binance, base, quote, last_key, asset_last_price):
-    mocker.patch.object(ccxtfetcher_binance.exchange, 'fetch_ticker', return_value=last_structures[last_key])
-    last_price = ccxtfetcher_binance.fetch_last_price(base, quote)
-    assert type(last_price) is str
-    assert last_price == str(asset_last_price)
-
-
 @pytest.mark.parametrize('base, quote', [
     pytest.param(None, None, marks=xfail(raises=TypeError, reason="Cannot append NoneType to NoneType", strict=True)),
     pytest.param(None, 'USD', marks=xfail(raises=TypeError, reason="Cannot append NoneType to str", strict=True)),

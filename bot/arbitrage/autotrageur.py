@@ -11,8 +11,7 @@ from libs.fiat_symbols import FIAT_SYMBOLS
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map, to_bytes, to_str, num_to_decimal
 from bot.common.config_constants import (DRYRUN, SLIPPAGE, EXCHANGE1,
-    EXCHANGE2, EXCHANGE1_PAIR, EXCHANGE2_PAIR, EXCHANGE1_TEST, EXCHANGE2_TEST,
-    TARGET_AMOUNT)
+    EXCHANGE2, EXCHANGE1_PAIR, EXCHANGE2_PAIR, EXCHANGE1_TEST, EXCHANGE2_TEST)
 from bot.common.ccxt_exchange_constants import API_KEY, API_SECRET
 from bot.trader.ccxt_trader import CCXTTrader
 
@@ -132,7 +131,6 @@ class Autotrageur(ABC):
             self.exchange1_basequote[1],
             self.config[EXCHANGE1],
             num_to_decimal(self.config[SLIPPAGE]),
-            num_to_decimal(self.config[TARGET_AMOUNT]),
             self.exchange1_configs,
             self.config[DRYRUN])
         self.tclient2 = CCXTTrader(
@@ -140,7 +138,6 @@ class Autotrageur(ABC):
             self.exchange2_basequote[1],
             self.config[EXCHANGE2],
             num_to_decimal(self.config[SLIPPAGE]),
-            num_to_decimal(self.config[TARGET_AMOUNT]),
             self.exchange2_configs,
             self.config[DRYRUN])
 
@@ -151,6 +148,8 @@ class Autotrageur(ABC):
             self.tclient2.connect_test_api()
 
         # Load the available markets for the exchange.
+        # TODO: Wrap load_markets() and wallet_balances() in a retry loop for
+        # Network errors.
         self.tclient1.load_markets()
         self.tclient2.load_markets()
 
@@ -164,20 +163,21 @@ class Autotrageur(ABC):
                     " with quote: {}".format(tclient.exchange_name,
                                              tclient.quote))
                 tclient.conversion_needed = True
-                tclient.set_conversion()
+                tclient.set_forex_ratio()
                 # TODO: Adjust interval once real-time forex implemented.
-                schedule.every().hour.do(tclient.set_conversion)
+                schedule.every().hour.do(tclient.set_forex_ratio)
 
         try:
-            self.tclient1.check_wallet_balances()
-            self.tclient2.check_wallet_balances()
+            self.tclient1.fetch_wallet_balances()
+            self.tclient2.fetch_wallet_balances()
         except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
             logging.error(auth_error)
 
             # If configuration is set for a dry run, continue the program even
             # with wrong auth credentials.
             if self.config[DRYRUN]:
-                logging.info("**Dry run: continuing with program")
+                logging.info("**Dry run: Wallet balance fetch failed, "
+                    "continuing with program")
             else:
                 raise AuthenticationError(auth_error)
 
@@ -210,6 +210,7 @@ class Autotrageur(ABC):
         Args:
             arguments (map): Map of command line arguments.
         """
+        self.has_started = False
         self._load_configs(arguments)
         self._setup_markets()
 
