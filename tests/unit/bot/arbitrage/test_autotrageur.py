@@ -8,7 +8,7 @@ from bot.arbitrage.autotrageur import (AuthenticationError, Autotrageur)
 from bot.common.config_constants import (DRYRUN, EXCHANGE1, EXCHANGE1_PAIR,
                                        EXCHANGE1_TEST, EXCHANGE2,
                                        EXCHANGE2_PAIR, EXCHANGE2_TEST,
-                                       SLIPPAGE, TARGET_AMOUNT)
+                                       SLIPPAGE)
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map
 
@@ -132,7 +132,6 @@ def test_setup_markets(
         EXCHANGE1: placeholder,
         EXCHANGE2: placeholder,
         SLIPPAGE: fake_slippage,
-        TARGET_AMOUNT: fake_target_amount,
         EXCHANGE1_TEST: ex1_test,
         EXCHANGE2_TEST: ex2_test,
         DRYRUN: dryrun
