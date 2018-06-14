@@ -9,4 +9,4 @@ else
 fi
 
 # Run the main module.
-python run_autotrageur.py <SECRET_KEY_FILE> <PASSPHRASE> <SALT> configs/dry_gem_bithumb_eth.yaml
+python run_autotrageur.py <SECRET_KEY_FILE> configs/dry_gem_bithumb_eth.yaml
