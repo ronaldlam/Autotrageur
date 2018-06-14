@@ -6,7 +6,7 @@ Usage:
     spawn_ohlcv_minute.py DBINFOFILE DBPWFILE [--pi-mode]
 
 Options:
-    --pi-mode               Whether this is to be used with the raspberry pi or on a full desktop.
+    --pi-mode           Whether this is to be used with the raspberry pi or on a full desktop.
 
 Description:
     DBINFOFILE          Database details, including database name and user.
@@ -14,6 +14,7 @@ Description:
 """
 import getpass
 import os
+
 from docopt import docopt
 
 import yaml

@@ -74,8 +74,6 @@ def decrypt(ciphertext, password, pi_mode=False):
     Returns:
         bytes: The plaintext data.
     """
-    if pi_mode:
-        print("PI MODE ON")
     kdf = get_scrypt(ciphertext[-SALT_LEN:], pi_mode)
     key = base64.urlsafe_b64encode(kdf.derive(password))
     f = get_fernet(key)
