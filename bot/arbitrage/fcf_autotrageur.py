@@ -81,6 +81,13 @@ class FCFAutotrageur(Autotrageur):
         return within_tolerance
 
     def __advance_target_index(self, spread, targets):
+        """Increment the target index to minimum target greater than
+        spread.
+
+        Args:
+            spread (Decimal): The calculated spread.
+            targets (list): The list of targets.
+        """
         while (self.target_index + 1 < len(targets) and
                 spread >= targets[self.target_index + 1][0]):
             self.target_index += 1
@@ -145,6 +152,16 @@ class FCFAutotrageur(Autotrageur):
             email_count += 1
 
     def __calc_targets(self, spread, h_max, from_balance):
+        """Calculate the target spreads and cash positions.
+
+        Args:
+            spread (Decimal): The calculated spread.
+            h_max (Decimal): The historical maximum spread.
+            from_balance (Decimal): The balance on the buy exchange.
+
+        Returns:
+            list: The list of (spread, cash position) tuple targets.
+        """
         t_num = int((h_max - spread) / self.spread_min)
 
         if t_num <= 1:
@@ -168,6 +185,87 @@ class FCFAutotrageur(Autotrageur):
             targets.append((spread + num_to_decimal(i) * inc, position))
 
         return targets
+
+    def __evaluate_to_e1_trade(self, momentum_change, spread_opp):
+        """Changes state information to prepare for the trades from e2
+        to e1.
+
+        Args:
+            momentum_change (bool): Whether there was a momentum change.
+            spread_opp (SpreadOpportunity): The spread and price info.
+        """
+        self.__advance_target_index(spread_opp.e1_spread, self.e1_targets)
+        self.__prepare_trade(
+            momentum_change,
+            self.tclient2,
+            self.tclient1,
+            self.e1_targets,
+            spread_opp)
+        self.e2_targets = self.__calc_targets(
+            spread_opp.e2_spread, self.h_to_e2_max, self.tclient1.quote_bal)
+
+    def __evaluate_to_e2_trade(self, momentum_change, spread_opp):
+        """Changes state information to prepare for the trades from e1
+        to e2.
+
+        Args:
+            momentum_change (bool): Whether there was a momentum change.
+            spread_opp (SpreadOpportunity): The spread and price info.
+        """
+        self.__advance_target_index(spread_opp.e2_spread, self.e2_targets)
+        self.__prepare_trade(
+            momentum_change,
+            self.tclient1,
+            self.tclient2,
+            self.e2_targets,
+            spread_opp)
+        self.e1_targets = self.__calc_targets(
+            spread_opp.e1_spread, self.h_to_e1_max, self.tclient2.quote_bal)
+
+    def __evaluate_spread(self, spread_opp):
+        """Evaluate spread numbers for
+
+        Args:
+            spread_opp (SpreadOpportunity): The spread and price info.
+
+        Returns:
+            bool: Whether there is a trade opportunity
+        """
+        if self.momentum is Momentum.NEUTRAL:
+            if (self.target_index < len(self.e2_targets) and
+                    spread_opp.e2_spread >= self.e2_targets[self.target_index][0]):
+                self.__evaluate_to_e2_trade(True, spread_opp)
+                self.momentum = Momentum.TO_E2
+                return True
+            elif (self.target_index < len(self.e1_targets) and
+                    spread_opp.e1_spread >= self.e1_targets[self.target_index][0]):
+                self.__evaluate_to_e1_trade(True, spread_opp)
+                self.momentum = Momentum.TO_E1
+                return True
+        elif self.momentum is Momentum.TO_E2:
+            if (self.target_index < len(self.e2_targets) and
+                    spread_opp.e2_spread >= self.e2_targets[self.target_index][0]):
+                self.__evaluate_to_e2_trade(False, spread_opp)
+                return True
+            # momentum change
+            elif spread_opp.e1_spread >= self.e1_targets[0][0]:
+                self.target_index = 0
+                self.__evaluate_to_e1_trade(True, spread_opp)
+                self.momentum = Momentum.TO_E1
+                return True
+        elif self.momentum is Momentum.TO_E1:
+            # momentum change
+            if spread_opp.e2_spread >= self.e2_targets[0][0]:
+                self.target_index = 0
+                self.__evaluate_to_e2_trade(True, spread_opp)
+                self.momentum = Momentum.TO_E2
+                return True
+            elif (self.target_index < len(self.e1_targets) and
+                    spread_opp.e1_spread >= self.e1_targets[self.target_index][0]):
+                self.__evaluate_to_e1_trade(False, spread_opp)
+                return True
+
+        return False
 
     def __prepare_trade(self, is_momentum_change, buy_trader, sell_trader,
                         targets, spread_opp):
@@ -224,7 +322,7 @@ class FCFAutotrageur(Autotrageur):
                 logging.info("Trade was not executed.")
 
     def _poll_opportunity(self):
-        """
+        """Poll exchanges for arbitrage opportunity.
 
         Returns:
             bool: Whether there is an opportunity.
@@ -258,77 +356,7 @@ class FCFAutotrageur(Autotrageur):
             self.last_target_index = 0
             self.has_started = True
         else:
-            if self.momentum is Momentum.NEUTRAL:
-                if (self.target_index < len(self.e2_targets) and
-                        spread_opp.e2_spread >= self.e2_targets[self.target_index][0]):
-                    # Move the target_index forward until it has reached the
-                    # furthest available target below current spread.
-                    self.__advance_target_index(spread_opp.e2_spread,
-                        self.e2_targets)
-                    self.__prepare_trade(True, self.tclient1, self.tclient2,
-                        self.e2_targets, spread_opp)
-                    self.e1_targets = self.__calc_targets(
-                        spread_opp.e1_spread, self.h_to_e1_max,
-                        self.tclient2.quote_bal)
-                    self.momentum = Momentum.TO_E2
-                    is_opportunity = True
-                elif (self.target_index < len(self.e1_targets) and
-                        spread_opp.e1_spread >= self.e1_targets[self.target_index][0]):
-                    self.__advance_target_index(spread_opp.e1_spread,
-                        self.e1_targets)
-                    self.__prepare_trade(True, self.tclient2, self.tclient1,
-                        self.e1_targets, spread_opp)
-                    self.e2_targets = self.__calc_targets(
-                        spread_opp.e2_spread, self.h_to_e2_max,
-                        self.tclient1.quote_bal)
-                    self.momentum = Momentum.TO_E1
-                    is_opportunity = True
-            elif self.momentum is Momentum.TO_E2:
-                if (self.target_index < len(self.e2_targets) and
-                        spread_opp.e2_spread >= self.e2_targets[self.target_index][0]):
-                    self.__advance_target_index(spread_opp.e2_spread,
-                        self.e2_targets)
-                    self.__prepare_trade(False, self.tclient1, self.tclient2,
-                        self.e2_targets, spread_opp)
-                    self.e1_targets = self.__calc_targets(
-                        spread_opp.e1_spread, self.h_to_e1_max,
-                        self.tclient2.quote_bal)
-                    is_opportunity = True
-                # momentum change
-                elif spread_opp.e1_spread >= self.e1_targets[0][0]:
-                    self.target_index = 0
-                    self.__advance_target_index(spread_opp.e1_spread,
-                        self.e1_targets)
-                    self.__prepare_trade(True, self.tclient2, self.tclient1,
-                        self.e1_targets, spread_opp)
-                    self.e2_targets = self.__calc_targets(
-                        spread_opp.e2_spread, self.h_to_e2_max,
-                        self.tclient1.quote_bal)
-                    self.momentum = Momentum.TO_E1
-                    is_opportunity = True
-            elif self.momentum is Momentum.TO_E1:
-                # momentum change
-                if spread_opp.e2_spread >= self.e2_targets[0][0]:
-                    self.target_index = 0
-                    self.__advance_target_index(spread_opp.e2_spread,
-                        self.e2_targets)
-                    self.__prepare_trade(True, self.tclient1, self.tclient2,
-                        self.e2_targets, spread_opp)
-                    self.e1_targets = self.__calc_targets(
-                        spread_opp.e1_spread, self.h_to_e1_max,
-                        self.tclient2.quote_bal)
-                    self.momentum = Momentum.TO_E2
-                    is_opportunity = True
-                elif (self.target_index < len(self.e1_targets) and
-                        spread_opp.e1_spread >= self.e1_targets[self.target_index][0]):
-                    self.__advance_target_index(spread_opp.e1_spread,
-                        self.e1_targets)
-                    self.__prepare_trade(True, self.tclient2, self.tclient1,
-                        self.e1_targets, spread_opp)
-                    self.e2_targets = self.__calc_targets(
-                        spread_opp.e2_spread, self.h_to_e2_max,
-                        self.tclient1.quote_bal)
-                    is_opportunity = True
+            is_opportunity = self.__evaluate_spread(spread_opp)
 
         self.h_to_e1_max = max(self.h_to_e1_max, spread_opp.e1_spread)
         self.h_to_e2_max = max(self.h_to_e2_max, spread_opp.e2_spread)
