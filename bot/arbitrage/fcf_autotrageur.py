@@ -197,12 +197,12 @@ class FCFAutotrageur(Autotrageur):
         self.__advance_target_index(spread_opp.e1_spread, self.e1_targets)
         self.__prepare_trade(
             momentum_change,
-            self.tclient2,
-            self.tclient1,
+            self.trader2,
+            self.trader1,
             self.e1_targets,
             spread_opp)
         self.e2_targets = self.__calc_targets(
-            spread_opp.e2_spread, self.h_to_e2_max, self.tclient1.quote_bal)
+            spread_opp.e2_spread, self.h_to_e2_max, self.trader1.quote_bal)
 
     def __evaluate_to_e2_trade(self, momentum_change, spread_opp):
         """Changes state information to prepare for the trades from e1
@@ -215,12 +215,12 @@ class FCFAutotrageur(Autotrageur):
         self.__advance_target_index(spread_opp.e2_spread, self.e2_targets)
         self.__prepare_trade(
             momentum_change,
-            self.tclient1,
-            self.tclient2,
+            self.trader1,
+            self.trader2,
             self.e2_targets,
             spread_opp)
         self.e1_targets = self.__calc_targets(
-            spread_opp.e1_spread, self.h_to_e1_max, self.tclient2.quote_bal)
+            spread_opp.e1_spread, self.h_to_e1_max, self.trader2.quote_bal)
 
     def __evaluate_spread(self, spread_opp):
         """Evaluate spread numbers for
@@ -277,7 +277,7 @@ class FCFAutotrageur(Autotrageur):
 
         # NOTE: Trader's `quote_target_amount` is updated here.
         buy_trader.quote_target_amount = min(trade_vol, buy_trader.quote_bal)
-        if buy_trader is self.tclient1:
+        if buy_trader is self.trader1:
             self.trade_metadata = {
                 'buy_price': spread_opp.e1_buy,
                 'sell_price': spread_opp.e2_sell,
@@ -288,8 +288,8 @@ class FCFAutotrageur(Autotrageur):
             self.trade_metadata = {
                 'buy_price': spread_opp.e2_buy,
                 'sell_price': spread_opp.e1_sell,
-                'buy_trader': sell_trader,
-                'sell_trader': buy_trader
+                'buy_trader': buy_trader,
+                'sell_trader': sell_trader
             }
 
         if (buy_trader.quote_target_amount / self.trade_metadata['buy_price']
@@ -316,8 +316,8 @@ class FCFAutotrageur(Autotrageur):
         else:
             logging.info("Attempting to execute trades")
             if arbseeker.execute_arbitrage(self.trade_metadata):
-                self.tclient1.fetch_wallet_balances()
-                self.tclient2.fetch_wallet_balances()
+                self.trader1.fetch_wallet_balances()
+                self.trader2.fetch_wallet_balances()
             else:
                 logging.info("Trade was not executed.")
 
@@ -328,12 +328,12 @@ class FCFAutotrageur(Autotrageur):
             bool: Whether there is an opportunity.
         """
         # Set quote target amount based on strategy.
-        self.tclient1.quote_target_amount = max(self.vol_min, self.tclient1.quote_bal)
-        self.tclient2.quote_target_amount = max(self.vol_min, self.tclient2.quote_bal)
+        self.trader1.quote_target_amount = max(self.vol_min, self.trader1.quote_bal)
+        self.trader2.quote_target_amount = max(self.vol_min, self.trader2.quote_bal)
 
         try:
             spread_opp = arbseeker.get_spreads_by_ob(
-                self.tclient1, self.tclient2)
+                self.trader1, self.trader2)
         except ccxt.NetworkError as network_error:
             logging.error(network_error, exc_info=True)
             return False
@@ -344,13 +344,13 @@ class FCFAutotrageur(Autotrageur):
             self.momentum = Momentum.NEUTRAL
 
             self.e1_targets = self.__calc_targets(spread_opp.e1_spread,
-                self.h_to_e1_max, self.tclient2.quote_bal)
+                self.h_to_e1_max, self.trader2.quote_bal)
             self.e2_targets = self.__calc_targets(spread_opp.e2_spread,
-                self.h_to_e2_max, self.tclient1.quote_bal)
+                self.h_to_e2_max, self.trader1.quote_bal)
             logging.info('-----To %s targets: %s' %
-                (self.tclient1.exchange_name, self.e1_targets))
+                (self.trader1.exchange_name, self.e1_targets))
             logging.info('-----To %s targets: %s' %
-                (self.tclient2.exchange_name, self.e2_targets))
+                (self.trader2.exchange_name, self.e2_targets))
 
             self.target_index = 0
             self.last_target_index = 0
