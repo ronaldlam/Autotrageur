@@ -277,20 +277,20 @@ class FCFAutotrageur(Autotrageur):
 
         # NOTE: Trader's `quote_target_amount` is updated here.
         buy_trader.quote_target_amount = min(trade_vol, buy_trader.quote_bal)
+
         if buy_trader is self.trader1:
-            self.trade_metadata = {
-                'buy_price': spread_opp.e1_buy,
-                'sell_price': spread_opp.e2_sell,
-                'buy_trader': buy_trader,
-                'sell_trader': sell_trader
-            }
+            buy_price = spread_opp.e1_buy
+            sell_price = spread_opp.e2_sell
         else:
-            self.trade_metadata = {
-                'buy_price': spread_opp.e2_buy,
-                'sell_price': spread_opp.e1_sell,
-                'buy_trader': buy_trader,
-                'sell_trader': sell_trader
-            }
+            buy_price = spread_opp.e2_buy
+            sell_price = spread_opp.e1_sell
+
+        self.trade_metadata = {
+            'buy_price': buy_price,
+            'sell_price': sell_price,
+            'buy_trader': buy_trader,
+            'sell_trader': sell_trader
+        }
 
         if (buy_trader.quote_target_amount / self.trade_metadata['buy_price']
                 > sell_trader.base_bal):

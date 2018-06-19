@@ -81,22 +81,20 @@ class TestIsWithinTolerance:
             assert in_tolerance is bTol
 
 
-TARGETS = [(x, 1000 + 200*x) for x in range(-1, 10, 2)]
-
-
-@pytest.mark.parametrize('spread, targets, start, result', [
-    (-1, TARGETS, 0, 0),
-    (3, TARGETS, 0, 2),
-    (5, TARGETS, 0, 3),
-    (3, TARGETS, 1, 2),
-    (5, TARGETS, 2, 3),
-    (9, TARGETS, 2, 5),
-    (-1, TARGETS, 2, 2),
-    (1, TARGETS, 2, 2),
-    (3, TARGETS, 2, 2),
+@pytest.mark.parametrize('spread, start, result', [
+    (-1, 0, 0),
+    (3, 0, 2),
+    (5, 0, 3),
+    (3, 1, 2),
+    (5, 2, 3),
+    (9, 2, 5),
+    (-1, 2, 2),
+    (1, 2, 2),
+    (3, 2, 2),
 ])
 def test_advance_target_index(
-        fcf_autotrageur, spread, targets, start, result):
+        fcf_autotrageur, spread, start, result):
+    targets = [(x, 1000 + 200*x) for x in range(-1, 10, 2)]
     fcf_autotrageur.target_index = start
     fcf_autotrageur._FCFAutotrageur__advance_target_index(spread, targets)
     assert fcf_autotrageur.target_index == result
@@ -175,15 +173,17 @@ def test_evaluate_to_e2_trade(mocker, fcf_autotrageur, momentum_change):
 
 
 @pytest.mark.parametrize('e1_spread, e2_spread, momentum, target_index', [
-    (-3, 3, Momentum.NEUTRAL, 1),
-    (3, -3, Momentum.NEUTRAL, 1),
-    (-3, 3, Momentum.TO_E1, 1),
-    (3, -3, Momentum.TO_E1, 1),
-    (-3, 3, Momentum.TO_E2, 1),
-    (3, -3, Momentum.TO_E2, 1),
-    (-2, 0, Momentum.NEUTRAL, 1),
-    (-2, 0, Momentum.TO_E1, 1),
-    (-2, 0, Momentum.TO_E2, 1),
+    (Decimal('-3'), Decimal('3'), Momentum.NEUTRAL, 1),
+    (Decimal('3'), Decimal('-3'), Momentum.NEUTRAL, 1),
+    (Decimal('-3'), Decimal('3'), Momentum.TO_E1, 1),
+    (Decimal('3'), Decimal('-3'), Momentum.TO_E1, 1),
+    (Decimal('-3'), Decimal('3'), Momentum.TO_E2, 1),
+    (Decimal('3'), Decimal('-3'), Momentum.TO_E2, 1),
+    (Decimal('-2'), Decimal('0'), Momentum.NEUTRAL, 1),
+    (Decimal('-2'), Decimal('0'), Momentum.TO_E1, 1),
+    (Decimal('-2'), Decimal('0'), Momentum.TO_E2, 1),
+    (None, Decimal('-3'), Momentum.NEUTRAL, 1),
+    (Decimal('-3'), None, Momentum.NEUTRAL, 1),
 ])
 def test_evaluate_spread(
         mocker, fcf_autotrageur, e1_spread, e2_spread, momentum, target_index):
@@ -192,15 +192,20 @@ def test_evaluate_spread(
         e1_spread, e2_spread, None, None, None, None)
     fcf_autotrageur.momentum = momentum
     fcf_autotrageur.target_index = target_index
-    fcf_autotrageur.e1_targets = [(x, 1000 + 200*x) for x in range(-1, 4, 2)]
-    fcf_autotrageur.e2_targets = [(x, 1000 + 200*x) for x in range(1, 10, 2)]
+    fcf_autotrageur.e1_targets = [(Decimal(x), Decimal(1000 + 200*x)) for x in range(-1, 4, 2)]
+    fcf_autotrageur.e2_targets = [(Decimal(x), Decimal(1000 + 200*x)) for x in range(1, 10, 2)]
     mocker.patch.object(
         fcf_autotrageur, '_FCFAutotrageur__evaluate_to_e1_trade')
     mocker.patch.object(
         fcf_autotrageur, '_FCFAutotrageur__evaluate_to_e2_trade')
 
     # Execute test
-    result = fcf_autotrageur._FCFAutotrageur__evaluate_spread(spread_opp)
+    if e1_spread is None or e2_spread is None:
+        with pytest.raises(TypeError):
+            fcf_autotrageur._FCFAutotrageur__evaluate_spread(spread_opp)
+        return
+    else:
+        result = fcf_autotrageur._FCFAutotrageur__evaluate_spread(spread_opp)
 
     # Check results
     if momentum is Momentum.NEUTRAL:
@@ -249,30 +254,30 @@ def test_evaluate_spread(
 @pytest.mark.parametrize(
     'is_momentum_change, to_e1, target_index, last_target_index, '
     'buy_quote_balance, buy_price, sell_base_balance, result', [
-        (True, True, 0, 0, 2000, 1000, 2,
-            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': 1200}),
-        (True, False, 0, 0, 2000, 1000, 2,
-            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': 1200}),
-        (False, True, 2, 0, 2000, 1000, 2,
-            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': 800}),
-        (False, False, 2, 0, 2000, 1000, 2,
-            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': 800}),
-        (True, True, 0, 0, 600, 1000, 2,
-            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': 600}),
-        (True, False, 0, 0, 600, 1000, 2,
-            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': 600}),
-        (False, True, 2, 0, 600, 1000, 2,
-            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': 600}),
-        (False, False, 2, 0, 600, 1000, 2,
-            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': 600}),
-        (True, True, 0, 0, 2000, 1000, 0.5, None),
-        (True, False, 0, 0, 2000, 1000, 0.5, None),
-        (False, True, 2, 0, 2000, 1000, 0.5, None),
-        (False, False, 2, 0, 2000, 1000, 0.5, None),
-        (True, True, 0, 0, 600, 1000, 0.5, None),
-        (True, False, 0, 0, 600, 1000, 0.5, None),
-        (False, True, 2, 0, 600, 1000, 0.5, None),
-        (False, False, 2, 0, 600, 1000, 0.5, None),
+        (True, True, 0, 0, Decimal('2000'), Decimal('1000'), Decimal('2'),
+            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': Decimal('1200')}),
+        (True, False, 0, 0, Decimal('2000'), Decimal('1000'), Decimal('2'),
+            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': Decimal('1200')}),
+        (False, True, 2, 0, Decimal('2000'), Decimal('1000'), Decimal('2'),
+            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': Decimal('800')}),
+        (False, False, 2, 0, Decimal('2000'), Decimal('1000'), Decimal('2'),
+            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': Decimal('800')}),
+        (True, True, 0, 0, Decimal('600'), Decimal('1000'), Decimal('2'),
+            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': Decimal('600')}),
+        (True, False, 0, 0, Decimal('600'), Decimal('1000'), Decimal('2'),
+            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': Decimal('600')}),
+        (False, True, 2, 0, Decimal('600'), Decimal('1000'), Decimal('2'),
+            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': Decimal('600')}),
+        (False, False, 2, 0, Decimal('600'), Decimal('1000'), Decimal('2'),
+            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': Decimal('600')}),
+        (True, True, 0, 0, Decimal('2000'), Decimal('1000'), Decimal('0.5'), None),
+        (True, False, 0, 0, Decimal('2000'), Decimal('1000'), Decimal('0.5'), None),
+        (False, True, 2, 0, Decimal('2000'), Decimal('1000'), Decimal('0.5'), None),
+        (False, False, 2, 0, Decimal('2000'), Decimal('1000'), Decimal('0.5'), None),
+        (True, True, 0, 0, Decimal('600'), Decimal('1000'), Decimal('0.5'), None),
+        (True, False, 0, 0, Decimal('600'), Decimal('1000'), Decimal('0.5'), None),
+        (False, True, 2, 0, Decimal('600'), Decimal('1000'), Decimal('0.5'), None),
+        (False, False, 2, 0, Decimal('600'), Decimal('1000'), Decimal('0.5'), None),
     ])
 def test_prepare_trade(mocker, fcf_autotrageur, is_momentum_change, to_e1,
                        target_index, last_target_index, buy_quote_balance,
@@ -334,32 +339,26 @@ def test_execute_trade(mocker, fcf_autotrageur, dryrun, success):
         fcf_autotrageur.trader2.fetch_wallet_balances.assert_not_called()
 
 
-@pytest.mark.parametrize('vol_min', [100, 1000])
-@pytest.mark.parametrize('e1_quote_balance', [0, 2000])
-@pytest.mark.parametrize('e2_quote_balance', [0, 2000])
+@pytest.mark.parametrize('vol_min', [Decimal('100'), Decimal('1000')])
+@pytest.mark.parametrize('e1_quote_balance', [Decimal('0'), Decimal('2000')])
+@pytest.mark.parametrize('e2_quote_balance', [Decimal('0'), Decimal('2000')])
 @pytest.mark.parametrize('network_error', [True, False])
 @pytest.mark.parametrize('has_started', [True, False])
-@pytest.mark.parametrize('e1_spread', [5, 50])
-@pytest.mark.parametrize('e2_spread', [0, 3])
-@pytest.mark.parametrize('h_to_e1_max', [5, 50])
-@pytest.mark.parametrize('h_to_e2_max', [0, 3])
+@pytest.mark.parametrize('e1_spread', [Decimal('5'), Decimal('50')])
+@pytest.mark.parametrize('e2_spread', [Decimal('0'), Decimal('3')])
+@pytest.mark.parametrize('h_to_e1_max', [Decimal('5'), Decimal('50')])
+@pytest.mark.parametrize('h_to_e2_max', [Decimal('0'), Decimal('3')])
 @pytest.mark.parametrize('is_opportunity', [True, False])
 def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
                           e1_quote_balance, e2_quote_balance, network_error,
                           has_started, e1_spread, e2_spread, h_to_e1_max,
                           h_to_e2_max, is_opportunity):
-    no_patch_fcf_autotrageur.config = {
-        'email_cfg_path': 'fake/path/to/config.yaml',
-        'spread_target_low': 1.0,
-        'spread_target_high': 5.0
-    }
     trader1 = mocker.Mock()
     trader2 = mocker.Mock()
     mocker.patch.object(
         no_patch_fcf_autotrageur, 'trader1', trader1, create=True)
     mocker.patch.object(
         no_patch_fcf_autotrageur, 'trader2', trader2, create=True)
-    no_patch_fcf_autotrageur.message = 'fake message'
     no_patch_fcf_autotrageur.vol_min = vol_min
     no_patch_fcf_autotrageur.trader1.quote_bal = e1_quote_balance
     no_patch_fcf_autotrageur.trader2.quote_bal = e2_quote_balance
