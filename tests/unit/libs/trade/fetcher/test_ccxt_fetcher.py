@@ -136,7 +136,6 @@ def test_fetch_taker_fees(mocker, ccxtfetcher_binance, fee_structure_key, taker_
     pytest.param('BTC', 'USD', 'empty', BTC_FREE_BALANCE, USD_FREE_BALANCE, marks=xfail(raises=KeyError, reason="No keys in empty dict", strict=True)),
     pytest.param('BTC', 'USD', 'no_free', BTC_FREE_BALANCE, USD_FREE_BALANCE, marks=xfail(raises=KeyError, reason="No free key", strict=True)),
     ('BTC', 'USD', 'full', BTC_FREE_BALANCE, USD_FREE_BALANCE)
-    # ('BTC', 'USD', 'full', BTC_FREE_BALANCE, USD_FREE_BALANCE)
 ])
 def test_fetch_free_balances(mocker, base, quote, balance_structure_key,
                              base_free_balance, quote_free_balance, ccxtfetcher_binance):
