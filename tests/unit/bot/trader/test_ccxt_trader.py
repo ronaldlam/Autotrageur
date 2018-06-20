@@ -25,7 +25,7 @@ class OrderType(Enum):
 
 # Test constants.
 BTC_USD = 'BTC/USD'
-FAKE_FOREX_QUOTE = 99999.999
+FAKE_FOREX_RATIO = num_to_decimal(1000)
 set_autotrageur_decimal_context()
 
 
@@ -64,14 +64,18 @@ class TestCCXTTraderInit:
         assert trader.quote == quote
         assert trader.exchange_name == exchange_name
         assert trader.slippage == slippage
-        assert trader.quote_target_amount == quote_target_amount
-        assert trader.conversion_needed is False
-        assert trader.forex_ratio is None
         assert trader.ccxt_exchange is exchange_obj
         assert trader.fetcher is ccxtfetcher_binance
 
+        # Initialized variables not from config.
+        assert trader.quote_target_amount == num_to_decimal(0.0)
+        assert trader.conversion_needed is False
+        assert trader.forex_ratio is None
+
         if dry_run:
             assert trader.executor is fake_dryrun_executor
+            assert trader.base_bal == num_to_decimal(0.0)
+            assert trader.quote_bal == num_to_decimal(0.0)
         else:
             assert trader.executor is fake_ccxt_executor
 
@@ -524,12 +528,27 @@ def test_connect_test_api(mocker, fake_ccxt_trader, urls):
         assert exchange_urls['api'] == exchange_urls['test']
 
 
-def test_check_wallet_balances(mocker, fake_ccxt_trader, symbols):
-    mocker.patch.object(fake_ccxt_trader.fetcher, 'fetch_free_balance')
-    fake_ccxt_trader.check_wallet_balances()
-    assert fake_ccxt_trader.fetcher.fetch_free_balance.call_count == 2
-    assert fake_ccxt_trader.fetcher.fetch_free_balance.call_args_list == (
-        [mocker.call(symbols['bitcoin']), mocker.call(symbols['usd'])])
+@pytest.mark.parametrize('fake_balances, conversion_needed', [
+    ((Decimal('1'), Decimal('1000')), False),
+    ((Decimal('1'), Decimal('1000')), True)
+])
+def test_fetch_wallet_balances(mocker, fake_ccxt_trader, symbols, fake_balances, conversion_needed):
+    mocker.patch.object(fake_ccxt_trader.fetcher, 'fetch_free_balances', return_value=fake_balances)
+
+    if conversion_needed:
+        mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
+        mocker.patch.object(fake_ccxt_trader, 'forex_ratio', FAKE_FOREX_RATIO)
+
+    fake_ccxt_trader.fetch_wallet_balances()
+
+    if conversion_needed:
+        assert fake_ccxt_trader.quote_bal == (fake_balances[1] / FAKE_FOREX_RATIO)
+    else:
+        assert fake_ccxt_trader.quote_bal == fake_balances[1]
+
+    assert fake_ccxt_trader.base_bal == fake_balances[0]
+    fake_ccxt_trader.fetcher.fetch_free_balances.assert_called_once()
+    fake_ccxt_trader.fetcher.fetch_free_balances.assert_called_with(symbols['bitcoin'], symbols['usd'])
 
 
 def test_get_full_orderbook(mocker, fake_ccxt_trader, symbols):
@@ -556,7 +575,7 @@ class TestGetAdjustedMarketPriceFromOrderbook:
         mocker.patch.object(fake_ccxt_trader, 'quote_target_amount', self.fake_quote_target_amount)
         if conversion_needed:
             mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
-            mocker.patch.object(fake_ccxt_trader, 'forex_quote_target', FAKE_FOREX_QUOTE)
+            mocker.patch.object(fake_ccxt_trader, 'forex_ratio', FAKE_FOREX_RATIO)
             mocker.patch.object(fake_ccxt_trader, '_CCXTTrader__calc_vol_by_book',
                 return_value=self.fake_asset_volume_forex)
         else:
@@ -570,7 +589,7 @@ class TestGetAdjustedMarketPriceFromOrderbook:
 
     def test_get_adjusted_market_price_from_orderbook_exception(self, mocker, fake_ccxt_trader):
         mocker.patch.object(fake_ccxt_trader, 'conversion_needed', True)
-        mocker.patch.object(fake_ccxt_trader, 'forex_quote_target', None)
+        mocker.patch.object(fake_ccxt_trader, 'forex_ratio', None)
 
         with pytest.raises(ccxt_trader.NoForexQuoteException):
             fake_ccxt_trader.get_adjusted_market_price_from_orderbook(self.fake_bids_or_asks)
@@ -597,19 +616,19 @@ def test_get_taker_fee(mocker, fake_ccxt_trader):
     'RONCOIN',
     'DREWCOIN'
 ])
-def test_set_conversion(mocker, fake_ccxt_trader, forex_quote):
+def test_set_forex_ratio(mocker, fake_ccxt_trader, forex_quote):
     is_forex = False
 
     if forex_quote in FIAT_SYMBOLS:
         is_forex = True
-        mocker.patch.object(ccxt_trader.currencyconverter, 'convert_currencies', return_value=FAKE_FOREX_QUOTE)
+        mocker.patch.object(ccxt_trader.currencyconverter, 'convert_currencies', return_value=FAKE_FOREX_RATIO)
     else:
         mocker.patch.object(ccxt_trader.currencyconverter, 'convert_currencies', return_value=None)
 
     mocker.patch.object(fake_ccxt_trader, 'quote', forex_quote)
-    fake_ccxt_trader.set_conversion()
+    fake_ccxt_trader.set_forex_ratio()
 
     if is_forex:
-        assert fake_ccxt_trader.forex_quote_target is FAKE_FOREX_QUOTE
+        assert fake_ccxt_trader.forex_ratio is FAKE_FOREX_RATIO
     else:
-        assert fake_ccxt_trader.forex_quote_target is None
+        assert fake_ccxt_trader.forex_ratio is None

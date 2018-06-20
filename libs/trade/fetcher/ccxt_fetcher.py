@@ -71,12 +71,6 @@ class CCXTFetcher():
         Returns:
             (Decimal, Decimal): The balances of the base and quote asset.
         """
-        # if (self.exchange.id == 'gemini'):
-        #     return (num_to_decimal('40'),
-        #         num_to_decimal('20000'))
-        # else:
-        #     return (num_to_decimal('40'),
-        #         num_to_decimal('20000000'))
         balance = self.exchange.fetch_balance()
         return (num_to_decimal(balance[base]['free']),
                 num_to_decimal(balance[quote]['free']))
