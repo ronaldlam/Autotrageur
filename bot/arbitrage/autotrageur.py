@@ -126,14 +126,14 @@ class Autotrageur(ABC):
         self.exchange1_basequote = self.config[EXCHANGE1_PAIR].split("/")
         self.exchange2_basequote = self.config[EXCHANGE2_PAIR].split("/")
 
-        self.tclient1 = CCXTTrader(
+        self.trader1 = CCXTTrader(
             self.exchange1_basequote[0],
             self.exchange1_basequote[1],
             self.config[EXCHANGE1],
             num_to_decimal(self.config[SLIPPAGE]),
             self.exchange1_configs,
             self.config[DRYRUN])
-        self.tclient2 = CCXTTrader(
+        self.trader2 = CCXTTrader(
             self.exchange2_basequote[0],
             self.exchange2_basequote[1],
             self.config[EXCHANGE2],
@@ -143,33 +143,33 @@ class Autotrageur(ABC):
 
         # Connect to test API's if required
         if self.config[EXCHANGE1_TEST]:
-            self.tclient1.connect_test_api()
+            self.trader1.connect_test_api()
         if self.config[EXCHANGE2_TEST]:
-            self.tclient2.connect_test_api()
+            self.trader2.connect_test_api()
 
         # Load the available markets for the exchange.
         # TODO: Wrap load_markets() and wallet_balances() in a retry loop for
         # Network errors.
-        self.tclient1.load_markets()
-        self.tclient2.load_markets()
+        self.trader1.load_markets()
+        self.trader2.load_markets()
 
         # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
         # to USD fiat.
-        for tclient in list((self.tclient1, self.tclient2)):
-            if ((tclient.quote in FIAT_SYMBOLS)
-                and (tclient.quote != 'USD')
-                and (tclient.quote != 'USDT')):
+        for trader in list((self.trader1, self.trader2)):
+            if ((trader.quote in FIAT_SYMBOLS)
+                and (trader.quote != 'USD')
+                and (trader.quote != 'USDT')):
                 logging.info("Set fiat conversion to USD as necessary for: {}"
-                    " with quote: {}".format(tclient.exchange_name,
-                                             tclient.quote))
-                tclient.conversion_needed = True
-                tclient.set_forex_ratio()
+                    " with quote: {}".format(trader.exchange_name,
+                                             trader.quote))
+                trader.conversion_needed = True
+                trader.set_forex_ratio()
                 # TODO: Adjust interval once real-time forex implemented.
-                schedule.every().hour.do(tclient.set_forex_ratio)
+                schedule.every().hour.do(trader.set_forex_ratio)
 
         try:
-            self.tclient1.fetch_wallet_balances()
-            self.tclient2.fetch_wallet_balances()
+            self.trader1.fetch_wallet_balances()
+            self.trader2.fetch_wallet_balances()
         except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
             logging.error(auth_error)
 
