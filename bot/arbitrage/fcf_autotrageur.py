@@ -223,7 +223,8 @@ class FCFAutotrageur(Autotrageur):
             spread_opp.e1_spread, self.h_to_e1_max, self.trader2.quote_bal)
 
     def __evaluate_spread(self, spread_opp):
-        """Evaluate spread numbers for
+        """Evaluate spread numbers against targets and set up state for
+        trade execution.
 
         Args:
             spread_opp (SpreadOpportunity): The spread and price info.
@@ -269,6 +270,20 @@ class FCFAutotrageur(Autotrageur):
 
     def __prepare_trade(self, is_momentum_change, buy_trader, sell_trader,
                         targets, spread_opp):
+        """Set up trade metadata and update target indices.
+
+        Args:
+            is_momentum_change (bool): Whether this is the first trade
+                after a momentum change.
+            buy_trader (CCXTTrader): The trader to buy with.
+            sell_trader (CCXTTrader): The trader to sell with.
+            targets (list): The 'to_sell_exchange' targets.
+            spread_opp (SpreadOpportunity): The spread and price info.
+
+        Raises:
+            InsufficientCryptoBalance: If crypto balance on the sell
+                exchange is not enough to cover the buy target.
+        """
         if self.target_index >= 1 and not is_momentum_change:
             trade_vol = targets[self.target_index][1] - \
                 targets[self.last_target_index][1]

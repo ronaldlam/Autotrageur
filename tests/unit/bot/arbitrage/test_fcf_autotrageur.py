@@ -94,6 +94,7 @@ class TestIsWithinTolerance:
 ])
 def test_advance_target_index(
         fcf_autotrageur, spread, start, result):
+    # Chosen for the roughly round numbers.
     targets = [(x, 1000 + 200*x) for x in range(-1, 10, 2)]
     fcf_autotrageur.target_index = start
     fcf_autotrageur._FCFAutotrageur__advance_target_index(spread, targets)
@@ -102,22 +103,35 @@ def test_advance_target_index(
 
 @pytest.mark.parametrize(
     'vol_min, spread, h_max, from_balance, result', [
-        (Decimal('1000'), Decimal('4'), Decimal('2'), Decimal('1000'), [(Decimal('5'), Decimal('1000'))]), # spread > h_max
-        (Decimal('2000'), Decimal('2'), Decimal('3'), Decimal('1000'), [(Decimal('3'), Decimal('1000'))]), # spread < h_max
-        (Decimal('1000'), Decimal('2'), Decimal('3'), Decimal('2000'), [(Decimal('3'), Decimal('2000'))]),
-        (Decimal('1000'), Decimal('2'), Decimal('4'), Decimal('2000'), [(Decimal('3'), Decimal('1000')), (Decimal('4'), Decimal('2000'))]),
-        (Decimal('500'), Decimal('2'), Decimal('5'), Decimal('2000'), [(Decimal('3'), Decimal('500')), (Decimal('4'), Decimal('1000')), (Decimal('5'), Decimal('2000'))]),
-        (Decimal('2000'), Decimal('2'), Decimal('5'), Decimal('2000'), [(Decimal('3'), Decimal('2000')), (Decimal('4'), Decimal('2000')), (Decimal('5'), Decimal('2000'))])
+        (Decimal('1000'), Decimal('4'), Decimal('2'), Decimal('1000'),
+            [(Decimal('5'), Decimal('1000'))]), # spread + spread_min > h_max, vol_min == from_balance
+        (Decimal('2000'), Decimal('2'), Decimal('3'), Decimal('1000'),
+            [(Decimal('3'), Decimal('1000'))]),  # spread + spread_min == h_max, vol_min > from_balance
+        (Decimal('2000'), Decimal('1.5'), Decimal('3'), Decimal('1000'),
+            [(Decimal('3'), Decimal('1000'))]),  # spread + spread_min < h_max, vol_min > from_balance
+        (Decimal('1000'), Decimal('2'), Decimal('3'), Decimal('2000'),
+            [(Decimal('3'), Decimal('2000'))]),  # spread + spread_min == h_max, vol_min < from_balance
+        (Decimal('1000'), Decimal('2'), Decimal('4'), Decimal('2000'),
+            [(Decimal('3'), Decimal('1000')), (Decimal('4'), Decimal('2000'))]),
+        (Decimal('500'), Decimal('2'), Decimal('5'), Decimal('2000'),
+            [(Decimal('3'), Decimal('500')), (Decimal('4'), Decimal('1000')), (Decimal('5'), Decimal('2000'))]),
+        (Decimal('2000'), Decimal('2'), Decimal('5'), Decimal('2000'),
+            [(Decimal('3'), Decimal('2000')), (Decimal('4'), Decimal('2000')), (Decimal('5'), Decimal('2000'))]),
+        (Decimal('1000'), Decimal('-3'), Decimal('0'), Decimal('1000'),
+            [(Decimal('-2'), Decimal('1000')), (Decimal('-1'), Decimal('1000')), (Decimal('0'), Decimal('1000'))]),
+        (Decimal('500'), Decimal('-3'), Decimal('0'), Decimal('2000'),
+            [(Decimal('-2'), Decimal('500')), (Decimal('-1'), Decimal('1000')), (Decimal('0'), Decimal('2000'))]),
 ])
-def test_calc_targets(fcf_autotrageur, vol_min, spread, h_max, from_balance, result):
-    fcf_autotrageur.spread_min = Decimal('1')
-    fcf_autotrageur.vol_min = vol_min
-    targets = fcf_autotrageur._FCFAutotrageur__calc_targets(
+def test_calc_targets(mocker, no_patch_fcf_autotrageur, vol_min, spread, h_max,
+                      from_balance, result):
+    no_patch_fcf_autotrageur.spread_min = Decimal('1')
+    no_patch_fcf_autotrageur.vol_min = vol_min
+    targets = no_patch_fcf_autotrageur._FCFAutotrageur__calc_targets(
         spread, h_max, from_balance)
     assert targets == result
 
 
-@pytest.mark.parametrize('momentum_change', [(True), (False)])
+@pytest.mark.parametrize('momentum_change', [True, False])
 def test_evaluate_to_e1_trade(mocker, fcf_autotrageur, momentum_change):
     spread_opp = mocker.Mock()
     fcf_autotrageur.e1_targets = mocker.Mock()
@@ -144,7 +158,7 @@ def test_evaluate_to_e1_trade(mocker, fcf_autotrageur, momentum_change):
     assert fcf_autotrageur.e2_targets == mock_targets
 
 
-@pytest.mark.parametrize('momentum_change', [(True), (False)])
+@pytest.mark.parametrize('momentum_change', [True, False])
 def test_evaluate_to_e2_trade(mocker, fcf_autotrageur, momentum_change):
     spread_opp = mocker.Mock()
     fcf_autotrageur.e2_targets = mocker.Mock()
@@ -192,7 +206,9 @@ def test_evaluate_spread(
         e1_spread, e2_spread, None, None, None, None)
     fcf_autotrageur.momentum = momentum
     fcf_autotrageur.target_index = target_index
+    # Chosen for the roughly round numbers.
     fcf_autotrageur.e1_targets = [(Decimal(x), Decimal(1000 + 200*x)) for x in range(-1, 4, 2)]
+    # Chosen for the roughly round numbers.
     fcf_autotrageur.e2_targets = [(Decimal(x), Decimal(1000 + 200*x)) for x in range(1, 10, 2)]
     mocker.patch.object(
         fcf_autotrageur, '_FCFAutotrageur__evaluate_to_e1_trade')
@@ -282,6 +298,7 @@ def test_evaluate_spread(
 def test_prepare_trade(mocker, fcf_autotrageur, is_momentum_change, to_e1,
                        target_index, last_target_index, buy_quote_balance,
                        buy_price, sell_base_balance, result):
+    # Chosen for the roughly round numbers.
     targets = [(x, 1000 + 200*x) for x in range(1, 10, 2)]
     spread_opp = mocker.Mock()
     spread_opp.e1_buy, spread_opp.e2_buy = buy_price, buy_price
