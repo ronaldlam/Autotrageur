@@ -93,12 +93,14 @@ class TestIsWithinTolerance:
     (3, 2, 2),
 ])
 def test_advance_target_index(
-        fcf_autotrageur, spread, start, result):
+        mocker, no_patch_fcf_autotrageur, spread, start, result):
     # Chosen for the roughly round numbers.
     targets = [(x, 1000 + 200*x) for x in range(-1, 10, 2)]
-    fcf_autotrageur.target_index = start
-    fcf_autotrageur._FCFAutotrageur__advance_target_index(spread, targets)
-    assert fcf_autotrageur.target_index == result
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'target_index', start, create=True)
+    no_patch_fcf_autotrageur._FCFAutotrageur__advance_target_index(
+        spread, targets)
+    assert no_patch_fcf_autotrageur.target_index == result
 
 
 @pytest.mark.parametrize(
@@ -124,8 +126,10 @@ def test_advance_target_index(
 ])
 def test_calc_targets(mocker, no_patch_fcf_autotrageur, vol_min, spread, h_max,
                       from_balance, result):
-    no_patch_fcf_autotrageur.spread_min = Decimal('1')
-    no_patch_fcf_autotrageur.vol_min = vol_min
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'spread_min', Decimal('1'), create=True)
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'vol_min', vol_min, create=True)
     targets = no_patch_fcf_autotrageur._FCFAutotrageur__calc_targets(
         spread, h_max, from_balance)
     assert targets == result
@@ -204,12 +208,13 @@ def test_evaluate_spread(
     # Setup fcf_autotrageur
     spread_opp = SpreadOpportunity(
         e1_spread, e2_spread, None, None, None, None)
-    fcf_autotrageur.momentum = momentum
-    fcf_autotrageur.target_index = target_index
+    mocker.patch.object(fcf_autotrageur, 'momentum', momentum, create=True)
+    mocker.patch.object(fcf_autotrageur, 'target_index', target_index, create=True)
     # Chosen for the roughly round numbers.
-    fcf_autotrageur.e1_targets = [(Decimal(x), Decimal(1000 + 200*x)) for x in range(-1, 4, 2)]
-    # Chosen for the roughly round numbers.
-    fcf_autotrageur.e2_targets = [(Decimal(x), Decimal(1000 + 200*x)) for x in range(1, 10, 2)]
+    e1_targets = [(Decimal(x), Decimal(1000 + 200*x)) for x in range(-1, 4, 2)]
+    e2_targets = [(Decimal(x), Decimal(1000 + 200*x)) for x in range(1, 10, 2)]
+    mocker.patch.object(fcf_autotrageur, 'e1_targets', e1_targets, create=True)
+    mocker.patch.object(fcf_autotrageur, 'e2_targets', e2_targets, create=True)
     mocker.patch.object(
         fcf_autotrageur, '_FCFAutotrageur__evaluate_to_e1_trade')
     mocker.patch.object(
@@ -302,8 +307,10 @@ def test_prepare_trade(mocker, fcf_autotrageur, is_momentum_change, to_e1,
     targets = [(x, 1000 + 200*x) for x in range(1, 10, 2)]
     spread_opp = mocker.Mock()
     spread_opp.e1_buy, spread_opp.e2_buy = buy_price, buy_price
-    fcf_autotrageur.target_index = target_index
-    fcf_autotrageur.last_target_index = last_target_index
+    mocker.patch.object(
+        fcf_autotrageur, 'target_index', target_index, create=True)
+    mocker.patch.object(
+        fcf_autotrageur, 'last_target_index', last_target_index, create=True)
 
     if to_e1:
         buy_trader = fcf_autotrageur.trader2
@@ -338,7 +345,7 @@ def test_prepare_trade(mocker, fcf_autotrageur, is_momentum_change, to_e1,
 @pytest.mark.parametrize('dryrun', [True, False])
 @pytest.mark.parametrize('success', [True, False])
 def test_execute_trade(mocker, fcf_autotrageur, dryrun, success):
-    fcf_autotrageur.config[DRYRUN] = dryrun
+    mocker.patch.dict(fcf_autotrageur.config, { DRYRUN: dryrun })
     fcf_autotrageur.trade_metadata = mocker.Mock()
     mocker.patch.object(arbseeker, 'execute_arbitrage', return_value=success)
     mocker.patch.object(fcf_autotrageur.trader1, 'fetch_wallet_balances')
@@ -376,12 +383,16 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
         no_patch_fcf_autotrageur, 'trader1', trader1, create=True)
     mocker.patch.object(
         no_patch_fcf_autotrageur, 'trader2', trader2, create=True)
-    no_patch_fcf_autotrageur.vol_min = vol_min
     no_patch_fcf_autotrageur.trader1.quote_bal = e1_quote_balance
     no_patch_fcf_autotrageur.trader2.quote_bal = e2_quote_balance
-    no_patch_fcf_autotrageur.has_started = has_started
-    no_patch_fcf_autotrageur.h_to_e1_max = h_to_e1_max
-    no_patch_fcf_autotrageur.h_to_e2_max = h_to_e2_max
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'vol_min', vol_min, create=True)
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'has_started', has_started, create=True)
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'h_to_e1_max', h_to_e1_max, create=True)
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'h_to_e2_max', h_to_e2_max, create=True)
     spread_opp = mocker.Mock()
     spread_opp.e1_spread = e1_spread
     spread_opp.e2_spread = e2_spread
@@ -513,12 +524,12 @@ def test_clean_up(fcf_autotrageur):
 def test_setup_markets(mocker, fcf_autotrageur):
     import builtins
     s = mocker.patch.object(builtins, 'super')
-    fcf_autotrageur.config = {
+    mocker.patch.dict(fcf_autotrageur.config, {
         SPREAD_MIN: 2,
         VOL_MIN: 1000,
         H_TO_E1_MAX: 3,
         H_TO_E2_MAX: 50
-    }
+    })
 
     fcf_autotrageur._setup_markets()
 
