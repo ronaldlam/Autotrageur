@@ -1,5 +1,8 @@
 import logging
+
 import ccxt
+
+from libs.utilities import num_to_decimal
 
 
 class CCXTFetcher():
@@ -30,10 +33,10 @@ class CCXTFetcher():
             NotImplementedError: If not accessible through ccxt.
 
         Returns:
-            float: The maker fee, given as a ratio.
+            Decimal: The maker fee, given as a ratio.
         """
         if self.exchange.fees["trading"]["maker"]:
-            return self.exchange.fees["trading"]["maker"]
+            return num_to_decimal(self.exchange.fees["trading"]["maker"])
         else:
             logging.error(
                 "Maker fees should be verified for %s" % self.exchange.id)
@@ -49,40 +52,28 @@ class CCXTFetcher():
             NotImplementedError: If not accessible through ccxt.
 
         Returns:
-            float: The taker fee, given as a ratio.
+            Decimal: The taker fee, given as a ratio.
         """
         if self.exchange.fees["trading"]["taker"]:
-            return self.exchange.fees["trading"]["taker"]
+            return num_to_decimal(self.exchange.fees["trading"]["taker"])
         else:
             logging.error(
                 "Taker fees should be verified for %s" % self.exchange.id)
             raise NotImplementedError("Manually verify fees please.")
 
-    def fetch_free_balance(self, asset):
-        """Fetch balance of the given asset in the account.
+    def fetch_free_balances(self, base, quote):
+        """Fetch balance of the base and quote assets in the account.
 
         Args:
-            asset (string): The balance of the given asset
+            base (string): The base asset ticker.
+            quote (string): The quote asset ticker.
 
         Returns:
-            float: The balances of the given asset.
+            (Decimal, Decimal): The balances of the base and quote asset.
         """
         balance = self.exchange.fetch_balance()
-        return balance[asset]["free"]
-
-    def fetch_last_price(self, base, quote):
-        """Fetches the last transacted price of the token pair.
-
-        Args:
-            base (str): The base currency of the token pair.
-            quote (str): The quote currency of the token pair.
-
-        Returns:
-            int: The last transacted price of the token pair.
-        """
-        pairsequence = (base, "/", quote)
-        ticker = self.exchange.fetch_ticker(''.join(pairsequence))
-        return str(ticker['last'])
+        return (num_to_decimal(balance[base]['free']),
+                num_to_decimal(balance[quote]['free']))
 
     def get_full_orderbook(self, base, quote):
         """Gets the full orderbook (bids and asks) from the exchange.

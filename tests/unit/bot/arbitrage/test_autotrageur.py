@@ -1,3 +1,5 @@
+import getpass
+
 import ccxt
 import pytest
 import schedule
@@ -8,7 +10,7 @@ from bot.arbitrage.autotrageur import (AuthenticationError, Autotrageur)
 from bot.common.config_constants import (DRYRUN, EXCHANGE1, EXCHANGE1_PAIR,
                                        EXCHANGE1_TEST, EXCHANGE2,
                                        EXCHANGE2_PAIR, EXCHANGE2_TEST,
-                                       SLIPPAGE, TARGET_AMOUNT)
+                                       SLIPPAGE)
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map
 
@@ -55,6 +57,7 @@ def test_load_config_file(mocker, autotrageur):
 )
 def test_load_keyfile(mocker, autotrageur, succeed, dryrun):
     args = mocker.MagicMock()
+    mocker.patch('getpass.getpass')
     mocker.patch.dict(autotrageur.config, { DRYRUN: dryrun })
 
     if succeed:
@@ -119,7 +122,6 @@ def test_setup_markets(
         mocker, autotrageur, ex1_test, ex2_test, client_quote_usd,
         balance_check, dryrun):
     fake_slippage = 0.25
-    fake_target_amount = 12345
     fake_pair = 'fake/pair'
     placeholder = 'fake'
     trader = mocker.patch('bot.arbitrage.autotrageur.CCXTTrader')
@@ -132,7 +134,6 @@ def test_setup_markets(
         EXCHANGE1: placeholder,
         EXCHANGE2: placeholder,
         SLIPPAGE: fake_slippage,
-        TARGET_AMOUNT: fake_target_amount,
         EXCHANGE1_TEST: ex1_test,
         EXCHANGE2_TEST: ex2_test,
         DRYRUN: dryrun
@@ -144,7 +145,7 @@ def test_setup_markets(
         # Set a fiat quote pair that is not USD to trigger conversion calls.
         instance.quote = 'KRW'
     if not balance_check:
-        instance.check_wallet_balances.side_effect = ccxt.AuthenticationError()
+        instance.fetch_wallet_balances.side_effect = ccxt.AuthenticationError()
 
     mocker.patch.dict(autotrageur.config, configuration)
     mocker.spy(schedule, 'every')
@@ -164,16 +165,16 @@ def test_setup_markets(
         # `conversion_needed` not set in the patched trader instance.
         assert(schedule.every.call_count == 0)          # pylint: disable=E1101
         assert len(schedule.jobs) == 0
-        assert(instance.set_conversion.call_count == 0)
+        assert(instance.set_forex_ratio.call_count == 0)
     else:
         assert instance.conversion_needed is True
         assert(schedule.every.call_count == 2)          # pylint: disable=E1101
         assert len(schedule.jobs) == 2
-        assert(instance.set_conversion.call_count == 2)
-
-    if balance_check:
-        assert(instance.check_wallet_balances.call_count == 2)
-    else:
-        assert(dryrun)
+        assert(instance.set_forex_ratio.call_count == 2)
 
     schedule.clear()
+
+    if balance_check:
+        assert(instance.fetch_wallet_balances.call_count == 2)
+    else:
+        assert(dryrun)

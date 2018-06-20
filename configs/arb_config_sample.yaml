@@ -11,22 +11,23 @@ spread_tolerance: # The +/- of the spread in which to send an e-mail notificatio
 # For example, 0.5 would mean for a previous spread of 2.5%, a next spread of > 3.0% or < 2.0% would
 # send an email.
 
-# Percentage downside of limit order slippage tolerable for market order emulations
-slippage: # Important for Gemini, eg. 3
-
-# Exchange 1
+# Exchange 1 - This is the exchange to be used as the default denominator.
 exchange1: # Name of first exchange, eg. binance
 exchange1_pair: # Name of target pair, eg. ETH/USDT
 exchange1_test: # Whether to connect to test API, eg. true
 
-# Exchange 2
+# Exchange 2 - This is the exchange to be used as the default numerator.
 exchange2: # Name of second exchange, eg. bithumb
 exchange2_pair: # Name of target pair, eg. ETH/KRW
 exchange2_test: # Whether to connect to test API, eg. false
 
-# Targeted spreads
-spread_target_low: # Target low spread after which money goes from exchange2 -> exchange1, eg. 2
-spread_target_high: # Target high spread after which money goes from exchange1 -> exchange2, eg. 10
-
-# Targeted trade amount in USD
-target_amount: # eg. 50000
+# Historical max spread to exchange 1.
+h_to_e1_max:
+# Historical max spread to exchange 2.
+h_to_e2_max:
+# The minimum spread increment for considering trade targets.
+spread_min:
+# The minimum volume trade in USD.
+vol_min:
+# Percentage downside of limit order slippage tolerable for market order emulations
+slippage: # Important for Gemini, eg. 3

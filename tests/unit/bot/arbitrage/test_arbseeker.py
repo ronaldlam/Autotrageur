@@ -1,9 +1,8 @@
+from ccxt import NetworkError
 import pytest
 
-from bot.arbitrage.arbseeker import get_arb_opportunities_by_orderbook
-from bot.arbitrage.arbseeker import execute_arbitrage
+from bot.arbitrage.arbseeker import get_spreads_by_ob, execute_arbitrage, SpreadOpportunity
 import bot.arbitrage.spreadcalculator as spreadcalculator
-from bot.common.enums import SpreadOpportunity
 from bot.trader.ccxt_trader import CCXTTrader, OrderbookException
 
 
@@ -16,181 +15,125 @@ SPREAD_OPP_TYPE = "spread_opp_type"
 MARKETBUY_EXCHANGE = "marketbuy_exchange"
 MARKETSELL_EXCHANGE = "marketsell_exchange"
 
+FAKE_EXECUTED_AMOUNT = 999
 TEST_SPREAD = 5
+TEST_BUY_PRICE = 10
+TEST_SELL_PRICE = 5
 
 
 @pytest.fixture(scope='module')
-def trader1():
-    return CCXTTrader('ETH', 'USD', 'Gemini', 1, 5000)
+def buy_trader():
+    return CCXTTrader('ETH', 'USD', 'Gemini', 1)
 
 
 @pytest.fixture(scope='module')
-def trader2():
-    return CCXTTrader('ETH', 'KRW', 'Bithumb', 1, 5000000)
+def sell_trader():
+    return CCXTTrader('ETH', 'KRW', 'Bithumb', 1)
 
 
 @pytest.mark.parametrize(
-    "spread_low, spread_high, has_bad_orderbook", [
-        (0, 4, False),
-        (5, 10, False),
-        (2, 2, False),
-        (6, 6, False),
-        (2, 7, False),
-        (0, 4, True),
-        (5, 10, True),
-        (2, 2, True),
-        (6, 6, True),
-        (2, 7, True),
-        (None, 4, False), # Still triggers correctly, first calculated
-        pytest.param(None, 6, False,
-            marks=pytest.mark.xfail(strict=True, raises=TypeError)),
-        pytest.param(4, None, False,
-            marks=pytest.mark.xfail(strict=True, raises=TypeError)),
-        pytest.param(6, None, False,
-            marks=pytest.mark.xfail(strict=True, raises=TypeError)),
+    "has_bad_orderbook", [
+        True, False
     ]
 )
-def test_get_opportunities(
-        mocker, trader1, trader2, spread_low, spread_high, has_bad_orderbook):
+def test_get_spreads_by_ob(
+        mocker, buy_trader, sell_trader, has_bad_orderbook):
     if has_bad_orderbook:
         mocker.patch.object(
-            trader1,
+            buy_trader,
             'get_adjusted_market_price_from_orderbook',
             side_effect=OrderbookException)
         mocker.patch.object(
-            trader2,
+            sell_trader,
             'get_adjusted_market_price_from_orderbook',
             side_effect=OrderbookException)
     else:
         mocker.patch.object(
-            trader1,
+            buy_trader,
             'get_adjusted_market_price_from_orderbook')
         mocker.patch.object(
-            trader2,
+            sell_trader,
             'get_adjusted_market_price_from_orderbook')
 
-    mocker.patch.object(trader1, 'get_full_orderbook')
-    mocker.patch.object(trader1, 'exchange_name')
-    mocker.patch.object(trader1, 'quote_target_amount')
-    mocker.patch.object(trader1, 'base')
+    mocker.patch.object(buy_trader, 'get_full_orderbook')
+    mocker.patch.object(buy_trader, 'exchange_name')
+    mocker.patch.object(buy_trader, 'quote_target_amount')
+    mocker.patch.object(buy_trader, 'base')
 
-    mocker.patch.object(trader2, 'get_full_orderbook')
-    mocker.patch.object(trader2, 'exchange_name')
-    mocker.patch.object(trader2, 'quote_target_amount')
-    mocker.patch.object(trader2, 'base')
+    mocker.patch.object(sell_trader, 'get_full_orderbook')
+    mocker.patch.object(sell_trader, 'exchange_name')
+    mocker.patch.object(sell_trader, 'quote_target_amount')
+    mocker.patch.object(sell_trader, 'base')
 
-    mocker.patch.object(spreadcalculator, 'calc_spread')
-    spreadcalculator.calc_spread.return_value = TEST_SPREAD
+    mocker.patch.object(spreadcalculator, 'calc_fixed_spread')
+    spreadcalculator.calc_fixed_spread.return_value = TEST_SPREAD
 
-    result = get_arb_opportunities_by_orderbook(
-        trader1, trader2, spread_low, spread_high)
+    result = get_spreads_by_ob(buy_trader, sell_trader)
 
-    trader1.get_full_orderbook.assert_called_once()
-    trader2.get_full_orderbook.assert_called_once()
-    assert(trader1.get_adjusted_market_price_from_orderbook.call_count == 2)
-    assert(trader2.get_adjusted_market_price_from_orderbook.call_count == 2)
-
-    if (TEST_SPREAD >= spread_high):
-        target_spread = spread_high
-        spread_opp_type = SpreadOpportunity.HIGH
-    elif (TEST_SPREAD <= spread_low):
-        target_spread = spread_low
-        spread_opp_type = SpreadOpportunity.LOW
-    else:
-        assert(result == None)
-        return
-
-    assert(result[TARGET_SPREAD] == target_spread)
-    assert(result[SPREAD_OPP_TYPE] == spread_opp_type)
-    assert(result[SPREAD] == 5)
+    buy_trader.get_full_orderbook.assert_called_once()
+    sell_trader.get_full_orderbook.assert_called_once()
+    assert(buy_trader.get_adjusted_market_price_from_orderbook.call_count == 2)
+    assert(sell_trader.get_adjusted_market_price_from_orderbook.call_count == 2)
+    assert isinstance(result, SpreadOpportunity)
 
 
-@pytest.mark.parametrize(
-    "target_spread, spread_opp_type, spread", [
-        (5, SpreadOpportunity.HIGH, 6),
-        (5, SpreadOpportunity.LOW, 4)
-    ]
-)
-def test_execute_arbitrage(
-        mocker, trader1, trader2, target_spread, spread_opp_type, spread):
-    mocker.patch.object(trader1, 'get_full_orderbook')
-    mocker.patch.object(trader1, 'get_adjusted_market_price_from_orderbook')
-    mocker.patch.object(trader1, 'execute_market_buy')
-    trader1.execute_market_buy.return_value = {
-        "info": {
-            "executed_amount": TEST_SPREAD
+class TestExecuteArbitrage:
+    trade_metadata = None
+
+    def __setup_trade_data(self, buy_trader, sell_trader):
+        buy_trader.execute_market_buy.return_value = {
+            "info": {
+                "executed_amount": FAKE_EXECUTED_AMOUNT
+            }
         }
-    }
 
-    mocker.patch.object(trader2, 'get_full_orderbook')
-    mocker.patch.object(trader2, 'get_adjusted_market_price_from_orderbook')
-    mocker.patch.object(trader2, 'execute_market_sell')
+        if not self.trade_metadata:
+            self.trade_metadata = {
+                'buy_price': TEST_BUY_PRICE,
+                'sell_price': TEST_SELL_PRICE,
+                'buy_trader': buy_trader,
+                'sell_trader': sell_trader
+            }
 
-    mocker.patch.object(spreadcalculator, 'calc_spread')
-    spreadcalculator.calc_spread.return_value = spread
+    def test_execute_arbitrage(self, mocker, buy_trader, sell_trader):
+        # buy_trader should be the buyer, sell_trader should be the seller.
+        mocker.patch.object(buy_trader, 'execute_market_buy')
+        mocker.patch.object(buy_trader, 'execute_market_sell')
+        mocker.patch.object(sell_trader, 'execute_market_sell')
+        mocker.patch.object(sell_trader, 'execute_market_buy')
 
-    opportunity = {
-        TARGET_SPREAD: target_spread,
-        SPREAD_OPP_TYPE: spread_opp_type,
-        SPREAD: spread,
-        MARKETBUY_EXCHANGE: trader1,
-        MARKETSELL_EXCHANGE: trader2
-    }
+        self.__setup_trade_data(buy_trader, sell_trader)
 
-    assert(execute_arbitrage(opportunity))
+        assert(execute_arbitrage(self.trade_metadata))
 
-    trader1.get_full_orderbook.assert_called_once()
-    trader1.get_adjusted_market_price_from_orderbook.assert_called_once()
-    trader1.execute_market_buy.assert_called_once()
+        buy_trader.execute_market_buy.assert_called_once()
+        buy_trader.execute_market_buy.assert_called_with(self.trade_metadata['buy_price'])
+        assert buy_trader.execute_market_sell.call_count == 0
 
-    trader2.get_full_orderbook.assert_called_once()
-    trader2.get_adjusted_market_price_from_orderbook.assert_called_once()
-    trader2.execute_market_sell.assert_called_once()
+        sell_trader.execute_market_sell.assert_called_once()
+        sell_trader.execute_market_sell.assert_called_with(self.trade_metadata['sell_price'],
+                buy_trader.execute_market_buy.return_value['info']['executed_amount'])
+        assert sell_trader.execute_market_buy.call_count == 0
 
+    @pytest.mark.parametrize(
+        "buy_network_err", [
+            True, False
+        ]
+    )
+    def test_execute_arbitrage_networkerror(self, mocker, buy_trader, sell_trader, buy_network_err):
+        if buy_network_err:
+            mocker.patch.object(buy_trader, 'execute_market_buy',
+                                side_effect=NetworkError)
+        else:
+            mocker.patch.object(buy_trader, 'execute_market_buy')
+            mocker.patch.object(sell_trader, 'execute_market_sell',
+                                side_effect=NetworkError)
 
-@pytest.mark.parametrize(
-    "target_spread, spread_opp_type, spread", [
-        (5, SpreadOpportunity.HIGH, 6),
-        (3, SpreadOpportunity.LOW, 2)
-    ]
-)
-def test_abort_arbitrage(
-        mocker, trader1, trader2, target_spread, spread_opp_type, spread):
-    mocker.patch.object(trader1, 'get_full_orderbook')
-    mocker.patch.object(trader1, 'get_adjusted_market_price_from_orderbook')
-    mocker.patch.object(trader1, 'execute_market_buy')
-    trader1.execute_market_buy.return_value = {
-        "info": {
-            "executed_amount": TEST_SPREAD
-        }
-    }
+        self.__setup_trade_data(buy_trader, sell_trader)
 
-    mocker.patch.object(trader2, 'get_full_orderbook')
-    mocker.patch.object(trader2, 'get_adjusted_market_price_from_orderbook')
-    mocker.patch.object(trader2, 'execute_market_sell')
+        result = execute_arbitrage(self.trade_metadata)
+        assert result is False
 
-    mocker.patch.object(spreadcalculator, 'calc_spread')
-    spreadcalculator.calc_spread.return_value = 4
-
-    opportunity = {
-        TARGET_SPREAD: target_spread,
-        SPREAD_OPP_TYPE: spread_opp_type,
-        SPREAD: spread,
-        MARKETBUY_EXCHANGE: trader1,
-        MARKETSELL_EXCHANGE: trader2
-    }
-
-    assert not (execute_arbitrage(opportunity))
-
-    trader1.get_full_orderbook.assert_called_once()
-    trader1.get_adjusted_market_price_from_orderbook.assert_called_once()
-    assert(trader1.execute_market_buy.call_count == 0)
-
-    trader2.get_full_orderbook.assert_called_once()
-    trader2.get_adjusted_market_price_from_orderbook.assert_called_once()
-    assert(trader2.execute_market_sell.call_count == 0)
-
-
-def test_dead_opportunity():
-    with pytest.raises(TypeError):
-        execute_arbitrage(None)
+    def test_dead_opportunity(self):
+        with pytest.raises(TypeError):
+            execute_arbitrage(None)

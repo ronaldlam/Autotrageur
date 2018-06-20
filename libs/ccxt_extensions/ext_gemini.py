@@ -24,6 +24,10 @@ class ext_gemini(ccxt.gemini):
         map. Thus this simply extends the description of the default
         ccxt.gemini() object.
 
+        NOTE: The taker/maker fees will have to be updated every time a gemini
+        account has changed trading fee schedules (tiers).  See
+        https://gemini.com/trading-fee-schedule/#maker-vs-taker
+
         Returns:
             dict: The description of the exchange.
         """
@@ -33,6 +37,8 @@ class ext_gemini(ccxt.gemini):
             },
             'fees': {
                 'trading': {
+                    'tierBased': True,
+                    'percentage': True,
                     'taker': 0.01,
                     'maker': 0.01,
                 },

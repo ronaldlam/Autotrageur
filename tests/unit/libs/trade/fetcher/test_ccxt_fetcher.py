@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import ccxt
 import pytest
 
@@ -8,10 +10,10 @@ xfail = pytest.mark.xfail
 
 
 # Test constants.
-MAKER_FEE = 0.25
-TAKER_FEE = 0.10
-BTC_FREE_BALANCE = 1.50
-USD_FREE_BALANCE = 123.00
+MAKER_FEE = Decimal('0.25')
+TAKER_FEE = Decimal('0.10')
+BTC_FREE_BALANCE = Decimal('1.50')
+USD_FREE_BALANCE = Decimal('123.00')
 BTC_LAST = 120.00
 
 
@@ -110,7 +112,7 @@ def test_init(exchange):
 def test_fetch_maker_fees(mocker, ccxtfetcher_binance, fee_structure_key, maker_fee):
     mocker.patch.object(ccxtfetcher_binance.exchange, 'fees', fee_structures[fee_structure_key])
     maker_fees = ccxtfetcher_binance.fetch_maker_fees()
-    assert type(maker_fees) is float
+    assert type(maker_fees) is Decimal
     assert maker_fees == MAKER_FEE
 
 
@@ -125,36 +127,24 @@ def test_fetch_maker_fees(mocker, ccxtfetcher_binance, fee_structure_key, maker_
 def test_fetch_taker_fees(mocker, ccxtfetcher_binance, fee_structure_key, taker_fee):
     mocker.patch.object(ccxtfetcher_binance.exchange, 'fees', fee_structures[fee_structure_key])
     taker_fees = ccxtfetcher_binance.fetch_taker_fees()
-    assert type(taker_fees) is float
+    assert type(taker_fees) is Decimal
     assert taker_fees == TAKER_FEE
 
 
-@pytest.mark.parametrize('asset, balance_structure_key, asset_free_balance', [
-    pytest.param('BTC', 'none', BTC_FREE_BALANCE, marks=xfail(raises=TypeError, reason="NoneType object is not subscriptable", strict=True)),
-    pytest.param('BTC', 'empty', BTC_FREE_BALANCE, marks=xfail(raises=KeyError, reason="No keys in empty dict", strict=True)),
-    pytest.param('BTC', 'no_free', BTC_FREE_BALANCE, marks=xfail(raises=KeyError, reason="No free key", strict=True)),
-    ('BTC', 'full', BTC_FREE_BALANCE),
-    ('USD', 'full', USD_FREE_BALANCE)
+@pytest.mark.parametrize('base, quote, balance_structure_key, base_free_balance, quote_free_balance', [
+    pytest.param('BTC', 'USD', 'none', BTC_FREE_BALANCE, USD_FREE_BALANCE, marks=xfail(raises=TypeError, reason="NoneType object is not subscriptable", strict=True)),
+    pytest.param('BTC', 'USD', 'empty', BTC_FREE_BALANCE, USD_FREE_BALANCE, marks=xfail(raises=KeyError, reason="No keys in empty dict", strict=True)),
+    pytest.param('BTC', 'USD', 'no_free', BTC_FREE_BALANCE, USD_FREE_BALANCE, marks=xfail(raises=KeyError, reason="No free key", strict=True)),
+    ('BTC', 'USD', 'full', BTC_FREE_BALANCE, USD_FREE_BALANCE)
 ])
-def test_fetch_free_balance(mocker, asset, balance_structure_key, asset_free_balance, ccxtfetcher_binance):
+def test_fetch_free_balances(mocker, base, quote, balance_structure_key,
+                             base_free_balance, quote_free_balance, ccxtfetcher_binance):
     mocker.patch.object(ccxtfetcher_binance.exchange, 'fetch_balance', return_value=balance_structures[balance_structure_key])
-    free_balance = ccxtfetcher_binance.fetch_free_balance(asset)
+    (btc_balance, usd_balance) = ccxtfetcher_binance.fetch_free_balances(base, quote)
     ccxtfetcher_binance.exchange.fetch_balance.assert_called_once_with()
-    assert type(free_balance) is float
-    assert free_balance == asset_free_balance
-
-
-@pytest.mark.parametrize('base, quote, last_key, asset_last_price', [
-    pytest.param('BTC', 'USD', 'none', BTC_LAST, marks=xfail(raises=TypeError, reason="NoneType object is not subscriptable", strict=True)),
-    pytest.param('BTC', 'USD', 'empty', BTC_LAST, marks=xfail(raises=KeyError, reason="No keys in empty dict", strict=True)),
-    pytest.param('BTC', 'USD', 'no_last', BTC_LAST, marks=xfail(raises=KeyError, reason="No last key", strict=True)),
-    ('BTC', 'USD', 'full', BTC_LAST)
-])
-def test_fetch_last_price(mocker, ccxtfetcher_binance, base, quote, last_key, asset_last_price):
-    mocker.patch.object(ccxtfetcher_binance.exchange, 'fetch_ticker', return_value=last_structures[last_key])
-    last_price = ccxtfetcher_binance.fetch_last_price(base, quote)
-    assert type(last_price) is str
-    assert last_price == str(asset_last_price)
+    assert type(btc_balance) is Decimal
+    assert type(usd_balance) is Decimal
+    assert (btc_balance, usd_balance) == (base_free_balance, quote_free_balance)
 
 
 @pytest.mark.parametrize('base, quote', [

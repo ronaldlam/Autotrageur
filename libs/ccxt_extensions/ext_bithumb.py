@@ -7,6 +7,29 @@ class ext_bithumb(ccxt.bithumb):
     the exchange classes.
     """
 
+    def describe(self):
+        """Return bithumb exchange object with corrected info.
+
+        The describe() call returns a map of attributes that the
+        exchange object contains. The deep_extend() call is defined in
+        exchange.py and lets you combine additional details into a given
+        map. Thus this simply extends the description of the default
+        ccxt.bithumb() object.
+
+        Returns:
+            dict: The description of the exchange.
+        """
+        return self.deep_extend(super().describe(), {
+            'fees': {
+                'trading': {
+                    'tierBased': True,
+                    'percentage': True,
+                    'taker': 0.0015,    # Without coupon.
+                    'maker': 0.0015,
+                },
+            },
+        })
+
     def fetch_markets(self):
         """Retrieve data for the markets of the exchange.
 
