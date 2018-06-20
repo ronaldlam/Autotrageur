@@ -12,13 +12,13 @@ BIDS = "bids"
 ASKS = "asks"
 
 
-class AbortTradeException(Exception):
-    """Exception signifying a trade abort."""
-    pass
-
-
 class SpreadOpportunity():
+    """Structure containing spread and price info for an arbitrage
+    opportunity.
+    """
+
     def __init__(self, e1_spread, e2_spread, e1_buy, e2_buy, e1_sell, e2_sell):
+        """Constructor."""
         self.e1_spread = e1_spread
         self.e2_spread = e2_spread
         self.e1_buy = e1_buy

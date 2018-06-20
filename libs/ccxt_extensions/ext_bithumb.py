@@ -24,7 +24,7 @@ class ext_bithumb(ccxt.bithumb):
                 'trading': {
                     'tierBased': True,
                     'percentage': True,
-                    'taker': 0.0015,    # With coupon.
+                    'taker': 0.0015,    # Without coupon.
                     'maker': 0.0015,
                 },
             },

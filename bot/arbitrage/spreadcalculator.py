@@ -28,7 +28,8 @@ def __is_invalid_price(exc2_num_price, exc1_denom_price):
         return True
     elif exc2_num_price <= ZERO or exc1_denom_price <= ZERO:
         logging.warning(
-            "Negative input: (exc2_num_price, exc1_denom_price) = (%s, %s)" %
+            "Zero or negative input: "
+            "(exc2_num_price, exc1_denom_price) = (%s, %s)" %
                 (exc2_num_price, exc1_denom_price))
         return True
     else:
@@ -49,13 +50,13 @@ def calc_fixed_spread(buy_price, sell_price, buy_fee, sell_fee):
         - f1 is the sell exchange's fee (sell_fee)
 
     Args:
-        buy_price (Decimal): The price from exchange 2, to be used as
+        buy_price (Decimal): The price from the buy exchange, to be used as
             the numerator for spread opportunities.
-        sell_price (Decimal): The price from exchange 1, to be used as
+        sell_price (Decimal): The price from the sell exchange, to be used as
             the denominator for spread opportunities.
-        buy_fee (Decimal): The trading fee from the second exchange.  Expected
+        buy_fee (Decimal): The trading fee from the buy exchange.  Expected
             as a percentage in ratio form (e.g. 0.01 for 1%).
-        sell_fee (Decimal): The trading fee from the first exchange.  Expected
+        sell_fee (Decimal): The trading fee from the sell exchange.  Expected
             as a percentage in ratio form (e.g. 0.01 for 1%).
 
     Returns:
