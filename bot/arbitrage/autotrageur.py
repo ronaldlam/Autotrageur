@@ -115,8 +115,8 @@ class Autotrageur(ABC):
             self.exchange2_configs['secret'] = (
                 exchange_key_map[self.config[EXCHANGE2]][API_SECRET])
 
-    def _setup_markets(self):
-        """Set up the market objects for the algorithm to use.
+    def _setup(self):
+        """Sets up the algorithm to use.
 
         Raises:
             AuthenticationError: If not dryrun and authentication fails.
@@ -212,7 +212,7 @@ class Autotrageur(ABC):
         """
         self.has_started = False
         self._load_configs(arguments)
-        self._setup_markets()
+        self._setup()
 
         while True:
             schedule.run_pending()

@@ -129,7 +129,7 @@ class ext_gemini(ccxt.gemini):
             'ZEC/USD': {
                 'amount': {
                     'min': 0.001,
-                    'max': None,
+                    'max': None,''
                 },
                 'price': {
                     'min': None,
@@ -183,7 +183,6 @@ class ext_gemini(ccxt.gemini):
         # Calculated volume of asset expected to be purchased.
         asset_volume = quote_amount / asset_price
         # Maximum price we are willing to pay.
-        # TODO: Implement failsafes for unreasonable slippage.
         ratio = (HUNDRED + slippage) / HUNDRED
         limit_price = asset_price * ratio
         a_precision = self.markets[symbol]['precision']['amount']
