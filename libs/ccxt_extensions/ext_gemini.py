@@ -130,7 +130,7 @@ class ext_gemini(ccxt.gemini):
             'ZEC/USD': {
                 'amount': {
                     'min': 0.001,
-                    'max': None,''
+                    'max': None,
                 },
                 'price': {
                     'min': None,
