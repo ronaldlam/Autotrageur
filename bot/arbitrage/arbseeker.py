@@ -1,7 +1,6 @@
 import logging
 
 from ccxt import NetworkError
-from googletrans import Translator
 
 import bot.arbitrage.spreadcalculator as spreadcalculator
 from bot.trader.ccxt_trader import OrderbookException
@@ -100,43 +99,33 @@ def get_spreads_by_ob(trader1, trader2):
         e2_sell)
 
 
-def execute_arbitrage(trade_metadata):
-    """Execute the arbitrage trade.
-
-    The CCXTTraders store information about the ticker, target, and
-    exchange details. We verify that the numbers are correct once more
-    before execution.
+def execute_buy(trader, price):
+    """Execute buy trade for arbitrage opportunity.
 
     Args:
-        trade_metadata (dict): Metadata relevant to executing the current trade
-            opportunity
+        trader (CCXTTrader): The trader for the buy exchange.
+        price (Decimal): The buy price for emulated market orders.
 
     Returns:
-        bool: True if succeeded
+        Decimal: The base asset amount purchased.
     """
-    buy_trader = trade_metadata['buy_trader']
-    sell_trader = trade_metadata['sell_trader']
-    buy_price = trade_metadata['buy_price']
-    sell_price = trade_metadata['sell_price']
+    logging.info("Buy price: %s" % (price))
+    buy_result = trader.execute_market_buy(price)
+    logging.info("Buy result: %s" % buy_result)
+    # TODO: 'executed_amount' is not unified per all exchanges.  See #90.
+    return num_to_decimal(buy_result["info"]["executed_amount"])
 
-    try:
-        logging.info("Buy price: %s, Sell price %s" % (buy_price, sell_price))
-        buy_result = buy_trader.execute_market_buy(buy_price)
-        logging.info("Buy result: %s" % buy_result)
-        executed_buy_amount = buy_result["info"]["executed_amount"]
 
-        # TODO: What happens if buy succeeds and sell fails?
-        sell_result = sell_trader.execute_market_sell(
-            sell_price,
-            num_to_decimal(executed_buy_amount))
-        logging.info("Sell result: %s" % sell_result)
-        return True
-    except NetworkError as network_err:
-        logging.error(network_err, exc_info=True)
-        return False
-    except Exception as exception:
-        t = Translator()
-        decoded = exception.args[0].encode('utf-8').decode('unicode_escape')
-        translation = t.translate(decoded)
-        logging.error(translation.text)
-        return False
+def execute_sell(trader, price, executed_amount):
+    """Execute sell trade for arbitrage opportunity.
+
+    Args:
+        trader (CCXTTrader): The trader for the sell exchange.
+        price (Decimal): The sell price for emulated market orders.
+        executed_amount (Decimal): The base asset amount which was purchased.
+    """
+    sell_result = trader.execute_market_sell(
+        price,
+        executed_amount)
+    logging.info("Sell result: %s" % sell_result)
+    # TODO: Verify contents of sell_result.

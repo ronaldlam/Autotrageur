@@ -234,8 +234,7 @@ class CCXTTrader():
 
         Note that quote balances are in USD.
 
-        TODO: Should implement some fail-fast mechanism here, if wallet
-            balances do not meet a minimum.
+        TODO: Should send an alert here, if wallet balances are 0 for both.
         """
         self.base_bal, self.quote_bal = self.fetcher.fetch_free_balances(
             self.base, self.quote)

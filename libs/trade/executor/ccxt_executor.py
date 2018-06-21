@@ -26,7 +26,6 @@ class CCXTExecutor(BaseExecutor):
             quote_amount,
             asset_price,
             slippage)
-        # TODO: Error handling scenarios in accordance with ccxt
 
     def create_emulated_market_sell_order(self, symbol, asset_price,
                                           asset_amount, slippage):
@@ -47,7 +46,6 @@ class CCXTExecutor(BaseExecutor):
             asset_price,
             asset_amount,
             slippage)
-        # TODO: Error handling scenarios in accordance with ccxt
 
     def create_market_buy_order(self, symbol, asset_amount, asset_price):
         """Creates a market buy order.
@@ -61,7 +59,6 @@ class CCXTExecutor(BaseExecutor):
             dict: The order result from the ccxt exchange.
         """
         return self.exchange.create_market_buy_order(symbol, asset_amount)
-        # TODO: Error handling scenarios in accordance with ccxt
 
     def create_market_sell_order(self, symbol, asset_amount, asset_price):
         """Creates a market sell order.
@@ -75,4 +72,3 @@ class CCXTExecutor(BaseExecutor):
             dict: The order result from the ccxt exchange.
         """
         return self.exchange.create_market_sell_order(symbol, asset_amount)
-        # TODO: Error handling scenarios in accordance with ccxt

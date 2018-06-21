@@ -12,7 +12,7 @@ from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map, to_bytes, to_str, num_to_decimal
 from bot.common.config_constants import (DRYRUN, SLIPPAGE, EXCHANGE1,
     EXCHANGE2, EXCHANGE1_PAIR, EXCHANGE2_PAIR, EXCHANGE1_TEST, EXCHANGE2_TEST)
-from bot.common.ccxt_exchange_constants import API_KEY, API_SECRET
+from bot.common.ccxt_constants import API_KEY, API_SECRET
 from bot.trader.ccxt_trader import CCXTTrader
 
 
@@ -115,8 +115,8 @@ class Autotrageur(ABC):
             self.exchange2_configs['secret'] = (
                 exchange_key_map[self.config[EXCHANGE2]][API_SECRET])
 
-    def _setup_markets(self):
-        """Set up the market objects for the algorithm to use.
+    def _setup(self):
+        """Sets up the algorithm to use.
 
         Raises:
             AuthenticationError: If not dryrun and authentication fails.
@@ -212,7 +212,7 @@ class Autotrageur(ABC):
         """
         self.has_started = False
         self._load_configs(arguments)
-        self._setup_markets()
+        self._setup()
 
         while True:
             schedule.run_pending()

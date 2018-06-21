@@ -14,7 +14,7 @@ class ext_gemini(ccxt.gemini):
     The name ext_gemini is to keep similar convention when initializing
     the exchange classes.
     """
-
+    # @Override
     def describe(self):
         """Return gemini exchange object with corrected info.
 
@@ -45,6 +45,7 @@ class ext_gemini(ccxt.gemini):
             },
         })
 
+    # @Override
     def fetch_markets(self):
         """Retrieve data for the markets of the exchange.
 
@@ -166,6 +167,7 @@ class ext_gemini(ccxt.gemini):
 
         return markets
 
+    # @Override
     def prepare_emulated_market_buy_order(
             self, symbol, quote_amount, asset_price, slippage):
         """Calculate data required for the ccxt market buy order.
@@ -183,7 +185,6 @@ class ext_gemini(ccxt.gemini):
         # Calculated volume of asset expected to be purchased.
         asset_volume = quote_amount / asset_price
         # Maximum price we are willing to pay.
-        # TODO: Implement failsafes for unreasonable slippage.
         ratio = (HUNDRED + slippage) / HUNDRED
         limit_price = asset_price * ratio
         a_precision = self.markets[symbol]['precision']['amount']
@@ -200,6 +201,7 @@ class ext_gemini(ccxt.gemini):
 
         return (asset_volume, limit_price)
 
+    # @Override
     def create_emulated_market_buy_order(
             self, symbol, quote_amount, asset_price, slippage):
         """Create an emulated market buy order with maximum slippage.
@@ -233,6 +235,7 @@ class ext_gemini(ccxt.gemini):
             {"options": ["immediate-or-cancel"]})
         return result
 
+    # @Override
     def prepare_emulated_market_sell_order(
             self, symbol, asset_price, asset_amount, slippage):
         """Calculate data required for the ccxt market sell order.
@@ -262,6 +265,7 @@ class ext_gemini(ccxt.gemini):
 
         return (rounded_amount, rounded_limit_price)
 
+    # @Override
     def create_emulated_market_sell_order(
             self, symbol, asset_price, asset_amount, slippage):
         """Create an emulated market sell order with maximum slippage.

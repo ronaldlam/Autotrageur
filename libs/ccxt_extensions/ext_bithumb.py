@@ -1,4 +1,11 @@
+import logging
+import sys
+
 import ccxt
+from googletrans import Translator
+
+from bot.common.ccxt_constants import UNIFIED_FUNCTION_NAMES
+
 
 class ext_bithumb(ccxt.bithumb):
     """Subclass of ccxt's bithumb.py for internal use.
@@ -6,7 +13,51 @@ class ext_bithumb(ccxt.bithumb):
     The name ext_bithumb is to keep similar convention when initializing
     the exchange classes.
     """
+    def __init__(self, *args, **kwargs):
+        """Constructor.
 
+        Initializes the ccxt exchange, and decorates relevant unified functions
+        for ccxt.bithumb to translate error messages.
+        """
+        super().__init__(*args, **kwargs)
+        for func_name in UNIFIED_FUNCTION_NAMES:
+            if func_name in dir(self):
+                ccxt_func = getattr(self, func_name)
+                setattr(self, func_name, ext_bithumb.decorate(ccxt_func))
+
+    @staticmethod
+    def decorate(func):
+        """Decorator for unified ccxt functions.
+
+        Args:
+            func (function): The unified ccxt function to decorate.
+
+        Returns:
+            function: The wrapped ccxt function with a translated error
+                message.
+        """
+        def wrapped_unified_func(*args, **kwargs):
+            """Wraps a unified ccxt function.
+
+            Returns:
+                object: The return value of func.  Can be of arbitrary type or
+                    None.
+            """
+            try:
+                ret = func(*args, **kwargs)
+            except Exception as exc:
+                t = Translator()
+                decoded = exc.args[0].encode('utf-8').decode('unicode_escape')
+                translation = t.translate(decoded)
+                raise type(exc)(translation.text).with_traceback(
+                    sys.exc_info()[2])
+            else:
+                if ret:
+                    return ret
+
+        return wrapped_unified_func
+
+    # @Override
     def describe(self):
         """Return bithumb exchange object with corrected info.
 
@@ -30,6 +81,7 @@ class ext_bithumb(ccxt.bithumb):
             },
         })
 
+    # @Override
     def fetch_markets(self):
         """Retrieve data for the markets of the exchange.
 

@@ -27,6 +27,55 @@ EMAIL_LOW_SPREAD_HEADER = "Subject: Arb Backward-Spread Alert!\nThe spread of "
 EMAIL_NONE_SPREAD = "No arb opportunity found."
 
 
+class FCFCheckpoint():
+    """Contains the current algorithm state.
+
+    Encapsulates values pertaining to the algorithm.  Useful for rollback
+    situations.
+    """
+    def __init__(self):
+        """Constructor."""
+        self.has_started = False
+        self.momentum = None
+        self.e1_targets = None
+        self.e2_targets = None
+        self.target_index = None
+        self.last_target_index = None
+        self.h_to_e1_max = None
+        self.h_to_e2_max = None
+
+    def save(self, autotrageur):
+        """Saves the current autotrageur state before another algorithm
+        iteration.
+
+        Args:
+            autotrageur (FCFAutotrageur): The current FCFAutotrageur.
+        """
+        self.has_started = autotrageur.has_started
+        self.momentum = autotrageur.momentum
+        self.e1_targets = autotrageur.e1_targets
+        self.e2_targets = autotrageur.e2_targets
+        self.target_index = autotrageur.target_index
+        self.last_target_index = autotrageur.last_target_index
+        self.h_to_e1_max = autotrageur.h_to_e1_max
+        self.h_to_e2_max = autotrageur.h_to_e2_max
+
+    def restore(self, autotrageur):
+        """Restores the saved autotrageur state.
+
+        Args:
+            autotrageur (FCFAutotrageur): The current FCFAutotrageur.
+        """
+        autotrageur.has_started = self.has_started
+        autotrageur.momentum = self.momentum
+        autotrageur.e1_targets = self.e1_targets
+        autotrageur.e2_targets = self.e2_targets
+        autotrageur.target_index = self.target_index
+        autotrageur.last_target_index = self.last_target_index
+        autotrageur.h_to_e1_max = self.h_to_e1_max
+        autotrageur.h_to_e2_max = self.h_to_e2_max
+
+
 class InsufficientCryptoBalance(Exception):
     """Thrown when there is not enough crypto balance to fulfill the matching
     sell order."""
@@ -323,18 +372,41 @@ class FCFAutotrageur(Autotrageur):
 
     def _execute_trade(self):
         """Execute the arbitrage."""
-        # TODO: Evaluate options and implement retry logic.
         if self.config[DRYRUN]:
             logging.info("**Dry run - begin fake execution")
-            arbseeker.execute_arbitrage(self.trade_metadata)
+            executed_amount = arbseeker.execute_buy(
+                self.trade_metadata['buy_trader'],
+                self.trade_metadata['buy_price'])
+            arbseeker.execute_sell(
+                self.trade_metadata['sell_trader'],
+                self.trade_metadata['sell_price'],
+                executed_amount)
             logging.info("**Dry run - end fake execution")
         else:
-            logging.info("Attempting to execute trades")
-            if arbseeker.execute_arbitrage(self.trade_metadata):
-                self.trader1.fetch_wallet_balances()
-                self.trader2.fetch_wallet_balances()
+            try:
+                executed_amount = arbseeker.execute_buy(
+                    self.trade_metadata['buy_trader'],
+                    self.trade_metadata['buy_price'])
+            except Exception as exc:
+                logging.error(exc, exc_info=True)
+                self.checkpoint.restore(self)
             else:
-                logging.info("Trade was not executed.")
+                # If an exception is thrown, we want the program to stop on the
+                # second trade.
+                try:
+                    arbseeker.execute_sell(
+                        self.trade_metadata['sell_trader'],
+                        self.trade_metadata['sell_price'],
+                        executed_amount)
+                except Exception as exc:
+                    # TODO: Send emergency alert.
+                    logging.error(exc, exc_info=True)
+                    raise
+                else:
+                    # Retrieve updated wallet balances if everything worked
+                    # as expected.
+                    self.trader1.fetch_wallet_balances()
+                    self.trader2.fetch_wallet_balances()
 
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
@@ -362,15 +434,13 @@ class FCFAutotrageur(Autotrageur):
                 self.h_to_e1_max, self.trader2.quote_bal)
             self.e2_targets = self.__calc_targets(spread_opp.e2_spread,
                 self.h_to_e2_max, self.trader1.quote_bal)
-            logging.info('-----To %s targets: %s' %
-                (self.trader1.exchange_name, self.e1_targets))
-            logging.info('-----To %s targets: %s' %
-                (self.trader2.exchange_name, self.e2_targets))
 
             self.target_index = 0
             self.last_target_index = 0
             self.has_started = True
         else:
+            # Save the autotrageur state before proceeding with algorithm.
+            self.checkpoint.save(self)
             is_opportunity = self.__evaluate_spread(spread_opp)
 
         self.h_to_e1_max = max(self.h_to_e1_max, spread_opp.e1_spread)
@@ -379,14 +449,15 @@ class FCFAutotrageur(Autotrageur):
         return is_opportunity
 
     # @Override
-    def _setup_markets(self):
-        """Set up the market objects for the algorithm to use.
+    def _setup(self):
+        """Sets up the algorithm to use.
 
         Raises:
             AuthenticationError: If not dryrun and authentication fails.
         """
-        super()._setup_markets()
+        super()._setup()
         self.spread_min = num_to_decimal(self.config[SPREAD_MIN])
         self.vol_min = num_to_decimal(self.config[VOL_MIN])
         self.h_to_e1_max = num_to_decimal(self.config[H_TO_E1_MAX])
         self.h_to_e2_max = num_to_decimal(self.config[H_TO_E2_MAX])
+        self.checkpoint = FCFCheckpoint()
