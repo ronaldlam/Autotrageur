@@ -63,8 +63,11 @@ ENV/
 # API key files
 secret.txt
 encrypted-secret.txt
+encrypted-*.txt
 
 # Local test files
 arb_config.yaml
 email_info.yaml
 .pytest_cache/
+scratch.py
+scratch/
