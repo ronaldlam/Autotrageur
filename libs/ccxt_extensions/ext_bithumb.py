@@ -1,10 +1,16 @@
+from decimal import Decimal
 import logging
 import sys
+import time
 
 import ccxt
 from googletrans import Translator
 
 from bot.common.ccxt_constants import UNIFIED_FUNCTION_NAMES
+from libs.utilities import num_to_decimal
+
+
+ZERO = Decimal('0')
 
 
 class ext_bithumb(ccxt.bithumb):
@@ -24,6 +30,68 @@ class ext_bithumb(ccxt.bithumb):
             if func_name in dir(self):
                 ccxt_func = getattr(self, func_name)
                 setattr(self, func_name, ext_bithumb.decorate(ccxt_func))
+
+    def _create_market_order(self, side, *args, **kwargs):
+        """Create a market buy or sell order.
+
+        Args:
+            side (str): Either 'buy' or 'sell'.
+
+        Raises:
+            ccxt.ExchangeError: If side is specified incorrectly.
+
+        Returns:
+            dict: An Autotrageur specific unified response.
+        """
+        net_base_amount = ZERO
+        net_quote_amount = ZERO
+        fees = ZERO
+        local_timestamp = time.time()
+
+        if side == 'buy':
+            response = super().create_market_buy_order(*args, **kwargs)
+        elif side == 'sell':
+            response = super().create_market_sell_order(*args, **kwargs)
+        else:
+            raise ccxt.ExchangeError(
+                'Invalid side: %s. Must be "buy" or "sell".' % side)
+
+        # Separate trades are stored in the 'data' list.
+        trades = response['info']['data']
+
+        # Add up trade totals first
+        for trade in trades:
+            net_base_amount += num_to_decimal(trade['units'])
+            net_quote_amount += num_to_decimal(trade['total'])
+            fees += num_to_decimal(trade['fee'])
+
+        # Bithumb buy fees are taken off base amounts; sell fees off
+        # quote amounts
+        if side == 'buy':
+            net_base_amount -= fees
+        else:
+            net_quote_amount -= fees
+
+        # Last step is to calculate net average price. We set this to
+        # zero if no transaction was made.
+        if net_quote_amount == ZERO:
+            avg_price = ZERO
+        else:
+            avg_price = net_quote_amount / net_base_amount
+
+        return {
+            'net_base_amount': net_base_amount,
+            'net_quote_amount': net_quote_amount,
+            'fees': fees,
+            'avg_price': avg_price,
+            'side': side,
+            'type': 'market',
+            'order_id': response['id'],
+            # Bithumb does not return the timestamp.
+            'exchange_timestamp': int(local_timestamp),
+            'local_timestamp': int(local_timestamp),
+            'extraInfo': {}
+        }
 
     @staticmethod
     def decorate(func):
@@ -80,6 +148,53 @@ class ext_bithumb(ccxt.bithumb):
                 },
             },
         })
+
+    # @Override
+    def create_market_buy_order(self, *args, **kwargs):
+        """Create a market buy order.
+
+        The response is formatted as:
+        {
+            'net_base_amount' : (Decimal) 0.100,
+            'net_quote_amount' : (Decimal) 50.00,
+            'fees' : (Decimal) 0.50,
+            'avg_price' : (Decimal) 500.00,
+            'side' : (String) 'buy',
+            'type' : (String) 'limit',
+            'order_id' : (String) 'RU486',
+            'exchange_timestamp' : (int) 1529651177,
+            'local_timestamp' : (int) 1529651177,
+            'extraInfo' : (dict)  {'options': 'immediate-or-cancel'}
+        }
+
+        Returns:
+            dict: An Autotrageur specific unified response.
+        """
+        return self._create_market_order('buy', *args, **kwargs)
+
+    # @Override
+    def create_market_sell_order(self, *args, **kwargs):
+        """Create a market sell order.
+
+        The response is formatted as:
+        {
+            'net_base_amount' : (Decimal) 0.100,
+            'net_quote_amount' : (Decimal) 50.00,
+            'fees' : (Decimal) 0.50,
+            'avg_price' : (Decimal) 500.00,
+            'side' : (String) 'sell',
+            'type' : (String) 'limit',
+            'order_id' : (String) 'RU486',
+            'exchange_timestamp' : (int) 1529651177,
+            'local_timestamp' : (int) 1529651177,
+            'extraInfo' : (dict)  {'options': 'immediate-or-cancel'}
+        }
+
+        Returns:
+            dict: An Autotrageur specific unified response.
+        """
+        return self._create_market_order('sell', *args, **kwargs)
+
 
     # @Override
     def fetch_markets(self):
