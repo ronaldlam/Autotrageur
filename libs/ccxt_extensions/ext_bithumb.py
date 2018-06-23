@@ -31,11 +31,14 @@ class ext_bithumb(ccxt.bithumb):
                 ccxt_func = getattr(self, func_name)
                 setattr(self, func_name, ext_bithumb.decorate(ccxt_func))
 
-    def _create_market_order(self, side, *args, **kwargs):
+    def _create_market_order(self, side, symbol, amount, params={}):
         """Create a market buy or sell order.
 
         Args:
             side (str): Either 'buy' or 'sell'.
+            symbol (str): The market symbol, ie. 'ETH/KRW'.
+            amount (str): The base asset amount.
+            params (dict): The extra parameters to pass to the ccxt call.
 
         Raises:
             ccxt.ExchangeError: If side is specified incorrectly.
@@ -46,12 +49,14 @@ class ext_bithumb(ccxt.bithumb):
         net_base_amount = ZERO
         net_quote_amount = ZERO
         fees = ZERO
-        local_timestamp = time.time()
+        local_timestamp = int(time.time())
 
         if side == 'buy':
-            response = super().create_market_buy_order(*args, **kwargs)
+            response = super().create_market_buy_order(
+                symbol, amount, params={})
         elif side == 'sell':
-            response = super().create_market_sell_order(*args, **kwargs)
+            response = super().create_market_sell_order(
+                symbol, amount, params={})
         else:
             raise ccxt.ExchangeError(
                 'Invalid side: %s. Must be "buy" or "sell".' % side)
@@ -88,8 +93,8 @@ class ext_bithumb(ccxt.bithumb):
             'type': 'market',
             'order_id': response['id'],
             # Bithumb does not return the timestamp.
-            'exchange_timestamp': int(local_timestamp),
-            'local_timestamp': int(local_timestamp),
+            'exchange_timestamp': local_timestamp,
+            'local_timestamp': local_timestamp,
             'extraInfo': {}
         }
 
@@ -150,7 +155,7 @@ class ext_bithumb(ccxt.bithumb):
         })
 
     # @Override
-    def create_market_buy_order(self, *args, **kwargs):
+    def create_market_buy_order(self, symbol, amount, params={}):
         """Create a market buy order.
 
         The response is formatted as:
@@ -167,13 +172,18 @@ class ext_bithumb(ccxt.bithumb):
             'extraInfo' : (dict)  {'options': 'immediate-or-cancel'}
         }
 
+        Args:
+            symbol (str): The market symbol, ie. 'ETH/KRW'.
+            amount (str): The base asset amount.
+            params (dict): The extra parameters to pass to the ccxt call.
+
         Returns:
             dict: An Autotrageur specific unified response.
         """
-        return self._create_market_order('buy', *args, **kwargs)
+        return self._create_market_order('buy', symbol, amount, params={})
 
     # @Override
-    def create_market_sell_order(self, *args, **kwargs):
+    def create_market_sell_order(self, symbol, amount, params={}):
         """Create a market sell order.
 
         The response is formatted as:
@@ -190,10 +200,15 @@ class ext_bithumb(ccxt.bithumb):
             'extraInfo' : (dict)  {'options': 'immediate-or-cancel'}
         }
 
+        Args:
+            symbol (str): The market symbol, ie. 'ETH/KRW'.
+            amount (str): The base asset amount.
+            params (dict): The extra parameters to pass to the ccxt call.
+
         Returns:
             dict: An Autotrageur specific unified response.
         """
-        return self._create_market_order('sell', *args, **kwargs)
+        return self._create_market_order('sell', symbol, amount, params={})
 
 
     # @Override
