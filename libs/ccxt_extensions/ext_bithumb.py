@@ -52,11 +52,9 @@ class ext_bithumb(ccxt.bithumb):
         local_timestamp = int(time.time())
 
         if side == 'buy':
-            response = super().create_market_buy_order(
-                symbol, amount, params={})
+            response = super().create_market_buy_order(symbol, amount, params)
         elif side == 'sell':
-            response = super().create_market_sell_order(
-                symbol, amount, params={})
+            response = super().create_market_sell_order(symbol, amount, params)
         else:
             raise ccxt.ExchangeError(
                 'Invalid side: %s. Must be "buy" or "sell".' % side)
@@ -95,7 +93,7 @@ class ext_bithumb(ccxt.bithumb):
             # Bithumb does not return the timestamp.
             'exchange_timestamp': local_timestamp,
             'local_timestamp': local_timestamp,
-            'extraInfo': {}
+            'extra_info': params
         }
 
     @staticmethod
@@ -169,7 +167,7 @@ class ext_bithumb(ccxt.bithumb):
             'order_id' : (String) 'RU486',
             'exchange_timestamp' : (int) 1529651177,
             'local_timestamp' : (int) 1529651177,
-            'extraInfo' : (dict)  {'options': 'immediate-or-cancel'}
+            'extra_info' : (dict)  {'options': 'immediate-or-cancel'}
         }
 
         Args:
@@ -180,7 +178,7 @@ class ext_bithumb(ccxt.bithumb):
         Returns:
             dict: An Autotrageur specific unified response.
         """
-        return self._create_market_order('buy', symbol, amount, params={})
+        return self._create_market_order('buy', symbol, amount, params)
 
     # @Override
     def create_market_sell_order(self, symbol, amount, params={}):
@@ -197,7 +195,7 @@ class ext_bithumb(ccxt.bithumb):
             'order_id' : (String) 'RU486',
             'exchange_timestamp' : (int) 1529651177,
             'local_timestamp' : (int) 1529651177,
-            'extraInfo' : (dict)  {'options': 'immediate-or-cancel'}
+            'extra_info' : (dict)  {'options': 'immediate-or-cancel'}
         }
 
         Args:
@@ -208,7 +206,7 @@ class ext_bithumb(ccxt.bithumb):
         Returns:
             dict: An Autotrageur specific unified response.
         """
-        return self._create_market_order('sell', symbol, amount, params={})
+        return self._create_market_order('sell', symbol, amount, params)
 
 
     # @Override
