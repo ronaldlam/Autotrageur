@@ -6,8 +6,7 @@ import ccxt
 from libs.utilities import num_to_decimal
 
 
-NEG_ONE = num_to_decimal(-1)
-
+ZERO = num_to_decimal('0')
 
 class ext_gdax(ccxt.gdax):
     """Subclass of ccxt's gdax.py for internal use.
@@ -15,21 +14,38 @@ class ext_gdax(ccxt.gdax):
     The name ext_gdax is to keep similar convention when initializing
     the exchange classes.
     """
-    def __fetch_order_and_status(self, order_id):
-        # TODO: Comments
+    # def _create_market_order(self, side, symbol, asset_amount, params={}):
+
+    def _fetch_order_and_status(self, order_id):
+        """Fetches the status of the desired order and the order
+        response itself.
+
+        Args:
+            order_id (str): The unique identifier for the order to fetch.
+
+        Returns:
+            (dict, str): The order response and the order response as a tuple.
+        """
         order = self.fetch_order(order_id)
         order_status = order['info']['status']
         return order, order_status
 
-    def __poll_order(self, order_id):
-        # TODO: Comments
-        order, order_status = self.__fetch_order_and_status(order_id)
+    def _poll_order(self, order_id):
+        """Polls the desired order until the status is returned as 'done'.
+
+        Args:
+            order_id (str): The unique identifier for the order to fetch.
+
+        Returns:
+            dict: The desired order response with a status of 'done'.
+        """
+        order, order_status = self._fetch_order_and_status(order_id)
 
         while order_status != 'done':
             logging.info(
                 'Order still processing with status: {}'.format(order_status))
-            time.sleep(1)
-            order, order_status = self.__fetch_order_and_status(order_id)
+            time.sleep(0.1)
+            order, order_status = self._fetch_order_and_status(order_id)
         return order
 
     # @Override
@@ -46,10 +62,10 @@ class ext_gdax(ccxt.gdax):
         account has changed trading fee schedules (tiers).  See
         https://www.gdax.com/fees
 
-        PRICING TIER	TAKER FEE	MAKER FEE
-        $0m - $10m	    0.30%	    0%
-        $10m - $100m	0.20%	    0%
-        $100m+	        0.10%	    0%
+        PRICING TIER    TAKER FEE   MAKER FEE
+        $0m - $10m	    0.30%       0%
+        $10m - $100m    0.20%       0%
+        $100m+          0.10%       0%
 
         Returns:
             dict: The description of the exchange.
@@ -66,7 +82,7 @@ class ext_gdax(ccxt.gdax):
         })
 
     # @Override
-    def create_market_buy_order(self, symbol, asset_amount):
+    def create_market_buy_order(self, symbol, asset_amount, params={}):
         """Creates a market buy order.
 
         Returns a unified response for Autotrageur's purposes.  A sample ccxt
@@ -119,33 +135,46 @@ class ext_gdax(ccxt.gdax):
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
             asset_amount (Decimal): The amount of asset to be bought.
+            params (dict): Extra parameters to be passed to the buy order.
 
         Returns:
             dict: The order result from the ccxt exchange.
         """
         local_ts = int(time.time())
-        ccxt_resp = super().create_market_buy_order(symbol, str(asset_amount))
+        ccxt_resp = super().create_market_buy_order(
+            symbol, str(asset_amount), params)
         order_id = ccxt_resp['id']
 
-        order = self.__poll_order(order_id)
+        order = self._poll_order(order_id)
+        logging.info('Raw fetched order response for order_id {}:\n {}'.format(
+            order_id, order
+        ))
+
+        net_base_amount = num_to_decimal(order['filled'])
+        net_quote_amount = num_to_decimal(order['cost'])
+        fees = num_to_decimal(order['fee']['cost'])
+
+        # Set avg_price to zero if no transaction was made.
+        if net_base_amount == ZERO:
+            avg_price = ZERO
+        else:
+            avg_price = net_quote_amount / net_base_amount
 
         return {
-            'net_base_amount': num_to_decimal(order['filled']),
-            'net_quote_amount': num_to_decimal(order['cost']) * NEG_ONE,
-            'fees': num_to_decimal(order['fee']['cost']),
-            'avg_price': (
-                num_to_decimal(order['cost']) /
-                num_to_decimal(order['filled'])),
+            'net_base_amount': net_base_amount,
+            'net_quote_amount': net_quote_amount,
+            'fees': fees,
+            'avg_price': avg_price,
             'side': order['side'],
             'type': order['type'],
             'order_id': order['id'],
             'exchange_timestamp': int(order['timestamp'] / 1000),
-	        'local_timestamp': local_ts,
-            'extraInfo':  {}
+            'local_timestamp': local_ts,
+            'extraInfo':  params
         }
 
     # @Override
-    def create_market_sell_order(self, symbol, asset_amount):
+    def create_market_sell_order(self, symbol, asset_amount, params={}):
         """Creates a market sell order.
 
         Returns a unified response for Autotrageur's purposes.  A sample ccxt
@@ -197,27 +226,40 @@ class ext_gdax(ccxt.gdax):
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
             asset_amount (Decimal): The amount of asset to be sold.
+            params (dict): Extra parameters to be passed to the sell order.
 
         Returns:
             dict: The order result from the ccxt exchange.
         """
         local_ts = int(time.time())
-        ccxt_resp = super().create_market_sell_order(symbol, str(asset_amount))
+        ccxt_resp = super().create_market_sell_order(
+            symbol, str(asset_amount), params)
         order_id = ccxt_resp['id']
 
-        order = self.__poll_order(order_id)
+        order = self._poll_order(order_id)
+        logging.info('Raw fetched order response for order_id {}:\n {}'.format(
+            order_id, order
+        ))
+
+        net_base_amount = num_to_decimal(order['filled'])
+        net_quote_amount = num_to_decimal(order['cost'])
+        fees = num_to_decimal(order['fee']['cost'])
+
+        # Set avg_price to zero if no transaction was made.
+        if net_base_amount == ZERO:
+            avg_price = ZERO
+        else:
+            avg_price = net_quote_amount / net_base_amount
 
         return {
-            'net_base_amount': num_to_decimal(order['filled']) * NEG_ONE,
-            'net_quote_amount': num_to_decimal(order['cost']),
-            'fees': num_to_decimal(order['fee']['cost']),
-            'avg_price': (
-                num_to_decimal(order['cost']) /
-                num_to_decimal(order['filled'])),
+            'net_base_amount': net_base_amount,
+            'net_quote_amount': net_quote_amount,
+            'fees': fees,
+            'avg_price': avg_price,
             'side': order['side'],
             'type': order['type'],
             'order_id': order['id'],
             'exchange_timestamp': int(order['timestamp'] / 1000),
-	        'local_timestamp': local_ts,
-            'extraInfo':  {}
+            'local_timestamp': local_ts,
+            'extraInfo':  params
         }
