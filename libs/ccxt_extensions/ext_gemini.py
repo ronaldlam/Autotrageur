@@ -1,4 +1,5 @@
 import logging
+import time
 
 import ccxt
 
@@ -7,6 +8,8 @@ from libs.utilities import num_to_decimal
 
 HUNDRED = num_to_decimal(100.0)
 
+OPTIONS = {"options": ["immediate-or-cancel"]}
+
 
 class ext_gemini(ccxt.gemini):
     """Subclass of ccxt's gemini.py for internal use.
@@ -14,6 +17,98 @@ class ext_gemini(ccxt.gemini):
     The name ext_gemini is to keep similar convention when initializing
     the exchange classes.
     """
+    def _package_result(self, result, local_timestamp, params):
+        """Retrieve Autotrageur specific unified response given the ccxt
+        response.
+
+        Example ccxt response for a create_market_sell_order call:
+        {
+            "info": {
+                "order_id": "97546903",
+                "id": "97546903",
+                "symbol": "ethusd",
+                "exchange": "gemini",
+                "avg_execution_price": "394.10",
+                "side": "sell",
+                "type": "exchange limit",
+                "timestamp": "1529616497",
+                "timestampms": 1529616497632,
+                "is_live": False,
+                "is_cancelled": False,
+                "is_hidden": False,
+                "was_forced": False,
+                "executed_amount": "0.001",
+                "remaining_amount": "0",
+                "client_order_id": "1529616491439",
+                "options": [
+                    "immediate-or-cancel"
+                ],
+                "price": "388.00",
+                "original_amount": "0.001"
+            },
+            "id": "97546903"
+        }
+        Example ccxt response for the fetch_order call:
+        {
+            "id": "97546905",
+            "order": "97546903",
+            "info": {
+                "price": "394.10",
+                "amount": "0.001",
+                "timestamp": 1529616497,
+                "timestampms": 1529616497632,
+                "type": "Sell",
+                "aggressor": True,
+                "fee_currency": "USD",
+                "fee_amount": "0.00098525",
+                "tid": 97546905,
+                "order_id": "97546903",
+                "exchange": "gemini",
+                "is_auction_fill": False,
+                "client_order_id": "1529616491439"
+            },
+            "timestamp": 1529616497632,
+            "datetime": "2018-06-21T21: 28: 18.632Z",
+            "symbol": "ETH/USD",
+            "type": None,
+            "side": "Sell",
+            "price": 394.1,
+            "cost": 0.3941,
+            "amount": 0.001,
+            "fee": {
+                "cost": 0.00098525,
+                "currency": "USD"
+            }
+        }
+
+        Args:
+            result (dict): The result of the 'create order' call.
+            local_timestamp (int): The local timestamp.
+            params (dict): The extra parameters to pass to the ccxt call.
+
+        Returns:
+            dict: An Autotrageur specific unified response.
+        """
+        order_details = self.fetch_order(result['id'])
+
+        fees = num_to_decimal(order_details['fee']['cost'])
+        net_base_amount = num_to_decimal(result['info']['executed_amount'])
+        net_quote_amount = num_to_decimal(order_details['cost']) + fees
+        avg_price = net_quote_amount / net_base_amount
+
+        return {
+            'net_base_amount': net_base_amount,
+            'net_quote_amount': net_quote_amount,
+            'fees': fees,
+            'avg_price': avg_price,
+            'side': result['info']['side'],
+            'type': 'limit',
+            'order_id': result['id'],
+            'exchange_timestamp': result['info']['timestamp'],
+            'local_timestamp': local_timestamp,
+            'extra_info': params
+        }
+
     # @Override
     def describe(self):
         """Return gemini exchange object with corrected info.
@@ -222,18 +317,17 @@ class ext_gemini(ccxt.gemini):
                 buy will tolerate.
 
         Returns:
-            dict[dict, int]: Dictionary of response, includes 'info'
-            and 'id'. The 'info' includes all response contents and
-            result['id'] == result['info']['id']
+            dict: An Autotrageur specific unified response.
         """
         (asset_volume, limit_price) = self.prepare_emulated_market_buy_order(
             symbol, quote_amount, asset_price, slippage)
+        local_timestamp = int(time.time())
         result = self.create_limit_buy_order(
             symbol,
             asset_volume,
             limit_price,
-            {"options": ["immediate-or-cancel"]})
-        return result
+            OPTIONS)
+        return self._package_result(result, local_timestamp, OPTIONS)
 
     # @Override
     def prepare_emulated_market_sell_order(
@@ -286,16 +380,15 @@ class ext_gemini(ccxt.gemini):
                 buy will tolerate.
 
         Returns:
-            dict[dict, int]: Dictionary of response, includes 'info'
-            and 'id'. The 'info' includes all response contents and
-            result['id'] == result['info']['id']
+            dict: An Autotrageur specific unified response.
         """
         (rounded_amount, rounded_limit_price) = (
             self.prepare_emulated_market_sell_order(
                 symbol, asset_price, asset_amount, slippage))
+        local_timestamp = int(time.time())
         result = self.create_limit_sell_order(
             symbol,
             rounded_amount,
             rounded_limit_price,
-            {"options": ["immediate-or-cancel"]})
-        return result
+            OPTIONS)
+        return self._package_result(result, local_timestamp, OPTIONS)
