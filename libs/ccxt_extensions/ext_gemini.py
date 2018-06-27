@@ -7,6 +7,7 @@ from libs.utilities import num_to_decimal
 
 
 HUNDRED = num_to_decimal(100.0)
+ZERO = num_to_decimal(0)
 
 OPTIONS = {"options": ["immediate-or-cancel"]}
 
@@ -17,7 +18,7 @@ class ext_gemini(ccxt.gemini):
     The name ext_gemini is to keep similar convention when initializing
     the exchange classes.
     """
-    def _package_result(self, result, local_timestamp, params):
+    def _package_result(self, result, symbol, local_timestamp, params):
         """Retrieve Autotrageur specific unified response given the ccxt
         response.
 
@@ -48,7 +49,7 @@ class ext_gemini(ccxt.gemini):
             },
             "id": "97546903"
         }
-        Example ccxt response for the fetch_order call:
+        Example entry in ccxt response list for the fetch_my_trades call:
         {
             "id": "97546905",
             "order": "97546903",
@@ -80,31 +81,78 @@ class ext_gemini(ccxt.gemini):
                 "currency": "USD"
             }
         }
+        The result is formatted as:
+        {
+            'pre_fee_base' (Decimal): 0.100,
+            'pre_fee_quote' (Decimal): 50.00,
+            'post_fee_base' (Decimal): 0.100,
+            'post_fee_quote' (Decimal): 50.50,
+            'fees' (Decimal): 0.50,
+            'fee_asset' (String): 'USD',
+            'price' (Decimal): 500.00,
+            'true_price' (Decimal): 495.00,
+            'side' (String): 'sell',
+            'type' (String): 'limit',
+            'order_id' (String): 'RU486',
+            'exchange_timestamp' (int): 1529651177,
+            'local_timestamp' (int): 1529651177,
+            'extra_info' (dict):  { 'options': 'immediate-or-cancel' }
+        }
 
         Args:
             result (dict): The result of the 'create order' call.
+            symbol (str): The symbol of the market.
             local_timestamp (int): The local timestamp.
             params (dict): The extra parameters to pass to the ccxt call.
 
         Returns:
             dict: An Autotrageur specific unified response.
         """
-        order_details = self.fetch_order(result['id'])
+        trade_list = self.fetch_my_trades(symbol)
+        order_id = result['id']
+        side = result['info']['side']
+        trades = list(filter(lambda x: x['order'] == order_id, trade_list))
 
-        fees = num_to_decimal(order_details['fee']['cost'])
-        net_base_amount = num_to_decimal(result['info']['executed_amount'])
-        net_quote_amount = num_to_decimal(order_details['cost']) + fees
-        avg_price = net_quote_amount / net_base_amount
+        pre_fee_base = num_to_decimal(result['info']['executed_amount'])
+
+        pre_fee_quote = ZERO
+        fees = ZERO
+
+        # Add up contents of trades
+        for trade in trades:
+            pre_fee_quote += num_to_decimal(trade['cost'])
+            fees += num_to_decimal(trade['fee']['cost'])
+
+        # Calculate post fee numbers.
+        post_fee_base = pre_fee_base
+
+        if side == 'buy':
+            post_fee_quote = pre_fee_quote + fees   # Pay additional fees
+        else:
+            post_fee_quote = pre_fee_quote - fees   # Pay from proceeds
+
+        # Last step is to calculate the prices. We set this to zero if
+        # no transaction was made.
+        if pre_fee_base == ZERO:
+            price = ZERO
+            true_price = ZERO
+        else:
+            price = pre_fee_quote / pre_fee_base
+            true_price = post_fee_quote / post_fee_base
 
         return {
-            'net_base_amount': net_base_amount,
-            'net_quote_amount': net_quote_amount,
+            'pre_fee_base': pre_fee_base,
+            'pre_fee_quote': pre_fee_quote,
+            'post_fee_base': post_fee_base,
+            'post_fee_quote': post_fee_quote,
             'fees': fees,
-            'avg_price': avg_price,
-            'side': result['info']['side'],
+            'fee_asset': 'USD',
+            'price': price,
+            'true_price': true_price,
+            'side': side,
             'type': 'limit',
-            'order_id': result['id'],
-            'exchange_timestamp': result['info']['timestamp'],
+            'order_id': order_id,
+            'exchange_timestamp': int(result['info']['timestamp']),
             'local_timestamp': local_timestamp,
             'extra_info': params
         }
@@ -327,7 +375,7 @@ class ext_gemini(ccxt.gemini):
             asset_volume,
             limit_price,
             OPTIONS)
-        return self._package_result(result, local_timestamp, OPTIONS)
+        return self._package_result(result, symbol, local_timestamp, OPTIONS)
 
     # @Override
     def prepare_emulated_market_sell_order(
@@ -391,4 +439,4 @@ class ext_gemini(ccxt.gemini):
             rounded_amount,
             rounded_limit_price,
             OPTIONS)
-        return self._package_result(result, local_timestamp, OPTIONS)
+        return self._package_result(result, symbol, local_timestamp, OPTIONS)

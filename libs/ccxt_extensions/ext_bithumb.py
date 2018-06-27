@@ -46,9 +46,10 @@ class ext_bithumb(ccxt.bithumb):
         Returns:
             dict: An Autotrageur specific unified response.
         """
-        net_base_amount = ZERO
-        net_quote_amount = ZERO
+        pre_fee_base = ZERO
+        pre_fee_quote = ZERO
         fees = ZERO
+        base, quote = symbol.split('/')
         local_timestamp = int(time.time())
 
         if side == 'buy':
@@ -64,29 +65,39 @@ class ext_bithumb(ccxt.bithumb):
 
         # Add up trade totals first
         for trade in trades:
-            net_base_amount += num_to_decimal(trade['units'])
-            net_quote_amount += num_to_decimal(trade['total'])
+            pre_fee_base += num_to_decimal(trade['units'])
+            pre_fee_quote += num_to_decimal(trade['total'])
             fees += num_to_decimal(trade['fee'])
 
         # Bithumb buy fees are taken off base amounts; sell fees off
         # quote amounts
         if side == 'buy':
-            net_base_amount -= fees
+            post_fee_base = pre_fee_base - fees
+            post_fee_quote = pre_fee_quote
+            fee_asset = base
         else:
-            net_quote_amount -= fees
+            post_fee_base = pre_fee_base
+            post_fee_quote = pre_fee_quote - fees
+            fee_asset = quote
 
-        # Last step is to calculate net average price. We set this to
-        # zero if no transaction was made.
-        if net_quote_amount == ZERO:
-            avg_price = ZERO
+        # Last step is to calculate the prices. We set this to zero if
+        # no transaction was made.
+        if pre_fee_base == ZERO:
+            price = ZERO
+            true_price = ZERO
         else:
-            avg_price = net_quote_amount / net_base_amount
+            price = pre_fee_quote / pre_fee_base
+            true_price = post_fee_quote / post_fee_base
 
         return {
-            'net_base_amount': net_base_amount,
-            'net_quote_amount': net_quote_amount,
+            'pre_fee_base': pre_fee_base,
+            'pre_fee_quote': pre_fee_quote,
+            'post_fee_base': post_fee_base,
+            'post_fee_quote': post_fee_quote,
             'fees': fees,
-            'avg_price': avg_price,
+            'fee_asset': fee_asset,
+            'price': price,
+            'true_price': true_price,
             'side': side,
             'type': 'market',
             'order_id': response['id'],
@@ -158,16 +169,20 @@ class ext_bithumb(ccxt.bithumb):
 
         The response is formatted as:
         {
-            'net_base_amount' : (Decimal) 0.100,
-            'net_quote_amount' : (Decimal) 50.00,
-            'fees' : (Decimal) 0.50,
-            'avg_price' : (Decimal) 500.00,
-            'side' : (String) 'buy',
-            'type' : (String) 'limit',
-            'order_id' : (String) 'RU486',
-            'exchange_timestamp' : (int) 1529651177,
-            'local_timestamp' : (int) 1529651177,
-            'extra_info' : (dict)  {'options': 'immediate-or-cancel'}
+            'pre_fee_base' (Decimal): 0.100,
+            'pre_fee_quote' (Decimal): 50.00,
+            'post_fee_base' (Decimal): 0.100,
+            'post_fee_quote' (Decimal): 50.50,
+            'fees' (Decimal): 0.50,
+            'fee_asset' (String): 'USD',
+            'price' (Decimal): 500.00,
+            'true_price' (Decimal): 495.00,
+            'side' (String): 'sell',
+            'type' (String): 'limit',
+            'order_id' (String): 'RU486',
+            'exchange_timestamp' (int): 1529651177,
+            'local_timestamp' (int): 1529651177,
+            'extra_info' (dict):  { 'options': 'immediate-or-cancel' }
         }
 
         Args:
@@ -186,16 +201,20 @@ class ext_bithumb(ccxt.bithumb):
 
         The response is formatted as:
         {
-            'net_base_amount' : (Decimal) 0.100,
-            'net_quote_amount' : (Decimal) 50.00,
-            'fees' : (Decimal) 0.50,
-            'avg_price' : (Decimal) 500.00,
-            'side' : (String) 'sell',
-            'type' : (String) 'limit',
-            'order_id' : (String) 'RU486',
-            'exchange_timestamp' : (int) 1529651177,
-            'local_timestamp' : (int) 1529651177,
-            'extra_info' : (dict)  {'options': 'immediate-or-cancel'}
+            'pre_fee_base' (Decimal): 0.100,
+            'pre_fee_quote' (Decimal): 50.00,
+            'post_fee_base' (Decimal): 0.100,
+            'post_fee_quote' (Decimal): 50.50,
+            'fees' (Decimal): 0.50,
+            'fee_asset' (String): 'USD',
+            'price' (Decimal): 500.00,
+            'true_price' (Decimal): 495.00,
+            'side' (String): 'sell',
+            'type' (String): 'limit',
+            'order_id' (String): 'RU486',
+            'exchange_timestamp' (int): 1529651177,
+            'local_timestamp' (int): 1529651177,
+            'extra_info' (dict):  { 'options': 'immediate-or-cancel' }
         }
 
         Args:

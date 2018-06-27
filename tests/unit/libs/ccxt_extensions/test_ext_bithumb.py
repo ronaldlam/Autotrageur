@@ -1,8 +1,8 @@
 # pylint: disable=E1101
 from decimal import Decimal
-import pytest
 
 import ccxt
+import pytest
 
 import libs.ccxt_extensions as ccxt_extensions
 
@@ -128,43 +128,91 @@ SELL_RESPONSES = [
 
 BUY_RESULTS = [
     {
-        'net_base_amount': Decimal('0.24975'),
-        'net_quote_amount': Decimal('69060'),
+        'pre_fee_base': Decimal('0.25'),
+        'pre_fee_quote': Decimal('69060'),
+        'post_fee_base': Decimal('0.24975'),
+        'post_fee_quote': Decimal('69060'),
         'fees': Decimal('0.00025'),
-        'avg_price': Decimal('276516.5165165165165165165165')
+        'fee_asset': 'ETH',
+        'price': Decimal('276240'),
+        'true_price': Decimal('276516.5165165165165165165165'),
+        'side': 'buy',
+        'type': 'market',
+        'order_id': '1429500241523',
+        'extra_info': {}
     },
     {
-        'net_base_amount': Decimal('0.01'),
-        'net_quote_amount': Decimal('5855'),
+        'pre_fee_base': Decimal('0.01'),
+        'pre_fee_quote': Decimal('5855'),
+        'post_fee_base': Decimal('0.01'),
+        'post_fee_quote': Decimal('5855'),
         'fees': Decimal('0'),
-        'avg_price': Decimal('585500')
+        'fee_asset': 'ETH',
+        'price': Decimal('585500'),
+        'true_price': Decimal('585500'),
+        'side': 'buy',
+        'type': 'market',
+        'order_id': '1529629423655557',
+        'extra_info': {}
     },
     {
-        'net_base_amount': Decimal('0'),
-        'net_quote_amount': Decimal('0'),
+        'pre_fee_base': Decimal('0'),
+        'pre_fee_quote': Decimal('0'),
+        'post_fee_base': Decimal('0'),
+        'post_fee_quote': Decimal('0'),
         'fees': Decimal('0'),
-        'avg_price': Decimal('0')
+        'fee_asset': 'ETH',
+        'price': Decimal('0'),
+        'true_price': Decimal('0'),
+        'side': 'buy',
+        'type': 'market',
+        'order_id': '1529629423655557',
+        'extra_info': {}
     }
 ]
 
 SELL_RESULTS = [
     {
-        'net_base_amount': Decimal('1'),
-        'net_quote_amount': Decimal('259632'),
+        'pre_fee_base': Decimal('1'),
+        'pre_fee_quote': Decimal('259891'),
+        'post_fee_base': Decimal('1'),
+        'post_fee_quote': Decimal('259632'),
         'fees': Decimal('259'),
-        'avg_price': Decimal('259632')
+        'fee_asset': 'KRW',
+        'price': Decimal('259891'),
+        'true_price': Decimal('259632'),
+        'side': 'sell',
+        'type': 'market',
+        'order_id': '1429500318982',
+        'extra_info': {}
     },
     {
-        'net_base_amount': Decimal('0.01'),
-        'net_quote_amount': Decimal('5845'),
+        'pre_fee_base': Decimal('0.01'),
+        'pre_fee_quote': Decimal('5845'),
+        'post_fee_base': Decimal('0.01'),
+        'post_fee_quote': Decimal('5845'),
         'fees': Decimal('0'),
-        'avg_price': Decimal('584500')
+        'fee_asset': 'KRW',
+        'price': Decimal('584500'),
+        'true_price': Decimal('584500'),
+        'side': 'sell',
+        'type': 'market',
+        'order_id': '1529629537405951',
+        'extra_info': {}
     },
     {
-        'net_base_amount': Decimal('0'),
-        'net_quote_amount': Decimal('0'),
+        'pre_fee_base': Decimal('0'),
+        'pre_fee_quote': Decimal('0'),
+        'post_fee_base': Decimal('0'),
+        'post_fee_quote': Decimal('0'),
         'fees': Decimal('0'),
-        'avg_price': Decimal('0')
+        'fee_asset': 'KRW',
+        'price': Decimal('0'),
+        'true_price': Decimal('0'),
+        'side': 'sell',
+        'type': 'market',
+        'order_id': '1529629537405951',
+        'extra_info': {}
     }
 ]
 
@@ -186,11 +234,18 @@ def test_create_market_order(mocker, bithumb, side, raw_response, result):
         assert ccxt.bithumb.create_market_buy_order.called_with(side, 'ETH/KRW', 1)
     if side == SELL:
         assert ccxt.bithumb.create_market_sell_order.called_with(side, 'ETH/KRW', 1)
-    assert response['net_base_amount'] == result['net_base_amount']
-    assert response['net_quote_amount'] == result['net_quote_amount']
+    assert response['pre_fee_base'] == result['pre_fee_base']
+    assert response['pre_fee_quote'] == result['pre_fee_quote']
+    assert response['post_fee_base'] == result['post_fee_base']
+    assert response['post_fee_quote'] == result['post_fee_quote']
     assert response['fees'] == result['fees']
-    assert response['avg_price'] == result['avg_price']
-    assert response['side'] == side
+    assert response['fee_asset'] == result['fee_asset']
+    assert response['price'] == result['price']
+    assert response['true_price'] == result['true_price']
+    assert response['side'] == result['side']
+    assert response['type'] == result['type']
+    assert response['order_id'] == result['order_id']
+    assert response['extra_info'] == result['extra_info']
 
 
 def test_fail_create_market_order(bithumb):
