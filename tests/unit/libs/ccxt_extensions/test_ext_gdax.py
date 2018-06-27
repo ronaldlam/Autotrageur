@@ -148,12 +148,12 @@ SELL_FETCH_ORDER_NOT_FILLED = {
 
 SELL_FETCH_ORDER_RESPONSE = {
     'pre_fee_base': Decimal('200'),
-    'pre_fee_quote': Decimal('100826.7756'),
+    'pre_fee_quote': Decimal('100525.2'),
     'post_fee_base': Decimal('200'),
-    'post_fee_quote': Decimal('100525.2'),
+    'post_fee_quote': Decimal('100223.6244'),
     'fees': Decimal('301.5756'),
     'price': Decimal('502.626'),
-    'true_price': Decimal('504.133878')
+    'true_price': Decimal('501.118122')
 }
 
 SELL_FETCH_ORDER_NOT_FILLED_RESPONSE = {
@@ -168,9 +168,9 @@ SELL_FETCH_ORDER_NOT_FILLED_RESPONSE = {
 
 BUY_FETCH_ORDER_RESPONSE = {
     'pre_fee_base': Decimal('0.01'),
-    'pre_fee_quote': Decimal('5.1615383'),
+    'pre_fee_quote': Decimal('5.1461'),
     'post_fee_base': Decimal('0.01'),
-    'post_fee_quote': Decimal('5.1461'),
+    'post_fee_quote': Decimal('5.1615383'),
     'fees': Decimal('0.0154383'),
     'price': Decimal('514.61'),
     'true_price': Decimal('516.15383'),

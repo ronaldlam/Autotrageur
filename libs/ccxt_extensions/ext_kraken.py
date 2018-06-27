@@ -84,9 +84,13 @@ class ext_kraken(ccxt.kraken):
         # Gdax takes the fees away from the quote.
         fee_asset = symbol.split('/')[1].upper()
         pre_fee_base = filled
-        pre_fee_quote = cost + fees
+        pre_fee_quote = cost
         post_fee_base = filled
-        post_fee_quote = cost
+
+        if side == BUY_SIDE:
+            post_fee_quote = pre_fee_quote + fees   # Pay additional fees
+        else:
+            post_fee_quote = pre_fee_quote - fees   # Pay from proceeds
 
         # Set avg_price to zero if no transaction was made.
         if pre_fee_base == ZERO:
@@ -94,7 +98,7 @@ class ext_kraken(ccxt.kraken):
             true_price = ZERO
         else:
             price = num_to_decimal(order['price'])
-            true_price = pre_fee_quote / pre_fee_base
+            true_price = post_fee_quote / post_fee_base
 
         return {
             'pre_fee_base': pre_fee_base,
