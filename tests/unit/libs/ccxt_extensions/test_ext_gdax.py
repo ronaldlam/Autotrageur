@@ -116,26 +116,6 @@ SELL_FETCH_ORDER_TYPICAL = {
     }
 }
 
-SELL_FETCH_ORDER_RESPONSE = {
-    'pre_fee_base': Decimal('200'),
-    'pre_fee_quote': Decimal('100826.7756'),
-    'post_fee_base': Decimal('200'),
-    'post_fee_quote': Decimal('100525.2'),
-    'fees': Decimal('301.5756'),
-    'price': Decimal('502.626'),
-    'true_price': Decimal('504.133878')
-}
-
-SELL_FETCH_ORDER_NOT_FILLED_RESPONSE = {
-    'pre_fee_base': Decimal('0.00'),
-    'pre_fee_quote': Decimal('0.00'),
-    'post_fee_base': Decimal('0.00'),
-    'post_fee_quote': Decimal('0.00'),
-    'fees': Decimal('0.00'),
-    'price': Decimal('0.00'),
-    'true_price': Decimal('0.00')
-}
-
 SELL_FETCH_ORDER_NOT_FILLED = {
     "id": "40a3f4b6-ba0b-477b-9dde-eb12bd8d0d5e",
     "info": {
@@ -164,6 +144,26 @@ SELL_FETCH_ORDER_NOT_FILLED = {
         "currency": None,
         "rate": None
     }
+}
+
+SELL_FETCH_ORDER_RESPONSE = {
+    'pre_fee_base': Decimal('200'),
+    'pre_fee_quote': Decimal('100826.7756'),
+    'post_fee_base': Decimal('200'),
+    'post_fee_quote': Decimal('100525.2'),
+    'fees': Decimal('301.5756'),
+    'price': Decimal('502.626'),
+    'true_price': Decimal('504.133878')
+}
+
+SELL_FETCH_ORDER_NOT_FILLED_RESPONSE = {
+    'pre_fee_base': Decimal('0.00'),
+    'pre_fee_quote': Decimal('0.00'),
+    'post_fee_base': Decimal('0.00'),
+    'post_fee_quote': Decimal('0.00'),
+    'fees': Decimal('0.00'),
+    'price': Decimal('0.00'),
+    'true_price': Decimal('0.00')
 }
 
 BUY_FETCH_ORDER_RESPONSE = {
