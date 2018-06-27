@@ -1,6 +1,10 @@
 """Exchange configuration constants."""
-API_KEY = "api_key"
-API_SECRET = "api_secret"
+API_KEY = 'api_key'
+API_SECRET = 'api_secret'
+
+"""Extended ccxt exchanges constants."""
+BUY_SIDE = 'buy'
+SELL_SIDE = 'sell'
 
 """Unified CCXT API function names.
 From https://github.com/ccxt/ccxt/wiki/Manual#overview:
