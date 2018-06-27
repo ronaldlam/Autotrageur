@@ -3,10 +3,12 @@ import time
 
 import ccxt
 
+from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
 from libs.utilities import num_to_decimal
 
 
 ZERO = num_to_decimal('0')
+
 
 class ext_gdax(ccxt.gdax):
     """Subclass of ccxt's gdax.py for internal use.
@@ -14,7 +16,95 @@ class ext_gdax(ccxt.gdax):
     The name ext_gdax is to keep similar convention when initializing
     the exchange classes.
     """
-    # def _create_market_order(self, side, symbol, asset_amount, params={}):
+    # @Override
+    def __init__(self, exchange_config={}):
+        """Constructor.
+
+        Also sets `buy_target_includes_fee` to False as the trading fees for
+        buy orders are charged on top of the buy order.  E.g. $1000 market buy
+        order with a 1% fee costs $1010 total.
+
+        Args:
+            exchange_config (dict): The exchange's configuration in
+                accordance with the ccxt library for instantiating an
+                exchange, ex.
+                {
+                    "apiKey": [SOME_API_KEY]
+                    "secret": [SOME_API_SECRET]
+                    "verbose": False,
+                }
+        """
+        super().__init__(exchange_config)
+        self.buy_target_includes_fee = False
+
+    def _create_market_order(self, side, symbol, amount, params={}):
+        """Create a market buy or sell order.
+
+        Args:
+            side (str): Either BUY_SIDE or SELL_SIDE.
+            symbol (str): The market symbol, ie. 'ETH/USD'.
+            amount (str): The base asset amount to buy or sell.
+            params (dict): The extra parameters to pass to the ccxt call.
+                Defaults to {}.
+
+        Raises:
+            ccxt.ExchangeError: If side is specified incorrectly.
+
+        Returns:
+            dict: An Autotrageur specific unified response.
+        """
+        local_ts = int(time.time())
+
+        if side == BUY_SIDE:
+            response = super().create_market_buy_order(symbol, amount, params)
+        elif side == SELL_SIDE:
+            response = super().create_market_sell_order(symbol, amount, params)
+        else:
+            raise ccxt.ExchangeError(
+                'Invalid side: %s. Must be "buy" or "sell".' % side)
+
+        order_id = response['id']
+        order = self._poll_order(order_id)
+
+        logging.info('Raw fetched order response for order_id {}:\n {}'.format(
+            order_id, order
+        ))
+
+        fees = num_to_decimal(order['fee']['cost'])
+        filled = num_to_decimal(order['filled'])
+        cost = num_to_decimal(order['cost'])
+
+        # Gdax takes the fees away from the quote.
+        fee_asset = symbol.split('/')[1].upper()
+        pre_fee_base = filled
+        pre_fee_quote = cost + fees
+        post_fee_base = filled
+        post_fee_quote = cost
+
+        # Set avg_price to zero if no transaction was made.
+        if pre_fee_base == ZERO:
+            price = ZERO
+            true_price = ZERO
+        else:
+            price = post_fee_quote / post_fee_base
+            true_price = pre_fee_quote / pre_fee_base
+
+        return {
+            'pre_fee_base': pre_fee_base,
+            'pre_fee_quote': pre_fee_quote,
+            'post_fee_base': post_fee_base,
+            'post_fee_quote': post_fee_quote,
+            'fees': fees,
+            'fee_asset': fee_asset,
+            'price': price,
+            'true_price': true_price,
+            'side': order['side'],
+            'type': order['type'],
+            'order_id': order['id'],
+            'exchange_timestamp': int(order['timestamp'] / 1000),
+            'local_timestamp': local_ts,
+            'extraInfo':  params
+        }
 
     def _fetch_order_and_status(self, order_id):
         """Fetches the status of the desired order and the order
@@ -63,7 +153,7 @@ class ext_gdax(ccxt.gdax):
         https://www.gdax.com/fees
 
         PRICING TIER    TAKER FEE   MAKER FEE
-        $0m - $10m	    0.30%       0%
+        $0m - $10m      0.30%       0%
         $10m - $100m    0.20%       0%
         $100m+          0.10%       0%
 
@@ -134,44 +224,14 @@ class ext_gdax(ccxt.gdax):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            asset_amount (Decimal): The amount of asset to be bought.
+            asset_amount (Decimal): The base asset amount to be bought.
             params (dict): Extra parameters to be passed to the buy order.
 
         Returns:
             dict: The order result from the ccxt exchange.
         """
-        local_ts = int(time.time())
-        ccxt_resp = super().create_market_buy_order(
-            symbol, str(asset_amount), params)
-        order_id = ccxt_resp['id']
-
-        order = self._poll_order(order_id)
-        logging.info('Raw fetched order response for order_id {}:\n {}'.format(
-            order_id, order
-        ))
-
-        net_base_amount = num_to_decimal(order['filled'])
-        net_quote_amount = num_to_decimal(order['cost'])
-        fees = num_to_decimal(order['fee']['cost'])
-
-        # Set avg_price to zero if no transaction was made.
-        if net_base_amount == ZERO:
-            avg_price = ZERO
-        else:
-            avg_price = net_quote_amount / net_base_amount
-
-        return {
-            'net_base_amount': net_base_amount,
-            'net_quote_amount': net_quote_amount,
-            'fees': fees,
-            'avg_price': avg_price,
-            'side': order['side'],
-            'type': order['type'],
-            'order_id': order['id'],
-            'exchange_timestamp': int(order['timestamp'] / 1000),
-            'local_timestamp': local_ts,
-            'extraInfo':  params
-        }
+        return self._create_market_order(
+            BUY_SIDE, symbol, str(asset_amount), params)
 
     # @Override
     def create_market_sell_order(self, symbol, asset_amount, params={}):
@@ -225,41 +285,11 @@ class ext_gdax(ccxt.gdax):
 
         Args:
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
-            asset_amount (Decimal): The amount of asset to be sold.
+            asset_amount (Decimal): The base asset amount to be sold.
             params (dict): Extra parameters to be passed to the sell order.
 
         Returns:
             dict: The order result from the ccxt exchange.
         """
-        local_ts = int(time.time())
-        ccxt_resp = super().create_market_sell_order(
-            symbol, str(asset_amount), params)
-        order_id = ccxt_resp['id']
-
-        order = self._poll_order(order_id)
-        logging.info('Raw fetched order response for order_id {}:\n {}'.format(
-            order_id, order
-        ))
-
-        net_base_amount = num_to_decimal(order['filled'])
-        net_quote_amount = num_to_decimal(order['cost'])
-        fees = num_to_decimal(order['fee']['cost'])
-
-        # Set avg_price to zero if no transaction was made.
-        if net_base_amount == ZERO:
-            avg_price = ZERO
-        else:
-            avg_price = net_quote_amount / net_base_amount
-
-        return {
-            'net_base_amount': net_base_amount,
-            'net_quote_amount': net_quote_amount,
-            'fees': fees,
-            'avg_price': avg_price,
-            'side': order['side'],
-            'type': order['type'],
-            'order_id': order['id'],
-            'exchange_timestamp': int(order['timestamp'] / 1000),
-            'local_timestamp': local_ts,
-            'extraInfo':  params
-        }
+        return self._create_market_order(
+            SELL_SIDE, symbol, str(asset_amount), params)

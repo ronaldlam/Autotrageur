@@ -1,15 +1,17 @@
 from decimal import Decimal
+import time
 
 import ccxt
 import pytest
 
+from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
 import libs.ccxt_extensions as ccxt_extensions
 
 
 # Test Constants.
 FAKE_ORDER_ID = 'SOME_UNIQUE_ID'
 
-BUY_FETCH_ORDER = {
+BUY_FETCH_ORDER_TYPICAL = {
     "id": "082b53ee-4e5a-4383-acd5-b8fb9381e977",
     "info": {
         "id": "082b53ee-4e5a-4383-acd5-b8fb9381e977",
@@ -77,7 +79,7 @@ BUY_FETCH_ORDER_NOT_FILLED = {
     }
 }
 
-SELL_FETCH_ORDER = {
+SELL_FETCH_ORDER_TYPICAL = {
     "id": "40a3f4b6-ba0b-477b-9dde-eb12bd8d0d5e",
     "info": {
         "id": "40a3f4b6-ba0b-477b-9dde-eb12bd8d0d5e",
@@ -114,6 +116,26 @@ SELL_FETCH_ORDER = {
     }
 }
 
+SELL_FETCH_ORDER_RESPONSE = {
+    'pre_fee_base': Decimal('200'),
+    'pre_fee_quote': Decimal('100826.7756'),
+    'post_fee_base': Decimal('200'),
+    'post_fee_quote': Decimal('100525.2'),
+    'fees': Decimal('301.5756'),
+    'price': Decimal('502.626'),
+    'true_price': Decimal('504.133878')
+}
+
+SELL_FETCH_ORDER_NOT_FILLED_RESPONSE = {
+    'pre_fee_base': Decimal('0.00'),
+    'pre_fee_quote': Decimal('0.00'),
+    'post_fee_base': Decimal('0.00'),
+    'post_fee_quote': Decimal('0.00'),
+    'fees': Decimal('0.00'),
+    'price': Decimal('0.00'),
+    'true_price': Decimal('0.00')
+}
+
 SELL_FETCH_ORDER_NOT_FILLED = {
     "id": "40a3f4b6-ba0b-477b-9dde-eb12bd8d0d5e",
     "info": {
@@ -144,6 +166,46 @@ SELL_FETCH_ORDER_NOT_FILLED = {
     }
 }
 
+BUY_FETCH_ORDER_RESPONSE = {
+    'pre_fee_base': Decimal('0.01'),
+    'pre_fee_quote': Decimal('5.1615383'),
+    'post_fee_base': Decimal('0.01'),
+    'post_fee_quote': Decimal('5.1461'),
+    'fees': Decimal('0.0154383'),
+    'price': Decimal('514.61'),
+    'true_price': Decimal('516.15383'),
+}
+
+BUY_FETCH_ORDER_NOT_FILLED_RESPONSE = {
+    'pre_fee_base': Decimal('0.00'),
+    'pre_fee_quote': Decimal('0.00'),
+    'post_fee_base': Decimal('0.00'),
+    'post_fee_quote': Decimal('0.00'),
+    'fees': Decimal('0.00'),
+    'price': Decimal('0.00'),
+    'true_price': Decimal('0.00'),
+}
+
+BUY_FETCH_ORDERS = [
+    BUY_FETCH_ORDER_TYPICAL,
+    BUY_FETCH_ORDER_NOT_FILLED
+]
+
+SELL_FETCH_ORDERS = [
+    SELL_FETCH_ORDER_TYPICAL,
+    SELL_FETCH_ORDER_NOT_FILLED
+]
+
+BUY_FETCH_ORDER_RESPONSES = [
+    BUY_FETCH_ORDER_RESPONSE,
+    BUY_FETCH_ORDER_NOT_FILLED_RESPONSE
+]
+
+SELL_FETCH_ORDER_RESPONSES = [
+    SELL_FETCH_ORDER_RESPONSE,
+    SELL_FETCH_ORDER_NOT_FILLED_RESPONSE
+]
+
 INTERMEDIATE_ORDER = {
     "id": "INTERMEDIATE_ORDER_ID",
     "info": {
@@ -152,8 +214,17 @@ INTERMEDIATE_ORDER = {
     }
 }
 
+SAMPLE_PARAM = {
+    'some': 'param'
+}
+
+PARAMS_EMPTY = {}
+
 INT_ORDER_WITH_STATUS = (INTERMEDIATE_ORDER, INTERMEDIATE_ORDER['info']['status'])
-BUY_ORDER_WITH_STATUS = (BUY_FETCH_ORDER, BUY_FETCH_ORDER['info']['status'])
+BUY_ORDER_WITH_STATUS = (BUY_FETCH_ORDER_TYPICAL, BUY_FETCH_ORDER_TYPICAL['info']['status'])
+
+ETH_USD = 'ETH/USD'
+FAKE_AMOUNT = 1
 
 @pytest.fixture(scope='module')
 def gdax():
@@ -178,10 +249,10 @@ def test_describe(gdax):
 
 
 def test_fetch_order_and_status(mocker, gdax):
-    mocker.patch.object(gdax, 'fetch_order', return_value=BUY_FETCH_ORDER)
+    mocker.patch.object(gdax, 'fetch_order', return_value=BUY_FETCH_ORDER_TYPICAL)
     order, order_status = gdax._fetch_order_and_status(FAKE_ORDER_ID)
-    assert order is BUY_FETCH_ORDER
-    assert order_status is BUY_FETCH_ORDER['info']['status']
+    assert order is BUY_FETCH_ORDER_TYPICAL
+    assert order_status is BUY_FETCH_ORDER_TYPICAL['info']['status']
 
 
 @pytest.mark.parametrize("bad_value", [
@@ -225,71 +296,91 @@ def test_poll_order(mocker, gdax, orders_with_status, expected_calls):
     assert gdax._fetch_order_and_status.call_count == expected_calls
 
 
-@pytest.mark.parametrize("fetched_order, expected_response, params", [
-    (BUY_FETCH_ORDER, {
-        'net_base_amount': Decimal('0.01'),
-        'net_quote_amount': Decimal('5.1461'),
-        'fees': Decimal('0.0154383'),
-        'avg_price': Decimal('514.61'),
-    }, {
-        'some': 'param'
-    }),
-    (BUY_FETCH_ORDER_NOT_FILLED, {
-        'net_base_amount': Decimal('0.00'),
-        'net_quote_amount': Decimal('0.00'),
-        'fees': Decimal('0.00'),
-        'avg_price': Decimal('0.00'),
-    }, {})
-])
-def test_create_market_buy_order(mocker, gdax, fetched_order, expected_response, params):
-    mocker.patch('ccxt.gdax.create_market_buy_order', return_value={
-        'id': FAKE_ORDER_ID
-    })
-    mocker.patch.object(gdax, '_poll_order', return_value=fetched_order)
+class TestCreateMarketOrder:
+    def _validate_response(self, side, response, expected_response, fetched_order, params):
+        assert response['pre_fee_base'] == expected_response['pre_fee_base']
+        assert response['pre_fee_quote'] == expected_response['pre_fee_quote']
+        assert response['post_fee_base'] == expected_response['post_fee_base']
+        assert response['post_fee_quote'] == expected_response['post_fee_quote']
+        assert response['fees'] == expected_response['fees']
+        assert response['fee_asset'] == 'USD'
+        assert response['price'] == expected_response['price']
+        assert response['true_price'] == expected_response['true_price']
+        assert response['side'] == side
+        assert response['type'] == 'market'
+        assert response['order_id'] == fetched_order['id']
+        assert response['exchange_timestamp'] == int(fetched_order['timestamp'] / 1000)
+        assert response['extraInfo'] is params
 
-    response = gdax.create_market_buy_order('ETH/USD', 1, params)
-    gdax._poll_order.assert_called_with(FAKE_ORDER_ID)
-    assert response['net_base_amount'] == expected_response['net_base_amount']
-    assert response['net_quote_amount'] == expected_response['net_quote_amount']
-    assert response['fees'] == expected_response['fees']
-    assert response['avg_price'] == expected_response['avg_price']
-    assert response['side'] == 'buy'
-    assert response['type'] == 'market'
-    assert response['order_id'] == fetched_order['id']
-    assert response['exchange_timestamp'] == int(fetched_order['timestamp'] / 1000)
-    assert response['extraInfo'] is params
+    @pytest.mark.parametrize("side, fetched_order, expected_response", zip(
+        [BUY_SIDE] * len(BUY_FETCH_ORDERS) + [SELL_SIDE] * len(SELL_FETCH_ORDERS),
+        BUY_FETCH_ORDERS + SELL_FETCH_ORDERS,
+        BUY_FETCH_ORDER_RESPONSES + SELL_FETCH_ORDER_RESPONSES
+    ))
+    def test_create_market_order(self, mocker, gdax, side, fetched_order, expected_response):
+        # Mock.
+        mocker.spy(time, 'time')
 
+        if side == BUY_SIDE:
+            mock_ccxt_market_buy = mocker.patch('ccxt.gdax.create_market_buy_order', return_value={
+                'id': FAKE_ORDER_ID
+            })
+        elif side == SELL_SIDE:
+            mock_ccxt_market_sell = mocker.patch('ccxt.gdax.create_market_sell_order', return_value={
+                'id': FAKE_ORDER_ID
+            })
+        else:
+            with pytest.raises(ccxt.ExchangeError):
+                gdax._create_market_order(side, ETH_USD, FAKE_AMOUNT)
 
-@pytest.mark.parametrize("fetched_order, expected_response, params", [
-    (SELL_FETCH_ORDER, {
-        'net_base_amount': Decimal('200'),
-        'net_quote_amount': Decimal('100525.2'),
-        'fees': Decimal('301.5756'),
-        'avg_price': Decimal('502.626'),
-    }, {
-        'some': 'param'
-    }),
-    (SELL_FETCH_ORDER_NOT_FILLED, {
-        'net_base_amount': Decimal('0.00'),
-        'net_quote_amount': Decimal('0.00'),
-        'fees': Decimal('0.00'),
-        'avg_price': Decimal('0.00'),
-    }, {})
-])
-def test_create_market_sell_order(mocker, gdax, fetched_order, expected_response, params):
-    mocker.patch('ccxt.gdax.create_market_buy_order', return_value={
-        'id': FAKE_ORDER_ID
-    })
-    mocker.patch.object(gdax, '_poll_order', return_value=fetched_order)
+        mocker.patch.object(gdax, '_poll_order', return_value=fetched_order)
 
-    response = gdax.create_market_buy_order('ETH/USD', 1, params)
-    gdax._poll_order.assert_called_with(FAKE_ORDER_ID)
-    assert response['net_base_amount'] == expected_response['net_base_amount']
-    assert response['net_quote_amount'] == expected_response['net_quote_amount']
-    assert response['fees'] == expected_response['fees']
-    assert response['avg_price'] == expected_response['avg_price']
-    assert response['side'] == 'sell'
-    assert response['type'] == 'market'
-    assert response['order_id'] == fetched_order['id']
-    assert response['exchange_timestamp'] == int(fetched_order['timestamp'] / 1000)
-    assert response['extraInfo'] is params
+        # Call tested function.
+        response = gdax._create_market_order(side, ETH_USD, FAKE_AMOUNT, PARAMS_EMPTY)
+
+        # Validate.
+        time.time.assert_called_with()          # pylint: disable=E1101
+        gdax._poll_order.assert_called_with(FAKE_ORDER_ID)
+
+        if side == BUY_SIDE:
+            mock_ccxt_market_buy.assert_called_with(ETH_USD, FAKE_AMOUNT, PARAMS_EMPTY)
+        else:
+            mock_ccxt_market_sell.assert_called_with(ETH_USD, FAKE_AMOUNT, PARAMS_EMPTY)
+
+        self._validate_response(side, response, expected_response, fetched_order, PARAMS_EMPTY)
+
+    @pytest.mark.parametrize("params", [SAMPLE_PARAM, PARAMS_EMPTY])
+    @pytest.mark.parametrize("fetched_order, expected_response",
+        zip(BUY_FETCH_ORDERS, BUY_FETCH_ORDER_RESPONSES))
+    def test_create_market_buy_order(self, mocker, gdax, fetched_order, expected_response, params):
+        mocker.patch('ccxt.gdax.create_market_buy_order', return_value={
+            'id': FAKE_ORDER_ID
+        })
+        mocker.spy(gdax, '_create_market_order')
+        mocker.patch.object(gdax, '_poll_order', return_value=fetched_order)
+
+        response = gdax.create_market_buy_order(ETH_USD, FAKE_AMOUNT, params)
+
+        # Check that the amount has been cast to a str for gdax.
+        assert isinstance(FAKE_AMOUNT, int)
+        gdax._create_market_order.assert_called_with(BUY_SIDE, ETH_USD, str(FAKE_AMOUNT), params)
+        gdax._poll_order.assert_called_with(FAKE_ORDER_ID)
+        self._validate_response(BUY_SIDE, response, expected_response, fetched_order, params)
+
+    @pytest.mark.parametrize("params", [SAMPLE_PARAM, PARAMS_EMPTY])
+    @pytest.mark.parametrize("fetched_order, expected_response",
+        zip(SELL_FETCH_ORDERS, SELL_FETCH_ORDER_RESPONSES))
+    def test_create_market_sell_order(self, mocker, gdax, fetched_order, expected_response, params):
+        mocker.patch('ccxt.gdax.create_market_sell_order', return_value={
+            'id': FAKE_ORDER_ID
+        })
+        mocker.spy(gdax, '_create_market_order')
+        mocker.patch.object(gdax, '_poll_order', return_value=fetched_order)
+
+        response = gdax.create_market_sell_order(ETH_USD, FAKE_AMOUNT, params)
+
+        # Check that the amount has been cast to a str for gdax.
+        assert isinstance(FAKE_AMOUNT, int)
+        gdax._create_market_order.assert_called_with(SELL_SIDE, ETH_USD, str(FAKE_AMOUNT), params)
+        gdax._poll_order.assert_called_with(FAKE_ORDER_ID)
+        self._validate_response(SELL_SIDE, response, expected_response, fetched_order, params)
