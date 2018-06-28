@@ -18,6 +18,27 @@ class ext_gemini(ccxt.gemini):
     The name ext_gemini is to keep similar convention when initializing
     the exchange classes.
     """
+     # @Override
+    def __init__(self, exchange_config={}):
+        """Constructor.
+
+        Also sets `buy_target_includes_fee` to False as the trading fees for
+        buy orders are charged on top of the buy order.  E.g. $1000 market buy
+        order with a 1% fee costs $1010 total.
+
+        Args:
+            exchange_config (dict): The exchange's configuration in
+                accordance with the ccxt library for instantiating an
+                exchange, ex.
+                {
+                    "apiKey": [SOME_API_KEY]
+                    "secret": [SOME_API_SECRET]
+                    "verbose": False,
+                }
+        """
+        super().__init__(exchange_config)
+        self.buy_target_includes_fee = False
+
     def _package_result(self, result, symbol, local_timestamp, params):
         """Retrieve Autotrageur specific unified response given the ccxt
         response.
@@ -111,6 +132,7 @@ class ext_gemini(ccxt.gemini):
         trade_list = self.fetch_my_trades(symbol)
         order_id = result['id']
         side = result['info']['side']
+        _, quote = symbol.split('/')
         trades = list(filter(lambda x: x['order'] == order_id, trade_list))
 
         pre_fee_base = num_to_decimal(result['info']['executed_amount'])
@@ -146,7 +168,7 @@ class ext_gemini(ccxt.gemini):
             'post_fee_base': post_fee_base,
             'post_fee_quote': post_fee_quote,
             'fees': fees,
-            'fee_asset': 'USD',
+            'fee_asset': quote,
             'price': price,
             'true_price': true_price,
             'side': side,

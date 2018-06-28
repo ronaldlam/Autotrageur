@@ -22,17 +22,41 @@ class ext_bithumb(ccxt.bithumb):
     def __init__(self, *args, **kwargs):
         """Constructor.
 
-        Initializes the ccxt exchange, and decorates relevant unified functions
-        for ccxt.bithumb to translate error messages.
+        Initializes the ccxt exchange, and decorates relevant unified
+        functions for ccxt.bithumb to translate error messages. Also
+        sets 'buy_target_includes_fee'. Bithumb fees are taken off the
+        asset that is being bought into, so the buy target indeed
+        includes the fee.
         """
         super().__init__(*args, **kwargs)
         for func_name in UNIFIED_FUNCTION_NAMES:
             if func_name in dir(self):
                 ccxt_func = getattr(self, func_name)
                 setattr(self, func_name, ext_bithumb.decorate(ccxt_func))
+        self.buy_target_includes_fee = True
 
     def _create_market_order(self, side, symbol, amount, params={}):
         """Create a market buy or sell order.
+
+        The ccxt responses for both create_market_buy_order and
+        create_market_sell_order have the following format, where the
+        'data' array can have multiple entries:
+        {
+            "info": {
+                "status": "0000",
+                "order_id": "1529629423655557",
+                "data": [
+                    {
+                        "cont_id": "27907430",
+                        "units": "0.01",
+                        "price": "585500",
+                        "total": 5855,
+                        "fee": 0
+                    }
+                ]
+            },
+            "id": "1529629423655557"
+        }
 
         Args:
             side (str): Either 'buy' or 'sell'.

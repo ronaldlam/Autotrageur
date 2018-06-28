@@ -11,6 +11,7 @@ from ext_gemini_data import (BUY_RESPONSES, BUY_RESULTS, SELL_RESPONSES,
 BUY = 'buy'
 SELL = 'sell'
 HUNDRED = Decimal('100')
+OPTIONS = {"options": ["immediate-or-cancel"]}
 
 BUY_PARAMS = [
     ('ETH/USD', Decimal('10000'), Decimal('600'), Decimal('1'), 0),
@@ -79,11 +80,11 @@ def sell_results(request):
     return (result_amount, result_price)
 
 
-@pytest.mark.parametrize('side, calls, result', zip(
+@pytest.mark.parametrize('side, calls, expected_result', zip(
     [BUY]*len(BUY_RESPONSES) + [SELL]*len(SELL_RESPONSES),
     BUY_RESPONSES + SELL_RESPONSES,
     BUY_RESULTS + SELL_RESULTS))
-def test_package_result(mocker, gemini, side, calls, result):
+def test_package_result(mocker, gemini, side, calls, expected_result):
     mocker.patch.object(
         gemini, 'fetch_my_trades', return_value=calls['fetch_my_trades'])
     local_timestamp = int(time.time())
@@ -92,23 +93,23 @@ def test_package_result(mocker, gemini, side, calls, result):
         calls['create_order'],
         'ETH/USD',
         local_timestamp,
-        {"options": ["immediate-or-cancel"]})
+        OPTIONS)
 
     gemini.fetch_my_trades.assert_called_with('ETH/USD')
     assert response['local_timestamp'] == local_timestamp
-    assert response['pre_fee_base'] == result['pre_fee_base']
-    assert response['pre_fee_quote'] == result['pre_fee_quote']
-    assert response['post_fee_base'] == result['post_fee_base']
-    assert response['post_fee_quote'] == result['post_fee_quote']
-    assert response['fees'] == result['fees']
-    assert response['fee_asset'] == result['fee_asset']
-    assert response['price'] == result['price']
-    assert response['true_price'] == result['true_price']
-    assert response['side'] == result['side']
-    assert response['type'] == result['type']
-    assert response['order_id'] == result['order_id']
-    assert response['exchange_timestamp'] == result['exchange_timestamp']
-    assert response['extra_info'] == result['extra_info']
+    assert response['pre_fee_base'] == expected_result['pre_fee_base']
+    assert response['pre_fee_quote'] == expected_result['pre_fee_quote']
+    assert response['post_fee_base'] == expected_result['post_fee_base']
+    assert response['post_fee_quote'] == expected_result['post_fee_quote']
+    assert response['fees'] == expected_result['fees']
+    assert response['fee_asset'] == expected_result['fee_asset']
+    assert response['price'] == expected_result['price']
+    assert response['true_price'] == expected_result['true_price']
+    assert response['side'] == expected_result['side']
+    assert response['type'] == expected_result['type']
+    assert response['order_id'] == expected_result['order_id']
+    assert response['exchange_timestamp'] == expected_result['exchange_timestamp']
+    assert response['extra_info'] == expected_result['extra_info']
 
 
 def test_fetch_markets(gemini):
@@ -161,7 +162,7 @@ def test_emulated_market_buy_order(
         symbol,
         result_volume,
         result_price,
-        {"options": ["immediate-or-cancel"]})
+        OPTIONS)
     gemini._package_result.called_once()
 
 
@@ -201,7 +202,7 @@ def test_emulated_market_sell_order(
         symbol,
         result_amount,
         result_price,
-        {"options": ["immediate-or-cancel"]})
+        OPTIONS)
     gemini._package_result.called_once()
 
 

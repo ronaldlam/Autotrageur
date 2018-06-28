@@ -222,18 +222,19 @@ def bithumb():
     return ccxt_extensions.ext_bithumb()
 
 
+@pytest.mark.parametrize('args', [['ETH/KRW', 1], ['ETH/KRW', 2]])
 @pytest.mark.parametrize('side, raw_response, result', zip(
     [BUY]*len(BUY_RESPONSES) + [SELL]*len(SELL_RESPONSES),
     BUY_RESPONSES + SELL_RESPONSES,
     BUY_RESULTS + SELL_RESULTS))
-def test_create_market_order(mocker, bithumb, side, raw_response, result):
+def test_create_market_order(mocker, bithumb, args, side, raw_response, result):
     mocker.patch('ccxt.bithumb.create_market_%s_order' % side,
                  return_value=raw_response)
-    response = bithumb._create_market_order(side, 'ETH/KRW', 1)
+    response = bithumb._create_market_order(side, *args)
     if side == BUY:
-        assert ccxt.bithumb.create_market_buy_order.called_with(side, 'ETH/KRW', 1)
+        assert ccxt.bithumb.create_market_buy_order.called_with(side, *args)
     if side == SELL:
-        assert ccxt.bithumb.create_market_sell_order.called_with(side, 'ETH/KRW', 1)
+        assert ccxt.bithumb.create_market_sell_order.called_with(side, *args)
     assert response['pre_fee_base'] == result['pre_fee_base']
     assert response['pre_fee_quote'] == result['pre_fee_quote']
     assert response['post_fee_base'] == result['post_fee_base']
@@ -246,6 +247,26 @@ def test_create_market_order(mocker, bithumb, side, raw_response, result):
     assert response['type'] == result['type']
     assert response['order_id'] == result['order_id']
     assert response['extra_info'] == result['extra_info']
+
+
+@pytest.mark.parametrize('args', [
+    ['ETH/KRW', 1], ['ETH/KRW', 2, {}], ['BTC/KRW', 500, {'fake': 'stuff'}]])
+def test_create_market_buy_order(mocker, bithumb, args):
+    if len(args) == 2:
+        args.append({})
+    mocker.patch.object(bithumb, '_create_market_order')
+    bithumb.create_market_buy_order(*args)
+    bithumb._create_market_order.assert_called_with('buy', *args)
+
+
+@pytest.mark.parametrize('args', [
+    ['ETH/KRW', 1], ['ETH/KRW', 2, {}], ['BTC/KRW', 500, {'fake': 'stuff'}]])
+def test_create_market_sell_order(mocker, bithumb, args):
+    if len(args) == 2:
+        args.append({})
+    mocker.patch.object(bithumb, '_create_market_order')
+    bithumb.create_market_sell_order(*args)
+    bithumb._create_market_order.assert_called_with('sell', *args)
 
 
 def test_fail_create_market_order(bithumb):
