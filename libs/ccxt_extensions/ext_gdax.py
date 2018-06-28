@@ -107,7 +107,7 @@ class ext_gdax(ccxt.gdax):
             'order_id': order['id'],
             'exchange_timestamp': int(order['timestamp'] / 1000),
             'local_timestamp': local_ts,
-            'extraInfo':  params
+            'extra_info':  params
         }
 
     def _fetch_order_and_status(self, order_id):

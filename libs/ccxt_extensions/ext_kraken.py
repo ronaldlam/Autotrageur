@@ -114,7 +114,7 @@ class ext_kraken(ccxt.kraken):
             'order_id': order['id'],
             'exchange_timestamp': int(order['timestamp'] / 1000),
             'local_timestamp': local_ts,
-            'extraInfo':  params
+            'extra_info':  params
         }
 
     def _fetch_order_and_status(self, order_id):
@@ -148,6 +148,7 @@ class ext_kraken(ccxt.kraken):
             time.sleep(0.1)
             order, order_status = self._fetch_order_and_status(order_id)
         return order
+
     # @Override
     def describe(self):
         """Return kraken exchange object with corrected info.

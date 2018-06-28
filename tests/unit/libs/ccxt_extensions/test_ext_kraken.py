@@ -391,7 +391,7 @@ class TestCreateMarketOrder:
         assert response['type'] == 'market'
         assert response['order_id'] == fetched_order['id']
         assert response['exchange_timestamp'] == int(fetched_order['timestamp'] / 1000)
-        assert response['extraInfo'] is params
+        assert response['extra_info'] is params
 
     @pytest.mark.parametrize("side, fetched_order, expected_response", zip(
         [BUY_SIDE] * len(BUY_FETCH_ORDERS) + [SELL_SIDE] * len(SELL_FETCH_ORDERS),
@@ -420,13 +420,13 @@ class TestCreateMarketOrder:
         response = kraken._create_market_order(side, ETH_USD, FAKE_AMOUNT, PARAMS_EMPTY)
 
         # Validate.
-        time.time.assert_called_with()          # pylint: disable=E1101
-        kraken._poll_order.assert_called_with(FAKE_ORDER_ID)
+        time.time.assert_called_once()          # pylint: disable=E1101
+        kraken._poll_order.assert_called_once_with(FAKE_ORDER_ID)
 
         if side == BUY_SIDE:
-            mock_ccxt_market_buy.assert_called_with(ETH_USD, FAKE_AMOUNT, PARAMS_EMPTY)
+            mock_ccxt_market_buy.assert_called_once_with(ETH_USD, FAKE_AMOUNT, PARAMS_EMPTY)
         else:
-            mock_ccxt_market_sell.assert_called_with(ETH_USD, FAKE_AMOUNT, PARAMS_EMPTY)
+            mock_ccxt_market_sell.assert_called_once_with(ETH_USD, FAKE_AMOUNT, PARAMS_EMPTY)
 
         self._validate_response(side, response, expected_response, fetched_order, PARAMS_EMPTY)
 
@@ -442,8 +442,8 @@ class TestCreateMarketOrder:
 
         response = kraken.create_market_buy_order(ETH_USD, FAKE_AMOUNT, params)
 
-        kraken._create_market_order.assert_called_with(BUY_SIDE, ETH_USD, FAKE_AMOUNT, params)
-        kraken._poll_order.assert_called_with(FAKE_ORDER_ID)
+        kraken._create_market_order.assert_called_once_with(BUY_SIDE, ETH_USD, FAKE_AMOUNT, params)
+        kraken._poll_order.assert_called_once_with(FAKE_ORDER_ID)
         self._validate_response(BUY_SIDE, response, expected_response, fetched_order, params)
 
     @pytest.mark.parametrize("params", [SAMPLE_PARAM, PARAMS_EMPTY])
@@ -458,6 +458,6 @@ class TestCreateMarketOrder:
 
         response = kraken.create_market_sell_order(ETH_USD, FAKE_AMOUNT, params)
 
-        kraken._create_market_order.assert_called_with(SELL_SIDE, ETH_USD, FAKE_AMOUNT, params)
-        kraken._poll_order.assert_called_with(FAKE_ORDER_ID)
+        kraken._create_market_order.assert_called_once_with(SELL_SIDE, ETH_USD, FAKE_AMOUNT, params)
+        kraken._poll_order.assert_called_once_with(FAKE_ORDER_ID)
         self._validate_response(SELL_SIDE, response, expected_response, fetched_order, params)
