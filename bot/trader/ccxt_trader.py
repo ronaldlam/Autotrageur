@@ -268,9 +268,21 @@ class CCXTTrader():
         """
         symbol = "%s/%s" % (self.base, self.quote)
         market_order = self.ccxt_exchange.has['createMarketOrder']
-        # TODO: Take into account exchange fees.
-        asset_amount = self.__round_exchange_precision(market_order, symbol,
-            self.quote_target_amount / asset_price)
+        quote_target_amount = self.quote_target_amount
+        asset_amount = quote_target_amount / asset_price
+
+        # If the buy target does not include fees, we want to deduct the fees
+        # from the original quote_target_amount. Since the price per unit base
+        # is always a fixed price, we can divide by the fee ratio to get both
+        # the true target asset_amount and quote_target_amount. Note that all
+        # exchanges MUST implement buy_target_includes_fee.
+        if self.ccxt_exchange.buy_target_includes_fee is False:
+            fee_ratio = num_to_decimal(1) + self.get_taker_fee()
+            asset_amount /= fee_ratio
+            quote_target_amount /= fee_ratio
+
+        asset_amount = self.__round_exchange_precision(
+            market_order, symbol, asset_amount)
 
         # For 'emulated', We check before rounding which is not strictly
         # correct, but it is likely larger issues are at hand if the error is
@@ -278,13 +290,13 @@ class CCXTTrader():
         self.__check_exchange_limits(asset_amount, asset_price)
 
         if market_order is True:
-            result = self.executor.create_market_buy_order(symbol, asset_amount,
-                                                           asset_price)
+            result = self.executor.create_market_buy_order(
+                symbol, asset_amount, asset_price)
         elif market_order == 'emulated':
             # Rounding will be deferred to emulated implementation.
             result = self.executor.create_emulated_market_buy_order(
                 symbol,
-                self.quote_target_amount,
+                quote_target_amount,
                 asset_price,
                 self.slippage)
         else:
@@ -376,7 +388,14 @@ class CCXTTrader():
         return self.quote_target_amount / asset_volume
 
     def get_taker_fee(self):
-        """Obtains the exchange's takers fee."""
+        """Obtains the exchange's takers fee.
+
+        Raises:
+            NotImplementedError: If not accessible through ccxt.
+
+        Returns:
+            Decimal: The taker fee, given as a ratio.
+        """
         return self.fetcher.fetch_taker_fees()
 
     def load_markets(self):
