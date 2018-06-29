@@ -1,6 +1,9 @@
 import logging
 from decimal import Decimal
+import time
 
+from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
+from libs.utilities import num_to_decimal
 from .base_executor import BaseExecutor
 
 
@@ -16,10 +19,11 @@ class DryRunExecutor(BaseExecutor):
         logging.log(logging.INFO, "*** Dry run with: %s", exchange.name)
         self.exchange = exchange
 
-    def _populate_dry_run_order(self, symbol, amount, price=Decimal('0')):
+    def _populate_dry_run_order(self, side, symbol, amount, price=Decimal('0')):
         """Populates a fake ideal order as a dry run response.
 
         Args:
+            side (str): Either 'buy' or 'sell'.
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
             amount (Decimal): The amount to buy or sell.
             price (Decimal, optional): The target price to buy or sell.
@@ -29,14 +33,27 @@ class DryRunExecutor(BaseExecutor):
             dict: A pre-defined order dictionary populated with the
                 calling function's parameters.
         """
+        local_ts = int(time.time())
+        dry_run_base = num_to_decimal(amount)
+        dry_run_quote = dry_run_base * price
         return {
-            "info": {
-                "symbol": symbol,
-                "exchange": self.exchange.name,
-                "price": price,
-                "executed_amount": amount,
-            },
-            "id": "DRYRUN"
+            'pre_fee_base': dry_run_base,
+            'pre_fee_quote': dry_run_quote,
+            'post_fee_base': dry_run_base,
+            'post_fee_quote': dry_run_quote,
+            'fees': num_to_decimal(0.00),
+            'fee_asset': symbol.split('/')[1],
+            'price': price,
+            'true_price': price,
+            'side': side,
+            'type': 'market',
+            'order_id': 'DRYRUN',
+            'exchange_timestamp': local_ts,
+            'local_timestamp': local_ts,
+            'extra_info':  {
+                'options': 'dryrun',
+                'exchange': self.exchange.name
+            }
         }
 
     def create_emulated_market_buy_order(self, symbol, quote_amount,
@@ -62,7 +79,8 @@ class DryRunExecutor(BaseExecutor):
 
         # We use asset_price because it uses order book data for calculation;
         # limit_price assumes worst case taking slippage into account.
-        return self._populate_dry_run_order(symbol, asset_volume, asset_price)
+        return self._populate_dry_run_order(
+            BUY_SIDE, symbol, asset_volume, asset_price)
 
     def create_emulated_market_sell_order(self, symbol, asset_price,
                                           asset_amount, slippage):
@@ -88,7 +106,7 @@ class DryRunExecutor(BaseExecutor):
         # We use asset_price because it uses order book data for calculation;
         # rounded_limit_price assumes worst case taking slippage into account.
         return self._populate_dry_run_order(
-            symbol, rounded_amount, asset_price)
+            SELL_SIDE, symbol, rounded_amount, asset_price)
 
     def create_market_buy_order(self, symbol, asset_amount, asset_price):
         """When a market buy order has been requested from the bot.
@@ -103,7 +121,8 @@ class DryRunExecutor(BaseExecutor):
                 function's parameters.
         """
         logging.log(logging.INFO, "Arguments: %s", locals())
-        return self._populate_dry_run_order(symbol, asset_amount, asset_price)
+        return self._populate_dry_run_order(
+            BUY_SIDE, symbol, asset_amount, asset_price)
 
     def create_market_sell_order(self, symbol, asset_amount, asset_price):
         """When a market sell order has been requested from the bot.
@@ -119,4 +138,5 @@ class DryRunExecutor(BaseExecutor):
                 function's parameters.
         """
         logging.log(logging.INFO, "Arguments: %s", locals())
-        return self._populate_dry_run_order(symbol, asset_amount, asset_price)
+        return self._populate_dry_run_order(
+            SELL_SIDE, symbol, asset_amount, asset_price)

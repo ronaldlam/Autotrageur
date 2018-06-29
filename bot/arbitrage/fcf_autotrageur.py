@@ -283,9 +283,11 @@ class FCFAutotrageur(Autotrageur):
         """Execute the arbitrage."""
         if self.config[DRYRUN]:
             logging.info("**Dry run - begin fake execution")
-            executed_amount = arbseeker.execute_buy(
+            buy_response = arbseeker.execute_buy(
                 self.trade_metadata['buy_trader'],
                 self.trade_metadata['buy_price'])
+
+            executed_amount = buy_response['post_fee_base']
             arbseeker.execute_sell(
                 self.trade_metadata['sell_trader'],
                 self.trade_metadata['sell_price'],
