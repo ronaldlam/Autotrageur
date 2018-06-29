@@ -404,6 +404,7 @@ class TestExecuteMarketOrder:
        ccxt_trader::execute_market_sell."""
 
     fake_asset_price = Decimal('100.00')
+    fake_quote_target = Decimal('1000')
     fake_result = { 'fake': 'result' }
     fake_rounded_amount = Decimal('2.333')
     fake_normal_market_order = { 'createMarketOrder': True }
@@ -415,15 +416,24 @@ class TestExecuteMarketOrder:
         if order_type is OrderType.BUY:
             market_order_function = 'execute_market_buy'
             market_order_function_params = [self.fake_asset_price]
-            round_exchange_precision_params = [create_market_order['createMarketOrder'], BTC_USD,
-                (fake_ccxt_trader.quote_target_amount / self.fake_asset_price)]
+            fake_asset_amount = fake_ccxt_trader.quote_target_amount / self.fake_asset_price
+            fake_quote_target_amount = fake_ccxt_trader.quote_target_amount
+            if fake_ccxt_trader.ccxt_exchange.buy_target_includes_fee is False:
+                fee_ratio = Decimal('1') + fake_ccxt_trader.get_taker_fee()
+                fake_asset_amount /= fee_ratio
+                fake_quote_target_amount /= fee_ratio
+            round_exchange_precision_params = [
+                create_market_order['createMarketOrder'],
+                BTC_USD,
+                fake_asset_amount
+            ]
 
             if create_market_order == self.fake_normal_market_order:
                 executor_function = 'create_market_buy_order'
                 executor_function_params = [BTC_USD, self.fake_rounded_amount, self.fake_asset_price]
             else:
                 executor_function = 'create_emulated_market_buy_order'
-                executor_function_params = [BTC_USD, fake_ccxt_trader.quote_target_amount, self.fake_asset_price,
+                executor_function_params = [BTC_USD, fake_quote_target_amount, self.fake_asset_price,
                     fake_ccxt_trader.slippage]
         else:
             market_order_function = 'execute_market_sell'
@@ -457,7 +467,17 @@ class TestExecuteMarketOrder:
             # Should not reach here.
             pytest.fail('Unsupported market buy type')
 
-    def _setup_mocks(self, mocker, fake_ccxt_trader, create_market_order, order_type):
+    def _setup_mocks(self, mocker, fake_ccxt_trader, buy_target_includes_fee,
+                     fee, create_market_order, order_type):
+        if buy_target_includes_fee is not None:
+            mocker.patch.object(fake_ccxt_trader.ccxt_exchange,
+                                'buy_target_includes_fee',
+                                buy_target_includes_fee,
+                                create=True)
+            mocker.patch.object(fake_ccxt_trader,
+                                'get_taker_fee', return_value=fee)
+        mocker.patch.object(
+            fake_ccxt_trader, 'quote_target_amount', self.fake_quote_target)
         fake_ccxt_trader.ccxt_exchange.has = {}
         mocker.patch.dict(fake_ccxt_trader.ccxt_exchange.has, create_market_order)
         mocker.patch.object(fake_ccxt_trader, '_CCXTTrader__round_exchange_precision',
@@ -476,15 +496,22 @@ class TestExecuteMarketOrder:
         mocker.patch.object(fake_ccxt_trader.executor, mocked_executor_function,
             return_value=self.fake_result)
 
+    @pytest.mark.parametrize('buy_target_includes_fee', [True, False])
+    @pytest.mark.parametrize('fee', [Decimal('0'), Decimal('0.01')])
     @pytest.mark.parametrize('order_type', [ OrderType.BUY, OrderType.SELL ])
     @pytest.mark.parametrize('create_market_order', [
         { 'createMarketOrder': True },
         { 'createMarketOrder': 'emulated' }
     ])
-    def test_execute_market_order_normal(self, mocker, fake_ccxt_trader, order_type, create_market_order):
-        self._setup_mocks(mocker, fake_ccxt_trader, create_market_order, order_type)
-        self._asserts_for_market_order(mocker, fake_ccxt_trader, create_market_order, order_type)
+    def test_execute_market_order_normal(self, mocker, fake_ccxt_trader,
+                                         buy_target_includes_fee, fee,
+                                         order_type, create_market_order):
+        self._setup_mocks(mocker, fake_ccxt_trader, buy_target_includes_fee,
+                          fee, create_market_order, order_type)
+        self._asserts_for_market_order(mocker, fake_ccxt_trader,
+                                       create_market_order, order_type)
 
+    @pytest.mark.parametrize('buy_target_includes_fee', [True, False, None])
     @pytest.mark.parametrize('order_type', [ OrderType.BUY, OrderType.SELL ])
     @pytest.mark.parametrize('create_market_order', [
         { 'createMarketOrder': None },
@@ -492,9 +519,14 @@ class TestExecuteMarketOrder:
         { 'createMarketOrder': "" },
         { 'createMarketOrder': False }
     ])
-    def test_execute_market_buy_exception(self, mocker, fake_ccxt_trader, order_type, create_market_order):
-        with pytest.raises(NotImplementedError):
-            self._setup_mocks(mocker, fake_ccxt_trader, create_market_order, order_type)
+    def test_execute_market_buy_exception(self, mocker, fake_ccxt_trader,
+                                          buy_target_includes_fee, order_type,
+                                          create_market_order):
+        with pytest.raises((NotImplementedError, AttributeError)):
+            mock_fee = 0
+            self._setup_mocks(mocker, fake_ccxt_trader,
+                              buy_target_includes_fee, mock_fee,
+                              create_market_order, order_type)
             fake_ccxt_trader.execute_market_buy(self.fake_asset_price)
 
 
