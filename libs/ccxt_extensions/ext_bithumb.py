@@ -1,10 +1,16 @@
+from decimal import Decimal
 import logging
 import sys
+import time
 
 import ccxt
 from googletrans import Translator
 
 from bot.common.ccxt_constants import UNIFIED_FUNCTION_NAMES
+from libs.utilities import num_to_decimal
+
+
+ZERO = Decimal('0')
 
 
 class ext_bithumb(ccxt.bithumb):
@@ -16,14 +22,114 @@ class ext_bithumb(ccxt.bithumb):
     def __init__(self, *args, **kwargs):
         """Constructor.
 
-        Initializes the ccxt exchange, and decorates relevant unified functions
-        for ccxt.bithumb to translate error messages.
+        Initializes the ccxt exchange, and decorates relevant unified
+        functions for ccxt.bithumb to translate error messages. Also
+        sets 'buy_target_includes_fee'. Bithumb fees are taken off the
+        asset that is being bought into, so the buy target indeed
+        includes the fee.
         """
         super().__init__(*args, **kwargs)
         for func_name in UNIFIED_FUNCTION_NAMES:
             if func_name in dir(self):
                 ccxt_func = getattr(self, func_name)
                 setattr(self, func_name, ext_bithumb.decorate(ccxt_func))
+        self.buy_target_includes_fee = True
+
+    def _create_market_order(self, side, symbol, amount, params={}):
+        """Create a market buy or sell order.
+
+        The ccxt responses for both create_market_buy_order and
+        create_market_sell_order have the following format, where the
+        'data' array can have multiple entries:
+        {
+            "info": {
+                "status": "0000",
+                "order_id": "1529629423655557",
+                "data": [
+                    {
+                        "cont_id": "27907430",
+                        "units": "0.01",
+                        "price": "585500",
+                        "total": 5855,
+                        "fee": 0
+                    }
+                ]
+            },
+            "id": "1529629423655557"
+        }
+
+        Args:
+            side (str): Either 'buy' or 'sell'.
+            symbol (str): The market symbol, ie. 'ETH/KRW'.
+            amount (str): The base asset amount.
+            params (dict): The extra parameters to pass to the ccxt call.
+
+        Raises:
+            ccxt.ExchangeError: If side is specified incorrectly.
+
+        Returns:
+            dict: An Autotrageur specific unified response.
+        """
+        pre_fee_base = ZERO
+        pre_fee_quote = ZERO
+        fees = ZERO
+        base, quote = symbol.split('/')
+        local_timestamp = int(time.time())
+
+        if side == 'buy':
+            response = super().create_market_buy_order(symbol, amount, params)
+        elif side == 'sell':
+            response = super().create_market_sell_order(symbol, amount, params)
+        else:
+            raise ccxt.ExchangeError(
+                'Invalid side: %s. Must be "buy" or "sell".' % side)
+
+        # Separate trades are stored in the 'data' list.
+        trades = response['info']['data']
+
+        # Add up trade totals first
+        for trade in trades:
+            pre_fee_base += num_to_decimal(trade['units'])
+            pre_fee_quote += num_to_decimal(trade['total'])
+            fees += num_to_decimal(trade['fee'])
+
+        # Bithumb buy fees are taken off base amounts; sell fees off
+        # quote amounts
+        if side == 'buy':
+            post_fee_base = pre_fee_base - fees
+            post_fee_quote = pre_fee_quote
+            fee_asset = base
+        else:
+            post_fee_base = pre_fee_base
+            post_fee_quote = pre_fee_quote - fees
+            fee_asset = quote
+
+        # Last step is to calculate the prices. We set this to zero if
+        # no transaction was made.
+        if pre_fee_base == ZERO:
+            price = ZERO
+            true_price = ZERO
+        else:
+            price = pre_fee_quote / pre_fee_base
+            true_price = post_fee_quote / post_fee_base
+
+        return {
+            'pre_fee_base': pre_fee_base,
+            'pre_fee_quote': pre_fee_quote,
+            'post_fee_base': post_fee_base,
+            'post_fee_quote': post_fee_quote,
+            'fees': fees,
+            'fee_asset': fee_asset,
+            'price': price,
+            'true_price': true_price,
+            'side': side,
+            'type': 'market',
+            'order_id': response['id'],
+            # Bithumb does not return the timestamp.
+            'exchange_timestamp': local_timestamp,
+            'local_timestamp': local_timestamp,
+            'extra_info': params
+        }
 
     @staticmethod
     def decorate(func):
@@ -80,6 +186,71 @@ class ext_bithumb(ccxt.bithumb):
                 },
             },
         })
+
+    # @Override
+    def create_market_buy_order(self, symbol, amount, params={}):
+        """Create a market buy order.
+
+        The response is formatted as:
+        {
+            'pre_fee_base' (Decimal): 0.100,
+            'pre_fee_quote' (Decimal): 50.00,
+            'post_fee_base' (Decimal): 0.100,
+            'post_fee_quote' (Decimal): 50.50,
+            'fees' (Decimal): 0.50,
+            'fee_asset' (String): 'USD',
+            'price' (Decimal): 500.00,
+            'true_price' (Decimal): 495.00,
+            'side' (String): 'sell',
+            'type' (String): 'limit',
+            'order_id' (String): 'RU486',
+            'exchange_timestamp' (int): 1529651177,
+            'local_timestamp' (int): 1529651177,
+            'extra_info' (dict):  { 'options': 'immediate-or-cancel' }
+        }
+
+        Args:
+            symbol (str): The market symbol, ie. 'ETH/KRW'.
+            amount (str): The base asset amount.
+            params (dict): The extra parameters to pass to the ccxt call.
+
+        Returns:
+            dict: An Autotrageur specific unified response.
+        """
+        return self._create_market_order('buy', symbol, amount, params)
+
+    # @Override
+    def create_market_sell_order(self, symbol, amount, params={}):
+        """Create a market sell order.
+
+        The response is formatted as:
+        {
+            'pre_fee_base' (Decimal): 0.100,
+            'pre_fee_quote' (Decimal): 50.00,
+            'post_fee_base' (Decimal): 0.100,
+            'post_fee_quote' (Decimal): 50.50,
+            'fees' (Decimal): 0.50,
+            'fee_asset' (String): 'USD',
+            'price' (Decimal): 500.00,
+            'true_price' (Decimal): 495.00,
+            'side' (String): 'sell',
+            'type' (String): 'limit',
+            'order_id' (String): 'RU486',
+            'exchange_timestamp' (int): 1529651177,
+            'local_timestamp' (int): 1529651177,
+            'extra_info' (dict):  { 'options': 'immediate-or-cancel' }
+        }
+
+        Args:
+            symbol (str): The market symbol, ie. 'ETH/KRW'.
+            amount (str): The base asset amount.
+            params (dict): The extra parameters to pass to the ccxt call.
+
+        Returns:
+            dict: An Autotrageur specific unified response.
+        """
+        return self._create_market_order('sell', symbol, amount, params)
+
 
     # @Override
     def fetch_markets(self):

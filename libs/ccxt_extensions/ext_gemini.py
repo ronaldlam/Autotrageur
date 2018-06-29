@@ -1,4 +1,5 @@
 import logging
+import time
 
 import ccxt
 
@@ -6,6 +7,9 @@ from libs.utilities import num_to_decimal
 
 
 HUNDRED = num_to_decimal(100.0)
+ZERO = num_to_decimal(0)
+
+OPTIONS = {"options": ["immediate-or-cancel"]}
 
 
 class ext_gemini(ccxt.gemini):
@@ -14,6 +18,167 @@ class ext_gemini(ccxt.gemini):
     The name ext_gemini is to keep similar convention when initializing
     the exchange classes.
     """
+     # @Override
+    def __init__(self, exchange_config={}):
+        """Constructor.
+
+        Also sets `buy_target_includes_fee` to False as the trading fees for
+        buy orders are charged on top of the buy order.  E.g. $1000 market buy
+        order with a 1% fee costs $1010 total.
+
+        Args:
+            exchange_config (dict): The exchange's configuration in
+                accordance with the ccxt library for instantiating an
+                exchange, ex.
+                {
+                    "apiKey": [SOME_API_KEY]
+                    "secret": [SOME_API_SECRET]
+                    "verbose": False,
+                }
+        """
+        super().__init__(exchange_config)
+        self.buy_target_includes_fee = False
+
+    def _package_result(self, result, symbol, local_timestamp, params):
+        """Retrieve Autotrageur specific unified response given the ccxt
+        response.
+
+        Example ccxt response for a create_market_sell_order call:
+        {
+            "info": {
+                "order_id": "97546903",
+                "id": "97546903",
+                "symbol": "ethusd",
+                "exchange": "gemini",
+                "avg_execution_price": "394.10",
+                "side": "sell",
+                "type": "exchange limit",
+                "timestamp": "1529616497",
+                "timestampms": 1529616497632,
+                "is_live": False,
+                "is_cancelled": False,
+                "is_hidden": False,
+                "was_forced": False,
+                "executed_amount": "0.001",
+                "remaining_amount": "0",
+                "client_order_id": "1529616491439",
+                "options": [
+                    "immediate-or-cancel"
+                ],
+                "price": "388.00",
+                "original_amount": "0.001"
+            },
+            "id": "97546903"
+        }
+        Example entry in ccxt response list for the fetch_my_trades call:
+        {
+            "id": "97546905",
+            "order": "97546903",
+            "info": {
+                "price": "394.10",
+                "amount": "0.001",
+                "timestamp": 1529616497,
+                "timestampms": 1529616497632,
+                "type": "Sell",
+                "aggressor": True,
+                "fee_currency": "USD",
+                "fee_amount": "0.00098525",
+                "tid": 97546905,
+                "order_id": "97546903",
+                "exchange": "gemini",
+                "is_auction_fill": False,
+                "client_order_id": "1529616491439"
+            },
+            "timestamp": 1529616497632,
+            "datetime": "2018-06-21T21: 28: 18.632Z",
+            "symbol": "ETH/USD",
+            "type": None,
+            "side": "Sell",
+            "price": 394.1,
+            "cost": 0.3941,
+            "amount": 0.001,
+            "fee": {
+                "cost": 0.00098525,
+                "currency": "USD"
+            }
+        }
+        The result is formatted as:
+        {
+            'pre_fee_base' (Decimal): 0.100,
+            'pre_fee_quote' (Decimal): 50.00,
+            'post_fee_base' (Decimal): 0.100,
+            'post_fee_quote' (Decimal): 50.50,
+            'fees' (Decimal): 0.50,
+            'fee_asset' (String): 'USD',
+            'price' (Decimal): 500.00,
+            'true_price' (Decimal): 495.00,
+            'side' (String): 'sell',
+            'type' (String): 'limit',
+            'order_id' (String): 'RU486',
+            'exchange_timestamp' (int): 1529651177,
+            'local_timestamp' (int): 1529651177,
+            'extra_info' (dict):  { 'options': 'immediate-or-cancel' }
+        }
+
+        Args:
+            result (dict): The result of the 'create order' call.
+            symbol (str): The symbol of the market.
+            local_timestamp (int): The local timestamp.
+            params (dict): The extra parameters to pass to the ccxt call.
+
+        Returns:
+            dict: An Autotrageur specific unified response.
+        """
+        trade_list = self.fetch_my_trades(symbol)
+        order_id = result['id']
+        side = result['info']['side']
+        _, quote = symbol.split('/')
+        trades = list(filter(lambda x: x['order'] == order_id, trade_list))
+
+        pre_fee_base = num_to_decimal(result['info']['executed_amount'])
+
+        pre_fee_quote = ZERO
+        fees = ZERO
+
+        # Add up contents of trades
+        for trade in trades:
+            pre_fee_quote += num_to_decimal(trade['cost'])
+            fees += num_to_decimal(trade['fee']['cost'])
+
+        # Calculate post fee numbers.
+        post_fee_base = pre_fee_base
+
+        if side == 'buy':
+            post_fee_quote = pre_fee_quote + fees   # Pay additional fees
+        else:
+            post_fee_quote = pre_fee_quote - fees   # Pay from proceeds
+
+        # Last step is to calculate the prices. We set this to zero if
+        # no transaction was made.
+        if pre_fee_base == ZERO:
+            price = ZERO
+            true_price = ZERO
+        else:
+            price = pre_fee_quote / pre_fee_base
+            true_price = post_fee_quote / post_fee_base
+
+        return {
+            'pre_fee_base': pre_fee_base,
+            'pre_fee_quote': pre_fee_quote,
+            'post_fee_base': post_fee_base,
+            'post_fee_quote': post_fee_quote,
+            'fees': fees,
+            'fee_asset': quote,
+            'price': price,
+            'true_price': true_price,
+            'side': side,
+            'type': 'limit',
+            'order_id': order_id,
+            'exchange_timestamp': int(result['info']['timestamp']),
+            'local_timestamp': local_timestamp,
+            'extra_info': params
+        }
+
     # @Override
     def describe(self):
         """Return gemini exchange object with corrected info.
@@ -222,18 +387,17 @@ class ext_gemini(ccxt.gemini):
                 buy will tolerate.
 
         Returns:
-            dict[dict, int]: Dictionary of response, includes 'info'
-            and 'id'. The 'info' includes all response contents and
-            result['id'] == result['info']['id']
+            dict: An Autotrageur specific unified response.
         """
         (asset_volume, limit_price) = self.prepare_emulated_market_buy_order(
             symbol, quote_amount, asset_price, slippage)
+        local_timestamp = int(time.time())
         result = self.create_limit_buy_order(
             symbol,
             asset_volume,
             limit_price,
-            {"options": ["immediate-or-cancel"]})
-        return result
+            OPTIONS)
+        return self._package_result(result, symbol, local_timestamp, OPTIONS)
 
     # @Override
     def prepare_emulated_market_sell_order(
@@ -286,16 +450,15 @@ class ext_gemini(ccxt.gemini):
                 buy will tolerate.
 
         Returns:
-            dict[dict, int]: Dictionary of response, includes 'info'
-            and 'id'. The 'info' includes all response contents and
-            result['id'] == result['info']['id']
+            dict: An Autotrageur specific unified response.
         """
         (rounded_amount, rounded_limit_price) = (
             self.prepare_emulated_market_sell_order(
                 symbol, asset_price, asset_amount, slippage))
+        local_timestamp = int(time.time())
         result = self.create_limit_sell_order(
             symbol,
             rounded_amount,
             rounded_limit_price,
-            {"options": ["immediate-or-cancel"]})
-        return result
+            OPTIONS)
+        return self._package_result(result, symbol, local_timestamp, OPTIONS)
