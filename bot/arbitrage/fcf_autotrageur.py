@@ -27,6 +27,11 @@ EMAIL_LOW_SPREAD_HEADER = "Subject: Arb Backward-Spread Alert!\nThe spread of "
 EMAIL_NONE_SPREAD = "No arb opportunity found."
 
 
+class IncompleteArbitrageError(Exception):
+    """Error indicating an uneven buy/sell base amount."""
+    pass
+
+
 class FCFCheckpoint():
     """Contains the current algorithm state.
 
@@ -92,43 +97,6 @@ class FCFAutotrageur(Autotrageur):
     specified target high; vice versa if the calculated spread is less
     than the specified target low.
     """
-    @staticmethod
-    def _is_within_tolerance(curr_spread, prev_spread, spread_rnd,
-                              spread_tol):
-        """Compares the current spread with the previous spread to see if
-        within user-specified spread tolerance.
-
-        If rounding specified (spread_rnd), the current and previous spreads
-        will be rounded before check against tolerance.
-
-        Args:
-            curr_spread (Decimal): The current spread of the arb opportunity.
-            prev_spread (Decimal): The previous spread to compare to.
-            spread_rnd (int): Number of decimals to round the spreads to.
-            spread_tol (Decimal): The spread tolerance to check if curr_spread
-                minus prev_spread is within.
-
-        Returns:
-            bool: True if the (current spread - previous spread) is still
-                within the tolerance.  Else, False.
-        """
-        set_human_friendly_decimal_context()
-
-        if spread_rnd is not None:
-            logging.info("Rounding spreads to %d decimal place", spread_rnd)
-            curr_spread = round(curr_spread, spread_rnd)
-            prev_spread = round(prev_spread, spread_rnd)
-
-        logging.info("\nPrevious spread of: %f Current spread of: %f\n"
-                     "spread tolerance of: %f", prev_spread, curr_spread,
-                     spread_tol)
-
-        within_tolerance = (abs(curr_spread - prev_spread) <= spread_tol)
-
-        set_autotrageur_decimal_context()
-
-        return within_tolerance
-
     def __advance_target_index(self, spread, targets):
         """Increment the target index to minimum target greater than
         spread.
@@ -140,65 +108,6 @@ class FCFAutotrageur(Autotrageur):
         while (self.target_index + 1 < len(targets) and
                 spread >= targets[self.target_index + 1][0]):
             self.target_index += 1
-
-    # def __set_message(self, opp_type):
-    #     """Sets the message used for emails and logging based on the type of
-    #     spread opportunity.
-
-    #     Args:
-    #         opp_type (SpreadOpportunity): A classification of the spread
-    #             opportunity present.
-    #     """
-    #     if opp_type is SpreadOpportunity.LOW:
-    #         self.message = (
-    #             EMAIL_LOW_SPREAD_HEADER
-    #             + self.exchange1_basequote[0]
-    #             + " is "
-    #             + str(self.spread_opp[arbseeker.SPREAD]))
-    #     elif opp_type is SpreadOpportunity.HIGH:
-    #         self.message = (
-    #             EMAIL_HIGH_SPREAD_HEADER
-    #             + self.exchange1_basequote[0]
-    #             + " is "
-    #             + str(self.spread_opp[arbseeker.SPREAD]))
-    #     else:
-    #         self.message = EMAIL_NONE_SPREAD
-
-    def __email_or_throttle(self, curr_spread):
-        """Sends emails for a new arbitrage opportunity.  Throttles if too
-        frequent.
-
-        Based on preference of SPREAD_ROUNDING, SPREAD_TOLERANCE and MAX_EMAILS,
-        an e-mail will be sent if the current spread is not similar to previous
-        spread AND if a max email threshold has not been hit with similar
-        spreads.
-
-        Args:
-            curr_spread (Decimal): The current arbitrage spread for the arbitrage
-                opportunity.
-        """
-        global prev_spread
-        global email_count
-
-        max_num_emails = self.config[MAX_EMAILS]
-        spread_tol = num_to_decimal(self.config[SPREAD_TOLERANCE])
-        spread_rnd = self.config[SPREAD_ROUNDING]
-
-        within_tolerance = FCFAutotrageur._is_within_tolerance(
-            curr_spread, prev_spread, spread_rnd, spread_tol)
-
-        if not within_tolerance or email_count < max_num_emails:
-            if email_count == max_num_emails:
-                email_count = 0
-            prev_spread = curr_spread
-
-            # Continue running bot even if unable to send e-mail.
-            try:
-                send_all_emails(self.config[EMAIL_CFG_PATH], self.message)
-            except Exception:
-                logging.error(
-                    "Unable to send e-mail due to: \n", exc_info=True)
-            email_count += 1
 
     def __calc_targets(self, spread, h_max, from_balance):
         """Calculate the target spreads and cash positions.
@@ -384,9 +293,11 @@ class FCFAutotrageur(Autotrageur):
             logging.info("**Dry run - end fake execution")
         else:
             try:
-                executed_amount = arbseeker.execute_buy(
+                buy_response = arbseeker.execute_buy(
                     self.trade_metadata['buy_trader'],
                     self.trade_metadata['buy_price'])
+                executed_amount = buy_response['post_fee_base']
+                # TODO: Persist into database.
             except Exception as exc:
                 logging.error(exc, exc_info=True)
                 self.checkpoint.restore(self)
@@ -394,13 +305,27 @@ class FCFAutotrageur(Autotrageur):
                 # If an exception is thrown, we want the program to stop on the
                 # second trade.
                 try:
-                    arbseeker.execute_sell(
+                    sell_response = arbseeker.execute_sell(
                         self.trade_metadata['sell_trader'],
                         self.trade_metadata['sell_price'],
                         executed_amount)
+
+                    if executed_amount != sell_response['pre_fee_base']:
+                        msg = ("The purchased base amount does not match with "
+                               "the sold amount. Normal execution has "
+                               "terminated.\nBought amount: {}\n, Sold amount:"
+                               " {}").format(
+                                    executed_amount,
+                                    sell_response['pre_fee_base'])
+
+                        raise IncompleteArbitrageError(msg)
+                    else:
+                        # TODO: Persist into database.
+                        pass
                 except Exception as exc:
-                    # TODO: Send emergency alert.
+                    self._send_email("TRADE ERROR ALERT", repr(exc))
                     logging.error(exc, exc_info=True)
+                    # TODO: Update to start dryrun bot if irrecoverable error occurs.
                     raise
                 else:
                     # Retrieve updated wallet balances if everything worked
@@ -447,6 +372,16 @@ class FCFAutotrageur(Autotrageur):
         self.h_to_e2_max = max(self.h_to_e2_max, spread_opp.e2_spread)
 
         return is_opportunity
+
+    def _send_email(self, subject, msg):
+        """Send email alert to preconfigured emails.
+
+        Args:
+            subject (str): The subject of the message
+            msg (str): The contents of the email to send out.
+        """
+        send_all_emails(self.config[EMAIL_CFG_PATH],
+                        'Subject: {}\n{}'.format(subject, msg))
 
     # @Override
     def _setup(self):

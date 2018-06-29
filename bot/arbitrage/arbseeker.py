@@ -106,14 +106,18 @@ def execute_buy(trader, price):
         trader (CCXTTrader): The trader for the buy exchange.
         price (Decimal): The buy price for emulated market orders.
 
+    Raises:
+        NotImplementedError: If not implemented.
+        ExchangeLimitException: If asset buy amount is outside
+            exchange limits.
+
     Returns:
-        Decimal: The base asset amount purchased.
+        dict: The Autotrageur specific unified buy response.
     """
-    logging.info("Buy price: %s" % (price))
+    logging.debug("Buy price: %s" % (price))
     buy_result = trader.execute_market_buy(price)
     logging.info("Buy result: %s" % buy_result)
-    # TODO: 'executed_amount' is not unified per all exchanges.  See #90.
-    return num_to_decimal(buy_result["info"]["executed_amount"])
+    return buy_result
 
 
 def execute_sell(trader, price, executed_amount):
@@ -123,9 +127,18 @@ def execute_sell(trader, price, executed_amount):
         trader (CCXTTrader): The trader for the sell exchange.
         price (Decimal): The sell price for emulated market orders.
         executed_amount (Decimal): The base asset amount which was purchased.
+
+    Raises:
+        NotImplementedError: If not implemented.
+        ExchangeLimitException: If asset sell amount is outside
+            exchange limits.
+
+    Returns:
+        dict: The Autotrageur specific unified sell response.
     """
+    logging.debug("Sell price: %s, Base volume: %s" % (price, executed_amount))
     sell_result = trader.execute_market_sell(
         price,
         executed_amount)
     logging.info("Sell result: %s" % sell_result)
-    # TODO: Verify contents of sell_result.
+    return sell_result
