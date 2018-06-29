@@ -41,45 +41,6 @@ def fcf_autotrageur(mocker, fake_ccxt_trader):
     # f.spread_opp = { arbseeker.SPREAD: 1.0 }
     return f
 
-class TestIsWithinTolerance:
-    @pytest.mark.parametrize('curr_spread, prev_spread, spread_rnd, spread_tol, bTol', [
-        (Decimal('0'), Decimal('0'), 0, Decimal('0'), True),
-        (Decimal('0'), Decimal('0'), None, Decimal('0'), True),
-        (Decimal('0'), Decimal('0'), 0, Decimal('1'), True),
-        (Decimal('0'), Decimal('0'), None, Decimal('1'), True),
-        (Decimal('0.0'), Decimal('1.0'), 1, Decimal('1.0'), True),
-        (Decimal('0.0'), Decimal('1.0'), None, Decimal('1.0'), True),
-        (Decimal('1.0'), Decimal('0.0'), 1, Decimal('1.0'), True),
-        (Decimal('1.0'), Decimal('0.0'), None, Decimal('1.0'), True),
-        (Decimal('0.0'), Decimal('1.1'), 1, Decimal('1.0'), False),
-        (Decimal('0.0'), Decimal('1.1'), None, Decimal('1.0'), False),
-        (Decimal('100.001'), Decimal('100.002'), None, Decimal('0.001'), True),
-        (Decimal('100.001'), Decimal('100.002'), 0, Decimal('0.001'), True),
-        (Decimal('100.001'), Decimal('100.002'), 20, Decimal('0.001'), True),
-        (Decimal('100.001'), Decimal('100.002'), None, Decimal('0.0001'), False),
-        (Decimal('1000000.12345678'), Decimal('1000000.12345679'), None, Decimal('0.00000001'), True),
-        (Decimal('1000000.12345678'), Decimal('1000000.12345679'), 1, Decimal('0.00000001'), True),
-        (Decimal('1000000.12345678'), Decimal('1000000.12345679'), None, Decimal('0.000000001'), False)
-    ])
-    def test_is_within_tolerance(
-            self, curr_spread, prev_spread, spread_rnd, spread_tol, bTol):
-        in_tolerance = FCFAutotrageur._is_within_tolerance(
-            curr_spread, prev_spread, spread_rnd, spread_tol)
-        assert in_tolerance is bTol
-
-    @pytest.mark.parametrize('curr_spread, prev_spread, spread_rnd, spread_tol, bTol', [
-        (None, None, None, None, True),
-        (None, Decimal('1'), 1, Decimal('0.1'), True),
-        (Decimal('1'), None, 1, Decimal('0.1'), True),
-        (Decimal('1'), Decimal('1'), 1, None, True)
-    ])
-    def test_is_within_tolerance_bad(
-            self, curr_spread, prev_spread, spread_rnd, spread_tol, bTol):
-        with pytest.raises((InvalidOperation, TypeError), message="Expecting a Decimal or int, not a NoneType"):
-            in_tolerance = FCFAutotrageur._is_within_tolerance(
-                curr_spread, prev_spread, spread_rnd, spread_tol)
-            assert in_tolerance is bTol
-
 
 @pytest.mark.parametrize('spread, start, result', [
     (-1, 0, 0),
@@ -431,87 +392,6 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
             calc_targets.assert_not_called()
         assert no_patch_fcf_autotrageur.h_to_e1_max == max(h_to_e1_max, e1_spread)
         assert no_patch_fcf_autotrageur.h_to_e2_max == max(h_to_e2_max, e2_spread)
-
-
-class TestEmailOrThrottle:
-    def _setup_pre_email(self, mocker, fcf_autotrageur, fake_email_count,
-                         fake_prev_spread, max_emails, rnding, tol):
-        mock_send_all_emails = mocker.patch('bot.arbitrage.fcf_autotrageur.send_all_emails', autospec=True)
-        mocker.patch('bot.arbitrage.fcf_autotrageur.email_count', fake_email_count)
-        mocker.patch('bot.arbitrage.fcf_autotrageur.prev_spread', fake_prev_spread)
-
-        fcf_autotrageur.config['max_emails'] = max_emails
-        fcf_autotrageur.config['spread_rounding'] = rnding
-        fcf_autotrageur.config['spread_tolerance'] = tol
-
-        # Check before actual call made.
-        assert bot.arbitrage.fcf_autotrageur.email_count == fake_email_count
-        assert bot.arbitrage.fcf_autotrageur.prev_spread == fake_prev_spread
-
-        return mock_send_all_emails
-
-    @pytest.mark.parametrize('fake_email_count, next_email_count, fake_prev_spread, curr_spread, max_emails, rnding, tol', [
-        (0, 1, Decimal('0.0'), Decimal('2.0'), 2, 1, 0.1),
-        (1, 2, Decimal('2.0'), Decimal('2.0'), 2, 1, 0.1),
-        (2, 1, Decimal('2.0'), Decimal('5.0'), 2, 1, 0.1)
-    ])
-    def test_FCFAutotrageur__email_or_throttle_emailed(self, mocker, fcf_autotrageur, fake_email_count,
-                                       next_email_count, fake_prev_spread, curr_spread, max_emails,
-                                       rnding, tol):
-        mock_send_all_emails = self._setup_pre_email(mocker, fcf_autotrageur, fake_email_count,
-            fake_prev_spread, max_emails, rnding, tol)
-
-        fcf_autotrageur._FCFAutotrageur__email_or_throttle(curr_spread)
-        assert mock_send_all_emails.called
-
-        # Check email_count after actual call; should be incremented by 1.
-        assert bot.arbitrage.fcf_autotrageur.email_count == next_email_count
-
-    @pytest.mark.parametrize('fake_email_count, next_email_count, fake_prev_spread, curr_spread, max_emails, rnding, tol', [
-        (0, 0, Decimal('0'), Decimal('0'), 0, 0, 0),
-        pytest.param(0, 0, Decimal('0'), None, 0, 0, 0, marks=xfail(raises=(TypeError, InvalidOperation), reason="rounding or arithmetic on NoneType", strict=True)),
-        (2, 2, Decimal('2.0'), Decimal('2.0'), 2, 1, 0.1),
-        (2, 2, Decimal('2.0'), Decimal('2.1'), 2, 1, 0.1),
-        (2, 2, Decimal('2.1'), Decimal('2.0'), 2, 1, 0.1)
-    ])
-    def test_FCFAutotrageur__email_or_throttle_throttled(self, mocker, fcf_autotrageur, fake_email_count,
-                                         next_email_count, fake_prev_spread, curr_spread, max_emails,
-                                         rnding, tol):
-        mock_send_all_emails = self._setup_pre_email(mocker, fcf_autotrageur, fake_email_count,
-            fake_prev_spread, max_emails, rnding, tol)
-
-        fcf_autotrageur._FCFAutotrageur__email_or_throttle(curr_spread)
-        assert not mock_send_all_emails.called
-
-        # Check email_count after actual call; should not be incremented by 1.
-        assert bot.arbitrage.fcf_autotrageur.email_count == next_email_count
-
-# @pytest.mark.parametrize('opp_type', [
-#     None,
-#     SpreadOpportunity.LOW,
-#     SpreadOpportunity.HIGH
-# ])
-# def test_FCFAutotrageur__set_message(mocker, fcf_autotrageur, opp_type):
-#     mocker.patch.object(fcf_autotrageur, 'exchange1_basequote', ['BTC', 'USD'],
-#         create=True)
-
-#     fcf_autotrageur._FCFAutotrageur__set_message(opp_type)
-#     if opp_type is SpreadOpportunity.LOW:
-#         assert fcf_autotrageur.message == (
-#                     EMAIL_LOW_SPREAD_HEADER
-#                     + fcf_autotrageur.exchange1_basequote[0]
-#                     + " is "
-#                     + str(fcf_autotrageur.spread_opp[arbseeker.SPREAD]))
-#     elif opp_type is SpreadOpportunity.HIGH:
-#         assert fcf_autotrageur.message == (
-#                     EMAIL_HIGH_SPREAD_HEADER
-#                     + fcf_autotrageur.exchange1_basequote[0]
-#                     + " is "
-#                     + str(fcf_autotrageur.spread_opp[arbseeker.SPREAD]))
-#     elif opp_type is None:
-#         assert fcf_autotrageur.message == EMAIL_NONE_SPREAD
-#     else:
-#         pytest.fail('Unsupported spread opportunity type.')
 
 
 def test_clean_up(fcf_autotrageur):
