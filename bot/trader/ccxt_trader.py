@@ -383,7 +383,7 @@ class CCXTTrader():
         asset_volume = self.__calc_vol_by_book(bids_or_asks, target_amount)
         return self.quote_target_amount / asset_volume
 
-    def get_buy_target_includes_fees(self):
+    def get_buy_target_includes_fee(self):
         """Gets whether the exchange includes fees in its buy orders.
 
         Please refer to `spreadcalculator.calc_fixed_spread` for more detail.
