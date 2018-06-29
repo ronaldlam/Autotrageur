@@ -81,10 +81,10 @@ def get_spreads_by_ob(trader1, trader2):
     # Calculate the spreads between exchange 1 and 2, including taker fees.
     e1_spread = spreadcalculator.calc_fixed_spread(
         e2_buy, e1_sell, trader2.get_taker_fee(),
-        trader1.get_taker_fee())
+        trader1.get_taker_fee(), trader2.get_buy_target_includes_fee())
     e2_spread = spreadcalculator.calc_fixed_spread(
         e1_buy, e2_sell, trader1.get_taker_fee(),
-        trader2.get_taker_fee())
+        trader2.get_taker_fee(), trader1.get_buy_target_includes_fee())
 
     logging.info("Ex2 (%s) buy Ex1 (%s) sell e1_spread: (%s)" %
                  (trader2.exchange_name,

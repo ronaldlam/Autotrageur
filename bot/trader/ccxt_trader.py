@@ -352,10 +352,6 @@ class CCXTTrader():
 
         return result
 
-    def get_full_orderbook(self):
-        """Gets the full orderbook (bids and asks) from the exchange."""
-        return self.fetcher.get_full_orderbook(self.base, self.quote)
-
     def get_adjusted_market_price_from_orderbook(self, bids_or_asks):
         """Get market buy or sell price
 
@@ -387,6 +383,28 @@ class CCXTTrader():
         asset_volume = self.__calc_vol_by_book(bids_or_asks, target_amount)
         return self.quote_target_amount / asset_volume
 
+    def get_buy_target_includes_fees(self):
+        """Gets whether the exchange includes fees in its buy orders.
+
+        Please refer to `spreadcalculator.calc_fixed_spread` for more detail.
+
+        Returns:
+            bool: True if an exchange's buy order will have fees factored into
+                the price (Scenario 1, as described above). Else, False.
+        """
+        return self.ccxt_exchange.buy_target_includes_fee
+
+    def get_full_orderbook(self):
+        """Gets the full orderbook (bids and asks) from the exchange.
+
+        Please refer to `ccxt_fetcher.get_full_orderbook` for sample orderbook
+        response.
+
+        Returns:
+            dict: The full orderbook.
+        """
+        return self.fetcher.get_full_orderbook(self.base, self.quote)
+
     def get_taker_fee(self):
         """Obtains the exchange's takers fee.
 
@@ -399,7 +417,18 @@ class CCXTTrader():
         return self.fetcher.fetch_taker_fees()
 
     def load_markets(self):
-        """Load the markets of the exchange."""
+        """Load the markets of the exchange.
+
+        Allows manual calling of `load_markets` from either a ccxt Exchange
+        object or a `ccxt_extensions` ext_ Exchange object.
+
+        Refer https://github.com/ccxt/ccxt/wiki/Manual in the Loading Markets
+        section for details.
+
+        Returns:
+            dict: Information about the `markets` which have been loaded into
+                memory.
+        """
         self.ccxt_exchange.load_markets()
 
     def set_forex_ratio(self):
