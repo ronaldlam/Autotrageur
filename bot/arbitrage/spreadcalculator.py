@@ -50,12 +50,13 @@ def calc_fixed_spread(buy_price, sell_price, buy_fee, sell_fee, buy_incl_fee):
        $1010 overall.
 
     The equation used in Scenario 1 is:
-    (x/bp * (1 - bf)) * sp * (1 - sf)
+    y = (x/bp * (1 - bf)) * sp * (1 - sf)
 
     And Scenario 2:
-    (x/bp / (1 + bf)) * sp * (1 - sf)
+    y = (x/bp / (1 + bf)) * sp * (1 - sf)
 
     where:
+        - y is the amount of quote acquired
         - x is the amount of quote to purchase with
         - bp is the buy exchange's price (buy_price)
         - bf is the buy exchange's fee (buy_fee)

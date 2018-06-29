@@ -63,6 +63,10 @@ class TestCalcSpread:
     @pytest.mark.parametrize('buy_price, sell_price, buy_fee, sell_fee, spread', [
         # Same prices, no fees.
         (Decimal('100'), Decimal('100'), Decimal('0.0'), Decimal('0.0'), Decimal('0')),
+        # No fees, large profit from small buy_price, large sell_price.
+        (Decimal('100.00'), Decimal('1000000.00'), Decimal('0.0'), Decimal('0.0'), Decimal('999900.000000')),
+        # No fees, negative large profit from large buy_price, small sell_price.
+        (Decimal('1000000.00'), Decimal('100.00'), Decimal('0.0'), Decimal('0.0'), Decimal('-99.9900000000')),
         # Same prices, 10% buy fee.
         (Decimal('100'), Decimal('100'), Decimal('0.1'), Decimal('0.0'), Decimal('-10.0000')),
         # Same prices, 10% sell fee.
@@ -93,6 +97,10 @@ class TestCalcSpread:
     @pytest.mark.parametrize('buy_price, sell_price, buy_fee, sell_fee, spread', [
         # Same prices, no fees.
         (Decimal('100'), Decimal('100'), Decimal('0.0'), Decimal('0.0'), Decimal('0')),
+        # No fees, large profit from small buy_price, large sell_price.
+        (Decimal('100.00'), Decimal('1000000.00'), Decimal('0.0'), Decimal('0.0'), Decimal('999900.000000')),
+        # No fees, negative large profit from large buy_price, small sell_price.
+        (Decimal('1000000.00'), Decimal('100.00'), Decimal('0.0'), Decimal('0.0'), Decimal('-99.9900000000')),
         # Same prices, 10% buy fee.
         (Decimal('100'), Decimal('100'), Decimal('0.1'), Decimal('0.0'), Decimal('-9.090909090909090909090909090')),
         # Same prices, 10% sell fee.
