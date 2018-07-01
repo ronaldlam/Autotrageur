@@ -118,7 +118,7 @@ def test_load_configs(mocker, autotrageur, keyfile_loaded):
             marks=pytest.mark.xfail(strict=True, raises=AuthenticationError)),
     ]
 )
-def test_setup_markets(
+def test_setup(
         mocker, autotrageur, ex1_test, ex2_test, client_quote_usd,
         balance_check, dryrun):
     fake_slippage = 0.25
@@ -150,7 +150,7 @@ def test_setup_markets(
     mocker.patch.dict(autotrageur.config, configuration)
     mocker.spy(schedule, 'every')
 
-    autotrageur._setup_markets()
+    autotrageur._setup()
 
     if ex1_test and ex2_test:
         assert(instance.connect_test_api.call_count == 2)
