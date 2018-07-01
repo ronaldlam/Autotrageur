@@ -2,9 +2,6 @@
 
 # Email constants.
 EMAIL_CFG_PATH = 'email_cfg_path'
-MAX_EMAILS = 'max_emails'
-SPREAD_ROUNDING = 'spread_rounding'
-SPREAD_TOLERANCE = 'spread_tolerance'
 
 # Trade configuration constants.
 DRYRUN = "dryrun"

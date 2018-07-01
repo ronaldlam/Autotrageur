@@ -4,16 +4,14 @@ from decimal import Decimal
 import ccxt
 
 import bot.arbitrage.arbseeker as arbseeker
-from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, MAX_EMAILS,
-    SPREAD_ROUNDING, SPREAD_TOLERANCE, SPREAD_MIN, VOL_MIN, H_TO_E1_MAX,
-    H_TO_E2_MAX)
+from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
+                                         H_TO_E2_MAX, SPREAD_MIN, VOL_MIN)
 from bot.common.enums import Momentum
 from libs.email_client.simple_email_client import send_all_emails
 from libs.utilities import (num_to_decimal, set_autotrageur_decimal_context,
                             set_human_friendly_decimal_context)
 
 from .autotrageur import Autotrageur
-
 
 # Global module variables.
 prev_spread = Decimal('0')
