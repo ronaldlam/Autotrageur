@@ -1,5 +1,6 @@
 import getpass
 import logging
+import sys
 import time
 from abc import ABC, abstractmethod
 
@@ -7,14 +8,18 @@ import ccxt
 import schedule
 import yaml
 
+from bot.common.ccxt_constants import API_KEY, API_SECRET
+from bot.common.config_constants import (DRYRUN, DRYRUN_E1_BASE,
+                                         DRYRUN_E1_QUOTE, DRYRUN_E2_BASE,
+                                         DRYRUN_E2_QUOTE, EXCHANGE1,
+                                         EXCHANGE1_PAIR, EXCHANGE1_TEST,
+                                         EXCHANGE2, EXCHANGE2_PAIR,
+                                         EXCHANGE2_TEST, SLIPPAGE)
+from bot.trader.ccxt_trader import CCXTTrader
+from bot.trader.dry_run import DryRun, DryRunExchange
 from libs.fiat_symbols import FIAT_SYMBOLS
 from libs.security.encryption import decrypt
-from libs.utilities import keyfile_to_map, to_bytes, to_str, num_to_decimal
-from bot.common.config_constants import (DRYRUN, SLIPPAGE, EXCHANGE1,
-    EXCHANGE2, EXCHANGE1_PAIR, EXCHANGE2_PAIR, EXCHANGE1_TEST, EXCHANGE2_TEST)
-from bot.common.ccxt_constants import API_KEY, API_SECRET
-from bot.trader.ccxt_trader import CCXTTrader
-
+from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
 
 # Program argument constants.
 CONFIGFILE = "CONFIGFILE"
@@ -123,23 +128,42 @@ class Autotrageur(ABC):
         """
         # Extract the pairs and compare them to see if conversion needed to
         # USD.
-        self.exchange1_basequote = self.config[EXCHANGE1_PAIR].split("/")
-        self.exchange2_basequote = self.config[EXCHANGE2_PAIR].split("/")
+        e1_base, e1_quote = self.config[EXCHANGE1_PAIR].split("/")
+        e2_base, e2_quote = self.config[EXCHANGE2_PAIR].split("/")
+
+        exchange1 = self.config[EXCHANGE1]
+        exchange2 = self.config[EXCHANGE2]
+
+        # Create dry run objects to hold dry run state.
+        if self.config[DRYRUN]:
+            e1_base_balance = self.config[DRYRUN_E1_BASE]
+            e1_quote_balance = self.config[DRYRUN_E1_QUOTE]
+            e2_base_balance = self.config[DRYRUN_E2_BASE]
+            e2_quote_balance = self.config[DRYRUN_E2_QUOTE]
+            dry_e1 = DryRunExchange(exchange1, e1_base, e1_quote,
+                                    e1_base_balance, e1_quote_balance)
+            dry_e2 = DryRunExchange(exchange2, e2_base, e2_quote,
+                                    e2_base_balance, e2_quote_balance)
+            self.dry_run = DryRun(dry_e1, dry_e2)
+        else:
+            dry_e1 = None
+            dry_e2 = None
+            self.dry_run = None
 
         self.trader1 = CCXTTrader(
-            self.exchange1_basequote[0],
-            self.exchange1_basequote[1],
-            self.config[EXCHANGE1],
+            e1_base,
+            e1_quote,
+            exchange1,
             num_to_decimal(self.config[SLIPPAGE]),
             self.exchange1_configs,
-            self.config[DRYRUN])
+            dry_e1)
         self.trader2 = CCXTTrader(
-            self.exchange2_basequote[0],
-            self.exchange2_basequote[1],
-            self.config[EXCHANGE2],
+            e2_base,
+            e2_quote,
+            exchange2,
             num_to_decimal(self.config[SLIPPAGE]),
             self.exchange2_configs,
-            self.config[DRYRUN])
+            dry_e2)
 
         # Connect to test API's if required
         if self.config[EXCHANGE1_TEST]:
@@ -168,18 +192,12 @@ class Autotrageur(ABC):
                 schedule.every().hour.do(trader.set_forex_ratio)
 
         try:
-            self.trader1.fetch_wallet_balances()
-            self.trader2.fetch_wallet_balances()
+            # Dry run uses balances set in the configuration files.
+            self.trader1.update_wallet_balances(is_dry_run=self.config[DRYRUN])
+            self.trader2.update_wallet_balances(is_dry_run=self.config[DRYRUN])
         except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
             logging.error(auth_error)
-
-            # If configuration is set for a dry run, continue the program even
-            # with wrong auth credentials.
-            if self.config[DRYRUN]:
-                logging.info("**Dry run: Wallet balance fetch failed, "
-                    "continuing with program")
-            else:
-                raise AuthenticationError(auth_error)
+            raise AuthenticationError(auth_error)
 
     @abstractmethod
     def _poll_opportunity(self):
@@ -214,9 +232,16 @@ class Autotrageur(ABC):
         self._load_configs(arguments)
         self._setup()
 
-        while True:
-            schedule.run_pending()
-            self._clean_up()
-            if self._poll_opportunity():
-                self._execute_trade()
-            self._wait()
+        try:
+            while True:
+                schedule.run_pending()
+                self._clean_up()
+                if self._poll_opportunity():
+                    self._execute_trade()
+                self._wait()
+        except KeyboardInterrupt:
+            if self.dry_run:
+                logging.critical("Interrupted, data summary:")
+                self.dry_run.log_all()
+            else:
+                raise

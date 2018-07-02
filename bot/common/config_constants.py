@@ -5,6 +5,10 @@ EMAIL_CFG_PATH = 'email_cfg_path'
 
 # Trade configuration constants.
 DRYRUN = "dryrun"
+DRYRUN_E1_BASE = "dryrun_e1_base"
+DRYRUN_E1_QUOTE = "dryrun_e1_quote"
+DRYRUN_E2_BASE = "dryrun_e2_base"
+DRYRUN_E2_QUOTE = "dryrun_e2_quote"
 SLIPPAGE = "slippage"
 EXCHANGE1 = "exchange1"
 EXCHANGE2 = "exchange2"

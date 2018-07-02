@@ -290,6 +290,9 @@ class FCFAutotrageur(Autotrageur):
                 self.trade_metadata['sell_trader'],
                 self.trade_metadata['sell_price'],
                 executed_amount)
+            self.trader1.update_wallet_balances(is_dry_run=True)
+            self.trader2.update_wallet_balances(is_dry_run=True)
+            self.dry_run.log_balances()
             logging.info("**Dry run - end fake execution")
         else:
             try:
@@ -330,8 +333,8 @@ class FCFAutotrageur(Autotrageur):
                 else:
                     # Retrieve updated wallet balances if everything worked
                     # as expected.
-                    self.trader1.fetch_wallet_balances()
-                    self.trader2.fetch_wallet_balances()
+                    self.trader1.update_wallet_balances()
+                    self.trader2.update_wallet_balances()
 
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.

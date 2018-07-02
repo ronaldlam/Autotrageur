@@ -2,6 +2,10 @@
 
 # Dry Run functionality.
 dryrun: # If True, will log trades instead of executing them.
+dryrun_e1_base: # Starting base amount on e1
+dryrun_e1_quote: # Starting quote amount on e1
+dryrun_e2_base: # Starting base amount on e2
+dryrun_e2_quote: # Starting quote amount on e2
 
 # Email configuration, and email options.
 email_cfg_path: # path/to/email_cfg file.  Used to send e-mails on arb opportunities.

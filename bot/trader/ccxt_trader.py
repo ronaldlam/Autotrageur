@@ -61,7 +61,7 @@ class CCXTTrader():
     """CCXT Trader for performing trades."""
 
     def __init__(self, base, quote, exchange_name, slippage,
-        exchange_config={}, dry_run=False):
+        exchange_config={}, dry_run=None):
         """Constructor.
 
         The trading client for interacting with the CCXT library.
@@ -85,8 +85,9 @@ class CCXTTrader():
                     "secret": [SOME_API_SECRET]
                     "verbose": False,
                 }
-            dry_run (bool): Whether to perform a dry run or not.  If True,
-                trades will be logged, rather than actually executed.
+            dry_run (DryRunExchange): The object to hold the state of
+                the dry run for the associated exchange. Is None if not
+                a dry run.
         """
         # Instantiate the CCXT Exchange object, or a custom extended CCXT
         # Exchange object.
@@ -101,18 +102,18 @@ class CCXTTrader():
         self.quote = quote
         self.exchange_name = exchange_name
         self.fetcher = CCXTFetcher(self.ccxt_exchange)
-        self.executor = DryRunExecutor(self.ccxt_exchange) if dry_run else \
-            CCXTExecutor(self.ccxt_exchange)
         self.slippage = slippage
+
+        if dry_run:
+            self.executor = DryRunExecutor(
+                self.ccxt_exchange, self.fetcher, dry_run)
+        else:
+            CCXTExecutor(self.ccxt_exchange)
 
         # Initialized variables not from config.
         self.quote_target_amount = num_to_decimal(0.0)
         self.conversion_needed = False
         self.forex_ratio = None
-
-        if dry_run:
-            self.base_bal = num_to_decimal(0.0)
-            self.quote_bal = num_to_decimal(0.0)
 
     def __calc_vol_by_book(self, orders, quote_target_amount):
         """Calculates the asset volume with which to execute a trade.
@@ -227,28 +228,6 @@ class CCXTTrader():
             raise NotImplementedError(
                 "Test connection to %s not implemented." %
                 self.ccxt_exchange.id)
-
-    def fetch_wallet_balances(self):
-        """Fetches and saves the wallet balances of the base and quote
-        currencies on the exchange.
-
-        Note that quote balances are in USD.
-
-        TODO: Should send an alert here, if wallet balances are 0 for both.
-        """
-        self.base_bal, self.quote_bal = self.fetcher.fetch_free_balances(
-            self.base, self.quote)
-        if self.conversion_needed:
-            self.quote_bal /= self.forex_ratio
-        logging.log(logging.INFO,
-                    "%s balances:\n"
-                    "%s: %s\n"
-                    "%s: %s\n" % (
-                        self.exchange_name,
-                        self.base,
-                        self.base_bal,
-                        self.quote,
-                        self.quote_bal))
 
     def execute_market_buy(self, asset_price):
         """Execute a market buy order.
@@ -439,3 +418,33 @@ class CCXTTrader():
         self.forex_ratio = currencyconverter.convert_currencies(
             'USD', self.quote, num_to_decimal(1))
         logging.info("forex_ratio set to {}".format(self.forex_ratio))
+
+    def update_wallet_balances(self, is_dry_run=False):
+        """Fetches and saves the wallet balances of the base and quote
+        currencies on the exchange.
+
+        Note that quote balances are in USD.
+
+        Args:
+            is_dry_run (bool): Whether the bot is executing in dry run
+                mode.
+        """
+        if is_dry_run:
+            self.base_bal = self.executor.dry_run_exchange.base_balance
+            self.quote_bal = self.executor.dry_run_exchange.quote_balance
+        else:
+            self.base_bal, self.quote_bal = self.fetcher.fetch_free_balances(
+                self.base, self.quote)
+
+        if self.conversion_needed:
+            self.quote_bal /= self.forex_ratio
+
+        logging.debug(
+            "%s balances:\n"
+            "%s: %s\n"
+            "%s in USD: %s\n" % (
+                self.exchange_name,
+                self.base,
+                self.base_bal,
+                self.quote,
+                self.quote_bal))
