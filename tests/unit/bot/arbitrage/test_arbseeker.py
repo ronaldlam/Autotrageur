@@ -107,13 +107,13 @@ def test_get_spreads_by_ob(
     # Validate spreadcalculator calls.
     if has_bad_orderbook:
         assert spreadcalculator.calc_fixed_spread.call_args_list == [       # pylint: disable=E1101
-            call(None, None, TEST_BITHUMB_TAKER_FEE, TEST_GEMINI_TAKER_FEE, True),
-            call(None, None, TEST_GEMINI_TAKER_FEE, TEST_BITHUMB_TAKER_FEE, False)
+            mocker.call(None, None, TEST_BITHUMB_TAKER_FEE, TEST_GEMINI_TAKER_FEE, True),
+            mocker.call(None, None, TEST_GEMINI_TAKER_FEE, TEST_BITHUMB_TAKER_FEE, False)
         ]
     else:
         assert spreadcalculator.calc_fixed_spread.call_args_list == [       # pylint: disable=E1101
-            call(TEST_SELL_PRICE, TEST_BUY_PRICE, TEST_BITHUMB_TAKER_FEE, TEST_GEMINI_TAKER_FEE, True),
-            call(TEST_BUY_PRICE, TEST_SELL_PRICE, TEST_GEMINI_TAKER_FEE, TEST_BITHUMB_TAKER_FEE, False)
+            mocker.call(TEST_SELL_PRICE, TEST_BUY_PRICE, TEST_BITHUMB_TAKER_FEE, TEST_GEMINI_TAKER_FEE, True),
+            mocker.call(TEST_BUY_PRICE, TEST_SELL_PRICE, TEST_GEMINI_TAKER_FEE, TEST_BITHUMB_TAKER_FEE, False)
         ]
 
 
