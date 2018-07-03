@@ -41,19 +41,19 @@ def test_get_spreads_by_ob(
     if has_bad_orderbook:
         mocker.patch.object(
             buy_trader,
-            'get_adjusted_market_price_from_orderbook',
+            'get_prices_from_orderbook',
             side_effect=OrderbookException)
         mocker.patch.object(
             sell_trader,
-            'get_adjusted_market_price_from_orderbook',
+            'get_prices_from_orderbook',
             side_effect=OrderbookException)
     else:
         mocker.patch.object(
             buy_trader,
-            'get_adjusted_market_price_from_orderbook')
+            'get_prices_from_orderbook')
         mocker.patch.object(
             sell_trader,
-            'get_adjusted_market_price_from_orderbook')
+            'get_prices_from_orderbook')
 
     mocker.patch.object(buy_trader, 'get_full_orderbook')
     mocker.patch.object(buy_trader, 'exchange_name')
@@ -72,8 +72,8 @@ def test_get_spreads_by_ob(
 
     buy_trader.get_full_orderbook.assert_called_once()
     sell_trader.get_full_orderbook.assert_called_once()
-    assert(buy_trader.get_adjusted_market_price_from_orderbook.call_count == 2)
-    assert(sell_trader.get_adjusted_market_price_from_orderbook.call_count == 2)
+    assert(buy_trader.get_prices_from_orderbook.call_count == 2)
+    assert(sell_trader.get_prices_from_orderbook.call_count == 2)
     assert isinstance(result, SpreadOpportunity)
 
 

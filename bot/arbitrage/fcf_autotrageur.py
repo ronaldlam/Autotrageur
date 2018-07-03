@@ -158,7 +158,7 @@ class FCFAutotrageur(Autotrageur):
             self.e1_targets,
             spread_opp)
         self.e2_targets = self.__calc_targets(
-            spread_opp.e2_spread, self.h_to_e2_max, self.trader1.quote_bal)
+            spread_opp.e2_spread, self.h_to_e2_max, self.trader1.usd_bal)
 
     def __evaluate_to_e2_trade(self, momentum_change, spread_opp):
         """Changes state information to prepare for the trades from e1
@@ -176,7 +176,7 @@ class FCFAutotrageur(Autotrageur):
             self.e2_targets,
             spread_opp)
         self.e1_targets = self.__calc_targets(
-            spread_opp.e1_spread, self.h_to_e1_max, self.trader2.quote_bal)
+            spread_opp.e1_spread, self.h_to_e1_max, self.trader2.usd_bal)
 
     def __evaluate_spread(self, spread_opp):
         """Evaluate spread numbers against targets and set up state for
@@ -247,7 +247,7 @@ class FCFAutotrageur(Autotrageur):
             trade_vol = targets[self.target_index][1]
 
         # NOTE: Trader's `quote_target_amount` is updated here.
-        buy_trader.quote_target_amount = min(trade_vol, buy_trader.quote_bal)
+        buy_trader.set_target_amount(min(trade_vol, buy_trader.usd_bal))
 
         if buy_trader is self.trader1:
             buy_price = spread_opp.e1_buy
@@ -342,9 +342,9 @@ class FCFAutotrageur(Autotrageur):
         Returns:
             bool: Whether there is an opportunity.
         """
-        # Set quote target amount based on strategy.
-        self.trader1.quote_target_amount = max(self.vol_min, self.trader1.quote_bal)
-        self.trader2.quote_target_amount = max(self.vol_min, self.trader2.quote_bal)
+        # Set trader target amounts based on strategy.
+        self.trader1.set_target_amount(max(self.vol_min, self.trader1.usd_bal))
+        self.trader2.set_target_amount(max(self.vol_min, self.trader2.usd_bal))
 
         try:
             spread_opp = arbseeker.get_spreads_by_ob(
@@ -359,9 +359,9 @@ class FCFAutotrageur(Autotrageur):
             self.momentum = Momentum.NEUTRAL
 
             self.e1_targets = self.__calc_targets(spread_opp.e1_spread,
-                self.h_to_e1_max, self.trader2.quote_bal)
+                self.h_to_e1_max, self.trader2.usd_bal)
             self.e2_targets = self.__calc_targets(spread_opp.e2_spread,
-                self.h_to_e2_max, self.trader1.quote_bal)
+                self.h_to_e2_max, self.trader1.usd_bal)
 
             self.target_index = 0
             self.last_target_index = 0

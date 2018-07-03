@@ -1,3 +1,4 @@
+from collections import namedtuple
 import logging
 
 from ccxt import NetworkError
@@ -9,21 +10,23 @@ from libs.utilities import num_to_decimal
 
 BIDS = "bids"
 ASKS = "asks"
+BUY = "buy"
+SELL = "sell"
+E1_BUY = 0
+E1_SELL = 1
+E2_BUY = 2
+E2_SELL = 3
 
 
-class SpreadOpportunity():
-    """Structure containing spread and price info for an arbitrage
-    opportunity.
-    """
+# Structure for data required to retrieve price data for one side on one
+# exchange.
+PriceEntry = namedtuple(
+    'PriceEntry', ['price_type', 'side', 'trader', 'bids_or_asks'])
+# Structure containing spread and price info for an arbitrage opportunity.
+SpreadOpportunity = namedtuple(
+    'SpreadOpportunity',
+    ['e1_spread', 'e2_spread', 'e1_buy', 'e2_buy', 'e1_sell', 'e2_sell'])
 
-    def __init__(self, e1_spread, e2_spread, e1_buy, e2_buy, e1_sell, e2_sell):
-        """Constructor."""
-        self.e1_spread = e1_spread
-        self.e2_spread = e2_spread
-        self.e1_buy = e1_buy
-        self.e2_buy = e2_buy
-        self.e1_sell = e1_sell
-        self.e2_sell = e2_sell
 
 def get_spreads_by_ob(trader1, trader2):
     """Obtains spreads across two exchanges based on orderbook.
@@ -43,48 +46,39 @@ def get_spreads_by_ob(trader1, trader2):
     ex1_orderbook = trader1.get_full_orderbook()
     ex2_orderbook = trader2.get_full_orderbook()
 
-    # Exceptions are caught here because we want all the data regardless.
-    try:
-        e1_buy = trader1.get_adjusted_market_price_from_orderbook(
-            ex1_orderbook[ASKS])
-    except OrderbookException:
-        e1_buy = None
-    try:
-        e1_sell = trader1.get_adjusted_market_price_from_orderbook(
-            ex1_orderbook[BIDS])
-    except OrderbookException:
-        e1_sell = None
-    try:
-        e2_buy = trader2.get_adjusted_market_price_from_orderbook(
-            ex2_orderbook[ASKS])
-    except OrderbookException:
-        e2_buy = None
-    try:
-        e2_sell = trader2.get_adjusted_market_price_from_orderbook(
-            ex2_orderbook[BIDS])
-    except OrderbookException:
-        e2_sell = None
+    prices = [None] * 4
+    price_data = [
+        PriceEntry(E1_BUY, BUY, trader1, ex1_orderbook[ASKS]),
+        PriceEntry(E1_SELL, SELL, trader1, ex1_orderbook[BIDS]),
+        PriceEntry(E2_BUY, BUY, trader2, ex2_orderbook[ASKS]),
+        PriceEntry(E2_SELL, SELL, trader2, ex2_orderbook[BIDS])
+    ]
 
-    logging.info("%s buy of %s, %s price: %s" %
-                 (trader1.exchange_name, trader1.quote_target_amount,
-                  trader1.base, e1_buy))
-    logging.info("%s buy of %s, %s price: %s" %
-                 (trader2.exchange_name, trader2.quote_target_amount,
-                  trader2.base, e2_buy))
-    logging.info("%s sell of %s, %s price: %s" %
-                 (trader1.exchange_name, trader1.quote_target_amount,
-                  trader1.base, e1_sell))
-    logging.info("%s sell of %s, %s price: %s" %
-                 (trader2.exchange_name, trader2.quote_target_amount,
-                  trader2.base, e2_sell))
+    # Exceptions are caught here because we want all the data regardless.
+    for item in price_data:
+        try:
+            prices[item.price_type] = item.trader.get_prices_from_orderbook(
+                item.bids_or_asks)
+        except OrderbookException:
+            pass
+
+        logging.info("%s %s of %s %s of %s, price: %s USD",
+                        item.trader.exchange_name,
+                        item.side,
+                        item.trader.quote_target_amount,
+                        item.trader.quote,
+                        item.trader.base,
+                        prices[item.price_type].usd_price)
 
     # Calculate the spreads between exchange 1 and 2, including taker fees.
     e1_spread = spreadcalculator.calc_fixed_spread(
-        e2_buy, e1_sell, trader2.get_taker_fee(),
-        trader1.get_taker_fee(), trader2.get_buy_target_includes_fee())
+        prices[E2_BUY].usd_price, prices[E1_SELL].usd_price,
+        trader2.get_taker_fee(), trader1.get_taker_fee(),
+        trader2.get_buy_target_includes_fee())
     e2_spread = spreadcalculator.calc_fixed_spread(
-        e1_buy, e2_sell, trader1.get_taker_fee(),
-        trader2.get_taker_fee(), trader1.get_buy_target_includes_fee())
+        prices[E1_BUY].usd_price, prices[E2_SELL].usd_price,
+        trader1.get_taker_fee(), trader2.get_taker_fee(),
+        trader1.get_buy_target_includes_fee())
 
     logging.info("Ex2 (%s) buy Ex1 (%s) sell e1_spread: (%s)" %
                  (trader2.exchange_name,
@@ -95,8 +89,10 @@ def get_spreads_by_ob(trader1, trader2):
                   trader2.exchange_name,
                   e2_spread))
 
-    return SpreadOpportunity(e1_spread, e2_spread, e1_buy, e2_buy, e1_sell,
-        e2_sell)
+    return SpreadOpportunity(
+        e1_spread, e2_spread, prices[E1_BUY].quote_price,
+        prices[E2_BUY].quote_price, prices[E1_SELL].quote_price,
+        prices[E2_SELL].quote_price)
 
 
 def execute_buy(trader, price):
