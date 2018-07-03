@@ -1,17 +1,20 @@
+# pylint: disable=E1101
 import copy
 from decimal import Decimal, InvalidOperation
 
 import pytest
-from ccxt import NetworkError
+from ccxt import NetworkError, ExchangeError
 
 import bot.arbitrage.arbseeker as arbseeker
 import bot.arbitrage.fcf_autotrageur
-import libs.email_client.simple_email_client
+from libs.utilities import num_to_decimal
 from bot.arbitrage.arbseeker import SpreadOpportunity
 from bot.arbitrage.fcf_autotrageur import (EMAIL_HIGH_SPREAD_HEADER,
                                            EMAIL_LOW_SPREAD_HEADER,
                                            EMAIL_NONE_SPREAD, FCFAutotrageur,
+                                           FCFCheckpoint,
                                            InsufficientCryptoBalance,
+                                           IncompleteArbitrageError,
                                            arbseeker, email_count, prev_spread)
 from bot.common.config_constants import (DRYRUN, H_TO_E1_MAX, H_TO_E2_MAX,
                                          SPREAD_MIN, VOL_MIN)
@@ -19,6 +22,28 @@ from bot.common.enums import Momentum
 
 xfail = pytest.mark.xfail
 
+
+# Test constants.
+FAKE_BUY_PRICE = num_to_decimal(100.99)
+FAKE_SELL_PRICE = num_to_decimal(105.99)
+FAKE_PRE_FEE_BASE = num_to_decimal(10.00)
+FAKE_PRE_FEE_QUOTE = num_to_decimal(100.99)
+FAKE_POST_FEE_BASE = num_to_decimal(10.00)
+FAKE_POST_FEE_QUOTE = num_to_decimal(100.99)
+
+FAKE_UNIFIED_RESPONSE = {
+    'pre_fee_base': FAKE_PRE_FEE_BASE,
+    'pre_fee_quote': FAKE_PRE_FEE_QUOTE,
+    'post_fee_base': FAKE_POST_FEE_BASE,
+    'post_fee_quote': FAKE_POST_FEE_QUOTE
+}
+
+FAKE_UNIFIED_RESPONSE_DIFFERENT_AMOUNT = {
+    'pre_fee_base': num_to_decimal(101.99),
+    'pre_fee_quote': FAKE_PRE_FEE_QUOTE,
+    'post_fee_base': FAKE_POST_FEE_BASE,
+    'post_fee_quote': FAKE_POST_FEE_QUOTE
+}
 
 @pytest.fixture(scope='module')
 def no_patch_fcf_autotrageur():
@@ -33,12 +58,11 @@ def fcf_autotrageur(mocker, fake_ccxt_trader):
         'spread_target_low': 1.0,
         'spread_target_high': 5.0
     }
+    f.trade_metadata = {}
     trader1 = fake_ccxt_trader
     trader2 = copy.deepcopy(fake_ccxt_trader)
     mocker.patch.object(f, 'trader1', trader1, create=True)
     mocker.patch.object(f, 'trader2', trader2, create=True)
-    f.message = 'fake message'
-    # f.spread_opp = { arbseeker.SPREAD: 1.0 }
     return f
 
 
@@ -303,23 +327,89 @@ def test_prepare_trade(mocker, fcf_autotrageur, is_momentum_change, to_e1,
     assert buy_trader.quote_target_amount == result['quote_target_amount']
 
 
-@pytest.mark.parametrize('dryrun', [True, False])
-@pytest.mark.parametrize('success', [True, False])
-def test_execute_trade(mocker, fcf_autotrageur, dryrun, success):
-    mocker.patch.dict(fcf_autotrageur.config, { DRYRUN: dryrun })
-    fcf_autotrageur.trade_metadata = mocker.Mock()
-    mocker.patch.object(arbseeker, 'execute_arbitrage', return_value=success)
-    mocker.patch.object(fcf_autotrageur.trader1, 'fetch_wallet_balances')
-    mocker.patch.object(fcf_autotrageur.trader2, 'fetch_wallet_balances')
+class TestExecuteTrade:
+    def _setup_mocks(self, mocker, fcf_autotrageur, dryrun):
+        mocker.patch.dict(fcf_autotrageur.config, { DRYRUN: dryrun })
+        mocker.patch.object(
+            fcf_autotrageur, 'checkpoint', FCFCheckpoint(), create=True)
+        mocker.patch.object(fcf_autotrageur.checkpoint, 'restore')
+        mocker.patch.dict(fcf_autotrageur.trade_metadata, {
+            'buy_price': FAKE_BUY_PRICE,
+            'sell_price': FAKE_SELL_PRICE,
+            'buy_trader': fcf_autotrageur.trader1,
+            'sell_trader': fcf_autotrageur.trader2
+        })
+        mocker.patch.object(
+            arbseeker, 'execute_buy', return_value=FAKE_UNIFIED_RESPONSE)
+        mocker.patch.object(
+            arbseeker, 'execute_sell', return_value=FAKE_UNIFIED_RESPONSE)
+        mocker.patch.object(fcf_autotrageur.trader1, 'fetch_wallet_balances')
+        mocker.patch.object(fcf_autotrageur.trader2, 'fetch_wallet_balances')
 
-    fcf_autotrageur._execute_trade()
+    @pytest.mark.parametrize('dryrun', [True, False])
+    def test_execute_trade(self, mocker, fcf_autotrageur, dryrun):
+        self._setup_mocks(mocker, fcf_autotrageur, dryrun)
+        fcf_autotrageur._execute_trade()
 
-    arbseeker.execute_arbitrage.assert_called_with(     # pylint: disable=E1101
-        fcf_autotrageur.trade_metadata)
-    if not dryrun and success:
-        fcf_autotrageur.trader1.fetch_wallet_balances.assert_called_once()
-        fcf_autotrageur.trader2.fetch_wallet_balances.assert_called_once()
-    else:
+        arbseeker.execute_buy.assert_called_once_with(
+            fcf_autotrageur.trade_metadata['buy_trader'],
+            fcf_autotrageur.trade_metadata['buy_price'])
+        arbseeker.execute_sell.assert_called_once_with(
+            fcf_autotrageur.trade_metadata['sell_trader'],
+            fcf_autotrageur.trade_metadata['sell_price'],
+            FAKE_UNIFIED_RESPONSE['post_fee_base'])
+        if not dryrun:
+            fcf_autotrageur.trader1.fetch_wallet_balances.assert_called_once()
+            fcf_autotrageur.trader2.fetch_wallet_balances.assert_called_once()
+        else:
+            fcf_autotrageur.trader1.fetch_wallet_balances.assert_not_called()
+            fcf_autotrageur.trader2.fetch_wallet_balances.assert_not_called()
+
+    @pytest.mark.parametrize('exc_type', [
+        ExchangeError,
+        Exception
+    ])
+    def test_execute_trade_buy_exchange_err(self, mocker, fcf_autotrageur,
+                                            exc_type):
+        self._setup_mocks(mocker, fcf_autotrageur, False)
+        arbseeker.execute_buy.side_effect = exc_type
+        fcf_autotrageur._execute_trade()
+
+        fcf_autotrageur.checkpoint.restore.assert_called_once()
+        arbseeker.execute_buy.assert_called_once_with(
+            fcf_autotrageur.trade_metadata['buy_trader'],
+            fcf_autotrageur.trade_metadata['buy_price'])
+        arbseeker.execute_sell.assert_not_called()
+        fcf_autotrageur.trader1.fetch_wallet_balances.assert_not_called()
+        fcf_autotrageur.trader2.fetch_wallet_balances.assert_not_called()
+
+    @pytest.mark.parametrize('exc_type', [
+        ExchangeError,
+        Exception,
+        IncompleteArbitrageError
+    ])
+    def test_execute_trade_sell_error(self, mocker, fcf_autotrageur,
+                                             exc_type):
+        self._setup_mocks(mocker, fcf_autotrageur, False)
+        mocker.patch.object(fcf_autotrageur, '_send_email')
+
+        if exc_type is IncompleteArbitrageError:
+            arbseeker.execute_sell.return_value = FAKE_UNIFIED_RESPONSE_DIFFERENT_AMOUNT
+        else:
+            arbseeker.execute_sell.side_effect = exc_type
+
+        with pytest.raises(exc_type):
+            fcf_autotrageur._execute_trade()
+
+        arbseeker.execute_buy.assert_called_once_with(
+            fcf_autotrageur.trade_metadata['buy_trader'],
+            fcf_autotrageur.trade_metadata['buy_price'])
+        arbseeker.execute_sell.assert_called_once_with(
+            fcf_autotrageur.trade_metadata['sell_trader'],
+            fcf_autotrageur.trade_metadata['sell_price'],
+            FAKE_UNIFIED_RESPONSE['post_fee_base'])
+        fcf_autotrageur.checkpoint.restore.assert_not_called()
+        fcf_autotrageur._send_email.assert_called_once()
         fcf_autotrageur.trader1.fetch_wallet_balances.assert_not_called()
         fcf_autotrageur.trader2.fetch_wallet_balances.assert_not_called()
 
@@ -340,6 +430,9 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
                           h_to_e2_max, is_opportunity):
     trader1 = mocker.Mock()
     trader2 = mocker.Mock()
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'checkpoint', FCFCheckpoint(), create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur.checkpoint, 'save')
     mocker.patch.object(
         no_patch_fcf_autotrageur, 'trader1', trader1, create=True)
     mocker.patch.object(
@@ -388,6 +481,8 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
             assert is_opportunity_result is False
             evaluate_spread.assert_not_called()
         else:
+            no_patch_fcf_autotrageur.checkpoint.save.assert_called_once_with(
+                no_patch_fcf_autotrageur)
             evaluate_spread.assert_called_with(spread_opp)
             calc_targets.assert_not_called()
         assert no_patch_fcf_autotrageur.h_to_e1_max == max(h_to_e1_max, e1_spread)
@@ -395,13 +490,11 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
 
 
 def test_clean_up(fcf_autotrageur):
-    assert fcf_autotrageur.message == 'fake message'
-    # assert fcf_autotrageur.spread_opp == { arbseeker.SPREAD: 1.0 }
     fcf_autotrageur._clean_up()
-    assert fcf_autotrageur.message is None
+    assert fcf_autotrageur.trade_metadata is None
 
 
-def test_setup_markets(mocker, fcf_autotrageur):
+def test_setup(mocker, fcf_autotrageur):
     import builtins
     s = mocker.patch.object(builtins, 'super')
     mocker.patch.dict(fcf_autotrageur.config, {
@@ -411,10 +504,11 @@ def test_setup_markets(mocker, fcf_autotrageur):
         H_TO_E2_MAX: 50
     })
 
-    fcf_autotrageur._setup_markets()
+    fcf_autotrageur._setup()
 
     s.assert_called_once()
     assert fcf_autotrageur.spread_min == Decimal('2')
     assert fcf_autotrageur.vol_min == Decimal('1000')
     assert fcf_autotrageur.h_to_e1_max == Decimal('3')
     assert fcf_autotrageur.h_to_e2_max == Decimal('50')
+    assert isinstance(fcf_autotrageur.checkpoint, FCFCheckpoint)
