@@ -394,6 +394,7 @@ class FCFAutotrageur(Autotrageur):
             AuthenticationError: If not dryrun and authentication fails.
         """
         super()._setup()
+        self.has_started = False
         self.spread_min = num_to_decimal(self.config[SPREAD_MIN])
         self.vol_min = num_to_decimal(self.config[VOL_MIN])
         self.h_to_e1_max = num_to_decimal(self.config[H_TO_E1_MAX])

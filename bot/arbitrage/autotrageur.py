@@ -222,14 +222,28 @@ class Autotrageur(ABC):
         """Wait for the specified polling interval."""
         time.sleep(5)
 
-    def run_autotrageur(self, arguments):
+    def run_autotrageur(self, arguments, requires_configs=True):
         """Run Autotrageur algorithm.
+
+        During dry run operation, the 'while True' loop will loop
+        indefinitely until a keyboard interrupt, after which the
+        exchange data will be summarized and the program will exit.
+
+        When the program is started with live trading, exceptions raised
+        will be caught and a dry run will be started. We expect the
+        issue to be reported through the email mechanism in
+        fcf_autotrageur. Note that this does not apply to the keyboard
+        interrupt, which will exit the program directly.
 
         Args:
             arguments (map): Map of command line arguments.
+            requires_configs (bool, optional): Defaults to True. Whether
+                the call requires the config file to be loaded.
         """
-        self.has_started = False
-        self._load_configs(arguments)
+
+        if requires_configs:
+            self._load_configs(arguments)
+
         self._setup()
 
         try:
@@ -240,8 +254,16 @@ class Autotrageur(ABC):
                     self._execute_trade()
                 self._wait()
         except KeyboardInterrupt:
-            if self.dry_run:
+            if self.config[DRYRUN]:
                 logging.critical("Interrupted, data summary:")
                 self.dry_run.log_all()
+            else:
+                raise
+        except Exception as e:
+            if not self.dry_run:
+                logging.critical("Falling back to dry run, error encountered:")
+                logging.critical(e)
+                self.config[DRYRUN] = True
+                self.run_autotrageur(arguments, False)
             else:
                 raise
