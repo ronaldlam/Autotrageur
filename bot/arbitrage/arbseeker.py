@@ -1,17 +1,15 @@
-from collections import namedtuple
 import logging
+from collections import namedtuple
 
 from ccxt import NetworkError
 
 import bot.arbitrage.spreadcalculator as spreadcalculator
+from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
 from bot.trader.ccxt_trader import OrderbookException
 from libs.utilities import num_to_decimal
 
-
 BIDS = "bids"
 ASKS = "asks"
-BUY = "buy"
-SELL = "sell"
 E1_BUY = 0
 E1_SELL = 1
 E2_BUY = 2
@@ -48,10 +46,10 @@ def get_spreads_by_ob(trader1, trader2):
 
     prices = [None] * 4
     price_data = [
-        PriceEntry(E1_BUY, BUY, trader1, ex1_orderbook[ASKS]),
-        PriceEntry(E1_SELL, SELL, trader1, ex1_orderbook[BIDS]),
-        PriceEntry(E2_BUY, BUY, trader2, ex2_orderbook[ASKS]),
-        PriceEntry(E2_SELL, SELL, trader2, ex2_orderbook[BIDS])
+        PriceEntry(E1_BUY, BUY_SIDE, trader1, ex1_orderbook[ASKS]),
+        PriceEntry(E1_SELL, SELL_SIDE, trader1, ex1_orderbook[BIDS]),
+        PriceEntry(E2_BUY, BUY_SIDE, trader2, ex2_orderbook[ASKS]),
+        PriceEntry(E2_SELL, SELL_SIDE, trader2, ex2_orderbook[BIDS])
     ]
 
     # Exceptions are caught here because we want all the data regardless.

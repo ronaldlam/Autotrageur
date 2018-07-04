@@ -13,37 +13,10 @@ from libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
 from libs.utilities import keys_exists, num_to_decimal
 
 EXTENSION_PREFIX = "ext_"
+ZERO = num_to_decimal(0.0)
 
 
 PricePair = namedtuple('PricePair', ['usd_price', 'quote_price'])
-
-
-class MarketOrderType(Enum):
-    """An Enum for Market order types.
-
-    Args:
-        Enum (str): One of: 'buy' or 'sell'.
-    """
-    BUY = 'buy',
-    SELL = 'sell'
-
-    @classmethod
-    def has_value(cls, value):
-        """Checks if a value is in the MarketOrderType Enum.
-
-        Args:
-            value (str): A string value to check against the MarketOrderType
-                Enum.
-
-        Returns:
-            bool: True if value belongs in MarketOrderType Enum. Else, false.
-        """
-        return any(value.lower() == item.value for item in cls)
-
-
-class InvalidMarketOrderTypeError(Exception):
-    """Exception thrown when invalid or unspecified MarketOrderType."""
-    pass
 
 
 class OrderbookException(Exception):
@@ -115,7 +88,8 @@ class CCXTTrader():
             CCXTExecutor(self.ccxt_exchange)
 
         # Initialized variables not from config.
-        self.quote_target_amount = num_to_decimal(0.0)
+        self.quote_target_amount = ZERO
+        self.usd_target_amount = ZERO
         self.conversion_needed = False
         self.forex_ratio = None
 
@@ -139,9 +113,8 @@ class CCXTTrader():
                 target_amount via the orderbook.
         """
         index = 0
-        base_asset_volume = num_to_decimal(0.0)
+        base_asset_volume = ZERO
         remaining_amount = quote_target_amount
-        ZERO = num_to_decimal(0.0)
 
         # The decimal orders.
         d_orders = []
@@ -422,6 +395,10 @@ class CCXTTrader():
 
     def set_target_amount(self, target_amount, is_usd=True):
         """Set the quote_target_amount and usd_target_amount.
+
+        NOTE: This is only valid for fiat currency with support for the
+        currencies supported by the forex_python API. Will fail for
+        crypto pairs.
 
         Args:
             target_amount (Decimal): The amount, can be USD or quote

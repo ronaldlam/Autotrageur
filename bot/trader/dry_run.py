@@ -7,6 +7,7 @@ from libs.utilities import num_to_decimal
 ZERO = Decimal('0')
 
 class InsufficientFakeFunds(Exception):
+    """Exception for insufficient funds on dry run exchanges."""
     pass
 
 
