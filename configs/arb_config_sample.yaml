@@ -2,14 +2,13 @@
 
 # Dry Run functionality.
 dryrun: # If True, will log trades instead of executing them.
+dryrun_e1_base: # Starting base amount on e1
+dryrun_e1_quote: # Starting quote amount on e1
+dryrun_e2_base: # Starting base amount on e2
+dryrun_e2_quote: # Starting quote amount on e2
 
 # Email configuration, and email options.
 email_cfg_path: # path/to/email_cfg file.  Used to send e-mails on arb opportunities.
-max_emails: # Throttles after number of sent emails for similar spreads encountered, e.g. 3
-spread_rounding: # The number of decimals in which to round the spread for comparison to previous spread, e.g. 1
-spread_tolerance: # The +/- of the spread in which to send an e-mail notification.
-# For example, 0.5 would mean for a previous spread of 2.5%, a next spread of > 3.0% or < 2.0% would
-# send an email.
 
 # Exchange 1 - This is the exchange to be used as the default denominator.
 exchange1: # Name of first exchange, eg. binance

@@ -1,52 +1,90 @@
 import logging
-from decimal import Decimal
 import time
+from decimal import Decimal
 
-from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
+from bot.common.ccxt_constants import (BUY_SIDE, ORDER_TYPE_LIMIT,
+                                       ORDER_TYPE_MARKET, SELL_SIDE)
 from libs.utilities import num_to_decimal
+
 from .base_executor import BaseExecutor
+
+ONE = num_to_decimal(1)
 
 
 class DryRunExecutor(BaseExecutor):
     """An executor if a dry run is desired."""
 
-    def __init__(self, exchange):
+    def __init__(self, exchange, fetcher, dry_run_exchange):
         """Constructor.
 
         Args:
             exchange (ccxt.Exchange): The ccxt exchange.
+            fetcher (CCXTFetcher): The ccxt fetcher.
+            dry_run_exchange (DryRunExchange): The dry run exchange to
+                hold state for the dry run.
         """
-        logging.log(logging.INFO, "*** Dry run with: %s", exchange.name)
+        logging.info("*** Dry run with: %s", exchange.name)
         self.exchange = exchange
+        self.fetcher = fetcher
+        self.dry_run_exchange = dry_run_exchange
 
-    def _populate_dry_run_order(self, side, symbol, amount, price=Decimal('0')):
+    def _complete_order(self, side, order_type, symbol, amount, price):
         """Populates a fake ideal order as a dry run response.
 
         Args:
             side (str): Either 'buy' or 'sell'.
+            order_type (str): Either 'market' or 'limit'.
             symbol (str): The symbol of the market, ie. 'ETH/USD'.
             amount (Decimal): The amount to buy or sell.
-            price (Decimal, optional): The target price to buy or sell.
-                Used in emulated buy/sell orders.  Defaults to 0.
+            price (Decimal): The target price to buy or sell.
 
         Returns:
             dict: A pre-defined order dictionary populated with the
                 calling function's parameters.
         """
         local_ts = int(time.time())
-        dry_run_base = num_to_decimal(amount)
-        dry_run_quote = dry_run_base * price
+        base, quote = symbol.split('/')
+        pre_fee_base = amount
+        pre_fee_quote = amount * price
+        taker_fee = self.fetcher.fetch_taker_fees()
+
+        # Currently the only case of this is bithumb, where buy fees are
+        # collected in the base asset after the specified quote amount
+        # is used to purchase the pre_fee_base amount of base asset.
+        if side == BUY_SIDE:
+            if self.exchange.buy_target_includes_fee:
+                fee_asset = base
+                post_fee_base = pre_fee_base * (ONE - taker_fee)
+                post_fee_quote = pre_fee_quote
+                fees = pre_fee_base - post_fee_base
+            else:
+                fee_asset = quote
+                post_fee_base = pre_fee_base
+                post_fee_quote = pre_fee_quote * (ONE + taker_fee)
+                fees = post_fee_quote - pre_fee_quote
+
+            self.dry_run_exchange.buy(pre_fee_base, pre_fee_quote,
+                                      post_fee_base, post_fee_quote)
+        else:
+            fee_asset = quote
+            post_fee_base = pre_fee_base
+            post_fee_quote = pre_fee_quote * (ONE - taker_fee)
+            fees = pre_fee_quote - post_fee_quote
+
+            self.dry_run_exchange.sell(pre_fee_base, pre_fee_quote,
+                                       post_fee_quote)
+
         return {
-            'pre_fee_base': dry_run_base,
-            'pre_fee_quote': dry_run_quote,
-            'post_fee_base': dry_run_base,
-            'post_fee_quote': dry_run_quote,
-            'fees': num_to_decimal(0.00),
-            'fee_asset': symbol.split('/')[1],
+            'pre_fee_base': pre_fee_base,
+            'pre_fee_quote': pre_fee_quote,
+            'post_fee_base': post_fee_base,
+            'post_fee_quote': post_fee_quote,
+            'fees': fees,
+            'fee_asset': fee_asset,
             'price': price,
-            'true_price': price,
+            'true_price': post_fee_quote / post_fee_base,
             'side': side,
-            'type': 'market',
+            'type': order_type,
             'order_id': 'DRYRUN',
             'exchange_timestamp': local_ts,
             'local_timestamp': local_ts,
@@ -71,7 +109,7 @@ class DryRunExecutor(BaseExecutor):
             dict: A pre-defined order dictionary populated with the
                 function's parameters.
         """
-        logging.log(logging.INFO, "Arguments: %s", locals())
+        logging.info("Arguments: %s", locals())
         (asset_volume, _) = (
             self.exchange.prepare_emulated_market_buy_order(
                 symbol, quote_amount, asset_price, slippage)
@@ -79,8 +117,8 @@ class DryRunExecutor(BaseExecutor):
 
         # We use asset_price because it uses order book data for calculation;
         # limit_price assumes worst case taking slippage into account.
-        return self._populate_dry_run_order(
-            BUY_SIDE, symbol, asset_volume, asset_price)
+        return self._complete_order(
+            BUY_SIDE, ORDER_TYPE_LIMIT, symbol, asset_volume, asset_price)
 
     def create_emulated_market_sell_order(self, symbol, asset_price,
                                           asset_amount, slippage):
@@ -97,7 +135,7 @@ class DryRunExecutor(BaseExecutor):
             dict: A pre-defined order dictionary populated with the
                 function's parameters.
         """
-        logging.log(logging.INFO, "Arguments: %s", locals())
+        logging.info("Arguments: %s", locals())
         (rounded_amount, _) = (
             self.exchange.prepare_emulated_market_sell_order(
                 symbol, asset_price, asset_amount, slippage)
@@ -105,8 +143,8 @@ class DryRunExecutor(BaseExecutor):
 
         # We use asset_price because it uses order book data for calculation;
         # rounded_limit_price assumes worst case taking slippage into account.
-        return self._populate_dry_run_order(
-            SELL_SIDE, symbol, rounded_amount, asset_price)
+        return self._complete_order(
+            SELL_SIDE, ORDER_TYPE_LIMIT, symbol, rounded_amount, asset_price)
 
     def create_market_buy_order(self, symbol, asset_amount, asset_price):
         """When a market buy order has been requested from the bot.
@@ -120,9 +158,9 @@ class DryRunExecutor(BaseExecutor):
             dict: A pre-defined order dictionary populated with the
                 function's parameters.
         """
-        logging.log(logging.INFO, "Arguments: %s", locals())
-        return self._populate_dry_run_order(
-            BUY_SIDE, symbol, asset_amount, asset_price)
+        logging.info("Arguments: %s", locals())
+        return self._complete_order(
+            BUY_SIDE, ORDER_TYPE_MARKET, symbol, asset_amount, asset_price)
 
     def create_market_sell_order(self, symbol, asset_amount, asset_price):
         """When a market sell order has been requested from the bot.
@@ -137,6 +175,6 @@ class DryRunExecutor(BaseExecutor):
             dict: A pre-defined order dictionary populated with the
                 function's parameters.
         """
-        logging.log(logging.INFO, "Arguments: %s", locals())
-        return self._populate_dry_run_order(
-            SELL_SIDE, symbol, asset_amount, asset_price)
+        logging.info("Arguments: %s", locals())
+        return self._complete_order(
+            SELL_SIDE, ORDER_TYPE_MARKET, symbol, asset_amount, asset_price)

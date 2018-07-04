@@ -602,7 +602,7 @@ class TestGetAdjustedMarketPriceFromOrderbook:
         False,
         None
     ])
-    def test_get_adjusted_market_price_from_orderbook(self, mocker, fake_ccxt_trader,
+    def test_get_prices_from_orderbook(self, mocker, fake_ccxt_trader,
                                                       conversion_needed):
         mocker.patch.object(fake_ccxt_trader, 'quote_target_amount', self.fake_quote_target_amount)
         if conversion_needed:
@@ -614,17 +614,17 @@ class TestGetAdjustedMarketPriceFromOrderbook:
             mocker.patch.object(fake_ccxt_trader, '_CCXTTrader__calc_vol_by_book',
                 return_value=self.fake_asset_volume)
 
-        market_price = fake_ccxt_trader.get_adjusted_market_price_from_orderbook(self.fake_bids_or_asks)
+        market_price = fake_ccxt_trader.get_prices_from_orderbook(self.fake_bids_or_asks)
         asset_volume = fake_ccxt_trader._CCXTTrader__calc_vol_by_book.return_value
 
         assert market_price == self.fake_quote_target_amount / asset_volume
 
-    def test_get_adjusted_market_price_from_orderbook_exception(self, mocker, fake_ccxt_trader):
+    def test_get_prices_from_orderbook_exception(self, mocker, fake_ccxt_trader):
         mocker.patch.object(fake_ccxt_trader, 'conversion_needed', True)
         mocker.patch.object(fake_ccxt_trader, 'forex_ratio', None)
 
         with pytest.raises(ccxt_trader.NoForexQuoteException):
-            fake_ccxt_trader.get_adjusted_market_price_from_orderbook(self.fake_bids_or_asks)
+            fake_ccxt_trader.get_prices_from_orderbook(self.fake_bids_or_asks)
 
 
 def test_load_markets(mocker, fake_ccxt_trader):

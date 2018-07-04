@@ -2,14 +2,13 @@
 
 # Dry Run functionality.
 dryrun: true # If True, will log trades instead of executing them.
+dryrun_e1_base: 100
+dryrun_e1_quote: 10000
+dryrun_e2_base: 100
+dryrun_e2_quote: 10000000
 
 # Email configuration, and email options.
 email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to send e-mails on arb opportunities.
-max_emails: 2 # Throttles after number of sent emails for similar spreads encountered, e.g. 3
-spread_rounding: # The number of decimals in which to round the spread for comparison to previous spread, e.g. 1 for one decimal place
-spread_tolerance: 0.5 # The +/- of the spread in which to send an e-mail notification.
-# For example, 0.5 would mean for a previous spread of 2.5%, a next spread of > 3.0% or < 2.0% would
-# send an email.
 
 # Exchange 1
 exchange1: gemini
