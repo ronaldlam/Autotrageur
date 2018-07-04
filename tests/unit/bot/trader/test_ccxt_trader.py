@@ -69,13 +69,12 @@ class TestCCXTTraderInit:
 
         # Initialized variables not from config.
         assert trader.quote_target_amount == num_to_decimal(0.0)
+        assert trader.usd_target_amount == num_to_decimal(0.0)
         assert trader.conversion_needed is False
         assert trader.forex_ratio is None
 
         if dry_run:
             assert trader.executor is fake_dryrun_executor
-            assert trader.base_bal == num_to_decimal(0.0)
-            assert trader.quote_bal == num_to_decimal(0.0)
         else:
             assert trader.executor is fake_ccxt_executor
 
@@ -560,29 +559,6 @@ def test_connect_test_api(mocker, fake_ccxt_trader, urls):
         assert exchange_urls['api'] == exchange_urls['test']
 
 
-@pytest.mark.parametrize('fake_balances, conversion_needed', [
-    ((Decimal('1'), Decimal('1000')), False),
-    ((Decimal('1'), Decimal('1000')), True)
-])
-def test_fetch_wallet_balances(mocker, fake_ccxt_trader, symbols, fake_balances, conversion_needed):
-    mocker.patch.object(fake_ccxt_trader.fetcher, 'fetch_free_balances', return_value=fake_balances)
-
-    if conversion_needed:
-        mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
-        mocker.patch.object(fake_ccxt_trader, 'forex_ratio', FAKE_FOREX_RATIO)
-
-    fake_ccxt_trader.fetch_wallet_balances()
-
-    if conversion_needed:
-        assert fake_ccxt_trader.quote_bal == (fake_balances[1] / FAKE_FOREX_RATIO)
-    else:
-        assert fake_ccxt_trader.quote_bal == fake_balances[1]
-
-    assert fake_ccxt_trader.base_bal == fake_balances[0]
-    fake_ccxt_trader.fetcher.fetch_free_balances.assert_called_once()
-    fake_ccxt_trader.fetcher.fetch_free_balances.assert_called_with(symbols['bitcoin'], symbols['usd'])
-
-
 def test_get_full_orderbook(mocker, fake_ccxt_trader, symbols):
     mocker.patch.object(fake_ccxt_trader.fetcher, 'get_full_orderbook')
     fake_ccxt_trader.get_full_orderbook()
@@ -592,38 +568,44 @@ def test_get_full_orderbook(mocker, fake_ccxt_trader, symbols):
 
 class TestGetAdjustedMarketPriceFromOrderbook:
     fake_bids_or_asks = [['fake', 'bids', 'asks']]
-    fake_asset_volume = Decimal('10')
-    fake_asset_volume_forex = Decimal('20')
     fake_quote_target_amount = Decimal('100')
-    fake_usd_value = Decimal('150')
+    fake_usd_target_amount = Decimal('150')
 
-    @pytest.mark.parametrize('conversion_needed', [
-        True,
-        False,
-        None
+    @pytest.mark.parametrize(
+        'usd_target_amount, quote_target_amount, asset_volume, result_usd_price, result_quote_price', [
+            (Decimal('100'), Decimal('100'), Decimal('5'), Decimal('20'), Decimal('20')),
+            (Decimal('100000'), Decimal('100'), Decimal('5'), Decimal('20000'), Decimal('20')),
+            (Decimal('100'), Decimal('100000'), Decimal('5'), Decimal('20'), Decimal('20000'))
     ])
     def test_get_prices_from_orderbook(self, mocker, fake_ccxt_trader,
-                                                      conversion_needed):
-        mocker.patch.object(fake_ccxt_trader, 'quote_target_amount', self.fake_quote_target_amount)
-        if conversion_needed:
-            mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
-            mocker.patch.object(fake_ccxt_trader, 'forex_ratio', FAKE_FOREX_RATIO)
-            mocker.patch.object(fake_ccxt_trader, '_CCXTTrader__calc_vol_by_book',
-                return_value=self.fake_asset_volume_forex)
-        else:
-            mocker.patch.object(fake_ccxt_trader, '_CCXTTrader__calc_vol_by_book',
-                return_value=self.fake_asset_volume)
+                                       usd_target_amount, quote_target_amount,
+                                       asset_volume, result_usd_price,
+                                       result_quote_price):
+        mocker.patch.object(fake_ccxt_trader, 'usd_target_amount',
+                            usd_target_amount)
+        mocker.patch.object(fake_ccxt_trader, 'quote_target_amount',
+                            quote_target_amount)
+        calc_vol = mocker.patch.object(fake_ccxt_trader,
+                                       '_CCXTTrader__calc_vol_by_book',
+                                       return_value=asset_volume)
 
-        market_price = fake_ccxt_trader.get_prices_from_orderbook(self.fake_bids_or_asks)
-        asset_volume = fake_ccxt_trader._CCXTTrader__calc_vol_by_book.return_value
+        usd_price, quote_price = fake_ccxt_trader.get_prices_from_orderbook(
+            self.fake_bids_or_asks)
 
-        assert market_price == self.fake_quote_target_amount / asset_volume
+        calc_vol.assert_called_once_with(
+            self.fake_bids_or_asks, quote_target_amount)
+        assert usd_price == result_usd_price
+        assert quote_price == result_quote_price
 
     def test_get_prices_from_orderbook_exception(self, mocker, fake_ccxt_trader):
-        mocker.patch.object(fake_ccxt_trader, 'conversion_needed', True)
-        mocker.patch.object(fake_ccxt_trader, 'forex_ratio', None)
+        mocker.patch.object(fake_ccxt_trader, '_CCXTTrader__calc_vol_by_book',
+                            return_value=Decimal('0'))
+        mocker.patch.object(fake_ccxt_trader, 'usd_target_amount',
+                            self.fake_usd_target_amount)
+        mocker.patch.object(fake_ccxt_trader, 'quote_target_amount',
+                            self.fake_quote_target_amount)
 
-        with pytest.raises(ccxt_trader.NoForexQuoteException):
+        with pytest.raises(ZeroDivisionError):
             fake_ccxt_trader.get_prices_from_orderbook(self.fake_bids_or_asks)
 
 
@@ -664,3 +646,67 @@ def test_set_forex_ratio(mocker, fake_ccxt_trader, forex_quote):
         assert fake_ccxt_trader.forex_ratio is FAKE_FOREX_RATIO
     else:
         assert fake_ccxt_trader.forex_ratio is None
+
+
+class TestSetTargetAmount:
+    fake_target_amount = Decimal('1234')
+
+    @pytest.mark.parametrize(
+        'target_amount, is_usd, conversion_needed, result_usd, result_quote', [
+            (Decimal('1000'), True, False, Decimal('1000'), Decimal('1000')),
+            (Decimal('1000'), False, False, Decimal('1000'), Decimal('1000')),
+            (Decimal('1'), True, True, Decimal('1'), Decimal('1000')),
+            (Decimal('1000'), False, True, Decimal('1'), Decimal('1000')),
+            (Decimal('0'), True, False, Decimal('0'), Decimal('0')),
+            (Decimal('0'), False, False, Decimal('0'), Decimal('0')),
+            (Decimal('0'), True, True, Decimal('0'), Decimal('0')),
+            (Decimal('0'), False, True, Decimal('0'), Decimal('0')),
+    ])
+    def test_set_target_amount(self, mocker, fake_ccxt_trader, target_amount, is_usd, conversion_needed, result_usd, result_quote):
+        mocker.patch.object(fake_ccxt_trader, 'forex_ratio', FAKE_FOREX_RATIO)
+        mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
+
+        fake_ccxt_trader.set_target_amount(target_amount, is_usd)
+
+        assert fake_ccxt_trader.usd_target_amount == result_usd
+        assert fake_ccxt_trader.quote_target_amount == result_quote
+
+    @pytest.mark.parametrize('is_usd', [True, False])
+    def test_set_target_amount_no_forex_quote(self, mocker, fake_ccxt_trader, is_usd):
+        mocker.patch.object(fake_ccxt_trader, 'forex_ratio', None)
+        mocker.patch.object(fake_ccxt_trader, 'conversion_needed', True)
+        with pytest.raises(ccxt_trader.NoForexQuoteException):
+            fake_ccxt_trader.set_target_amount(self.fake_target_amount, is_usd)
+
+    def test_set_target_amount_bad_forex_quote(self, mocker, fake_ccxt_trader):
+        mocker.patch.object(fake_ccxt_trader, 'forex_ratio', Decimal('0'))
+        mocker.patch.object(fake_ccxt_trader, 'conversion_needed', True)
+        with pytest.raises(ZeroDivisionError):
+            fake_ccxt_trader.set_target_amount(self.fake_target_amount, False)
+
+
+@pytest.mark.parametrize('live_balances, dryrun_balances, conversion_needed, is_dry_run, result_usd_bal', [
+    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), True, True, Decimal('2')),
+    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), True, False, Decimal('1')),
+    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), False, True, Decimal('2000')),
+    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), False, False, Decimal('1000')),
+])
+def test_update_wallet_balances(mocker, fake_ccxt_trader, symbols, live_balances, dryrun_balances, conversion_needed, is_dry_run, result_usd_bal):
+    mocker.patch.object(fake_ccxt_trader.fetcher, 'fetch_free_balances', return_value=live_balances)
+    executor = mocker.patch.object(fake_ccxt_trader, 'executor')
+    dry_run_exchange = mocker.patch.object(executor, 'dry_run_exchange')
+    mocker.patch.object(dry_run_exchange, 'base_balance', dryrun_balances[0])
+    mocker.patch.object(dry_run_exchange, 'quote_balance', dryrun_balances[1])
+    mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
+    mocker.patch.object(fake_ccxt_trader, 'forex_ratio', FAKE_FOREX_RATIO)
+
+    fake_ccxt_trader.update_wallet_balances(is_dry_run=is_dry_run)
+
+    assert fake_ccxt_trader.usd_bal == result_usd_bal
+    if is_dry_run:
+        assert fake_ccxt_trader.base_bal == dryrun_balances[0]
+        assert fake_ccxt_trader.quote_bal == dryrun_balances[1]
+    else:
+        assert fake_ccxt_trader.base_bal == live_balances[0]
+        assert fake_ccxt_trader.quote_bal == live_balances[1]
+        fake_ccxt_trader.fetcher.fetch_free_balances.assert_called_once_with(symbols['bitcoin'], symbols['usd'])
