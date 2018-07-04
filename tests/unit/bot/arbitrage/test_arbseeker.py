@@ -1,6 +1,5 @@
 from ccxt import NetworkError
 import pytest
-from unittest.mock import call
 
 from bot.arbitrage.arbseeker import (get_spreads_by_ob,
                                      execute_buy,
