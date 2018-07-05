@@ -85,7 +85,7 @@ class CCXTTrader():
             self.executor = DryRunExecutor(
                 self.ccxt_exchange, self.fetcher, dry_run)
         else:
-            CCXTExecutor(self.ccxt_exchange)
+            self.executor = CCXTExecutor(self.ccxt_exchange)
 
         # Initialized variables not from config.
         self.quote_target_amount = ZERO

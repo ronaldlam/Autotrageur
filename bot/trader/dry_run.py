@@ -54,7 +54,7 @@ class DryRunExchange():
         self.quote_balance -= post_fee_quote
         self.base_volume += pre_fee_base
         self.quote_volume += pre_fee_quote
-        self.base_fees += post_fee_base - pre_fee_base
+        self.base_fees += pre_fee_base - post_fee_base
         self.quote_fees += post_fee_quote - pre_fee_quote
         self.trade_count += 1
 

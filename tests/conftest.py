@@ -82,7 +82,10 @@ def fake_dryrun_executor(mocker, ext_gemini_exchange):
     mocker.patch.object(ext_gemini_exchange, 'create_emulated_market_sell_order')
     mocker.patch.object(ext_gemini_exchange, 'create_market_buy_order')
     mocker.patch.object(ext_gemini_exchange, 'create_market_sell_order')
-    return DryRunExecutor(ext_gemini_exchange)
+    fake_fetcher = mocker.Mock()
+    fake_dryrun_exchange = mocker.Mock()
+    return DryRunExecutor(
+        ext_gemini_exchange, fake_fetcher, fake_dryrun_exchange)
 
 # ------------------ Mock trader fixtures -------------------------------------
 @pytest.fixture()
