@@ -37,6 +37,9 @@ def get_spreads_by_ob(trader1, trader2):
         trader1 (CCXTTrader): The trading client for exchange 1.
         trader2 (CCXTTrader): The trading client for exchange 2.
 
+    Raises:
+        OrderbookException: If the orderbook is not deep enough.
+
     Returns:
         SpreadOpportunity: Returns an object containing the spreads and prices
             pertaining to the current spread opportunity.
@@ -54,11 +57,8 @@ def get_spreads_by_ob(trader1, trader2):
 
     # Exceptions are caught here because we want all the data regardless.
     for item in price_data:
-        try:
-            prices[item.price_type] = item.trader.get_prices_from_orderbook(
-                item.bids_or_asks)
-        except OrderbookException:
-            pass
+        prices[item.price_type] = item.trader.get_prices_from_orderbook(
+            item.bids_or_asks)
 
         logging.info("%s %s of %s %s of %s, price: %s USD",
                         item.trader.exchange_name,

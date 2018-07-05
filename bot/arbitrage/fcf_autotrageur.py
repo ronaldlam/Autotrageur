@@ -7,6 +7,7 @@ import bot.arbitrage.arbseeker as arbseeker
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, SPREAD_MIN, VOL_MIN)
 from bot.common.enums import Momentum
+from bot.trader.ccxt_trader import OrderbookException
 from libs.email_client.simple_email_client import send_all_emails
 from libs.utilities import (num_to_decimal, set_autotrageur_decimal_context,
                             set_human_friendly_decimal_context)
@@ -349,8 +350,8 @@ class FCFAutotrageur(Autotrageur):
         try:
             spread_opp = arbseeker.get_spreads_by_ob(
                 self.trader1, self.trader2)
-        except ccxt.NetworkError as network_error:
-            logging.error(network_error, exc_info=True)
+        except (ccxt.NetworkError, OrderbookException) as exc:
+            logging.error(exc, exc_info=True)
             return False
 
         is_opportunity = False
