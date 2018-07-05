@@ -7,10 +7,13 @@ import yaml
 
 import bot.arbitrage.autotrageur
 from bot.arbitrage.autotrageur import (AuthenticationError, Autotrageur)
-from bot.common.config_constants import (DRYRUN, EXCHANGE1, EXCHANGE1_PAIR,
-                                       EXCHANGE1_TEST, EXCHANGE2,
-                                       EXCHANGE2_PAIR, EXCHANGE2_TEST,
-                                       SLIPPAGE)
+from bot.common.config_constants import (DRYRUN, DRYRUN_E1_BASE, DRYRUN_E2_BASE,
+                                        DRYRUN_E1_QUOTE, DRYRUN_E2_QUOTE,
+                                        EXCHANGE1, EXCHANGE1_PAIR,
+                                        EXCHANGE1_TEST, EXCHANGE2,
+                                        EXCHANGE2_PAIR, EXCHANGE2_TEST,
+                                        SLIPPAGE)
+from bot.trader.dry_run import DryRun, DryRunExchange
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map
 
@@ -110,17 +113,16 @@ def test_load_configs(mocker, autotrageur, keyfile_loaded):
 @pytest.mark.parametrize("ex2_test", [True, False])
 @pytest.mark.parametrize("client_quote_usd", [True, False])
 @pytest.mark.parametrize(
-    "balance_check, dryrun", [
+    "balance_check_success, dryrun", [
         (True, True),
         (True, False),
         (False, True),
-        pytest.param(False, False,
-            marks=pytest.mark.xfail(strict=True, raises=AuthenticationError)),
+        (False, False)
     ]
 )
 def test_setup(
         mocker, autotrageur, ex1_test, ex2_test, client_quote_usd,
-        balance_check, dryrun):
+        balance_check_success, dryrun):
     fake_slippage = 0.25
     fake_pair = 'fake/pair'
     placeholder = 'fake'
@@ -136,7 +138,11 @@ def test_setup(
         SLIPPAGE: fake_slippage,
         EXCHANGE1_TEST: ex1_test,
         EXCHANGE2_TEST: ex2_test,
-        DRYRUN: dryrun
+        DRYRUN: dryrun,
+        DRYRUN_E1_BASE: 20,
+        DRYRUN_E1_QUOTE: 20000,
+        DRYRUN_E2_BASE: 20,
+        DRYRUN_E2_QUOTE: 20000
     }
 
     if client_quote_usd:
@@ -144,13 +150,26 @@ def test_setup(
     else:
         # Set a fiat quote pair that is not USD to trigger conversion calls.
         instance.quote = 'KRW'
-    if not balance_check:
-        instance.fetch_wallet_balances.side_effect = ccxt.AuthenticationError()
 
     mocker.patch.dict(autotrageur.config, configuration)
     mocker.spy(schedule, 'every')
 
-    autotrageur._setup()
+    # If wallet balance fetch fails, expect either AuthenticationError or
+    # ExchangeNotAvailable to be thrown.
+    if balance_check_success:
+        autotrageur._setup()
+    else:
+        instance.update_wallet_balances.side_effect = ccxt.AuthenticationError()
+        with pytest.raises(AuthenticationError):
+            autotrageur._setup()
+
+    # Dry run verification.
+    if dryrun:
+        assert isinstance(autotrageur.dry_run, DryRun)
+        assert isinstance(autotrageur.dry_run.e1, DryRunExchange)
+        assert isinstance(autotrageur.dry_run.e2, DryRunExchange)
+    else:
+        assert autotrageur.dry_run is None
 
     if ex1_test and ex2_test:
         assert(instance.connect_test_api.call_count == 2)
@@ -174,7 +193,115 @@ def test_setup(
 
     schedule.clear()
 
-    if balance_check:
-        assert(instance.fetch_wallet_balances.call_count == 2)
+    if balance_check_success:
+        assert(instance.update_wallet_balances.call_count == 2)
+        instance.update_wallet_balances.assert_called_with(is_dry_run=dryrun)
     else:
-        assert(dryrun)
+        # Expect called once and encountered exception.
+        instance.update_wallet_balances.assert_called_once_with(
+            is_dry_run=dryrun)
+
+
+class TestRunAutotrageur:
+    FAKE_ARGS = ['fake', 'arguments']
+
+    def _setup_mocks(self, mocker, autotrageur):
+        # Use SystemExit to stop the infinite loop.
+        mocker.patch.object(autotrageur, '_setup')
+        mocker.patch.object(autotrageur, '_clean_up', create=True)
+        mocker.patch.object(autotrageur, '_execute_trade')
+        mocker.patch.object(autotrageur, '_wait', side_effect=[
+            None, None, None, None, SystemExit
+        ])
+
+    @pytest.mark.parametrize("requires_configs", [True, False])
+    def test_run_autotrageur(self, mocker, autotrageur, requires_configs):
+        self._setup_mocks(mocker, autotrageur)
+        if requires_configs:
+            mocker.patch.object(autotrageur, '_load_configs')
+        mocker.patch.object(autotrageur, '_poll_opportunity', side_effect=[
+            True, True, False, True, False
+        ])
+
+        with pytest.raises(SystemExit):
+            autotrageur.run_autotrageur(self.FAKE_ARGS, requires_configs)
+
+        autotrageur._setup.assert_called_once_with()
+        assert autotrageur._clean_up.call_count == 5
+        assert autotrageur._wait.call_count == 5
+        assert autotrageur._poll_opportunity.call_count == 5
+        assert autotrageur._execute_trade.call_count == 3
+
+        if requires_configs:
+            autotrageur._load_configs.assert_called_with(self.FAKE_ARGS)
+
+    @pytest.mark.parametrize("dryrun", [True, False])
+    def test_run_autotrageur_keyboard_interrupt(self, mocker, autotrageur,
+                                                dryrun):
+        self._setup_mocks(mocker, autotrageur)
+        mocker.patch.object(autotrageur, '_load_configs')
+        mocker.patch.object(autotrageur, '_poll_opportunity', side_effect=[
+            True, True, False, KeyboardInterrupt, False
+        ])
+        mocker.patch.dict(autotrageur.config, { DRYRUN: dryrun })
+
+        if dryrun:
+            mocker.patch.object(autotrageur, 'dry_run', create=True)
+            mocker.patch.object(autotrageur.dry_run, 'log_all', create=True)
+            autotrageur.run_autotrageur(self.FAKE_ARGS)
+        else:
+            with pytest.raises(KeyboardInterrupt):
+                autotrageur.run_autotrageur(self.FAKE_ARGS)
+
+        autotrageur._setup.assert_called_once_with()
+        autotrageur._load_configs.assert_called_with(self.FAKE_ARGS)
+        assert autotrageur._clean_up.call_count == 4
+        assert autotrageur._wait.call_count == 3
+        assert autotrageur._poll_opportunity.call_count == 4
+        assert autotrageur._execute_trade.call_count == 2
+
+        if dryrun:
+            autotrageur.dry_run.log_all.assert_called_once_with()
+
+    @pytest.mark.parametrize("exc_type", [
+        AuthenticationError,
+        ccxt.ExchangeError,
+        Exception
+    ])
+    @pytest.mark.parametrize("dryrun", [True, False])
+    def test_run_autotrageur_exception(self, mocker, autotrageur, exc_type,
+                                       dryrun):
+        self._setup_mocks(mocker, autotrageur)
+        mocker.patch.object(autotrageur, '_load_configs')
+        mocker.patch.object(autotrageur, '_poll_opportunity', side_effect=[
+            True, exc_type, False, True, False
+        ])
+        mocker.patch.dict(autotrageur.config, { DRYRUN: dryrun })
+
+        if dryrun:
+            mocker.patch.object(autotrageur, 'dry_run', create=True)
+            with pytest.raises(exc_type):
+                autotrageur.run_autotrageur(self.FAKE_ARGS)
+        else:
+            # Save original function before mocking out `run_autotrageur`
+            autotrageur.original_run_autotrageur = autotrageur.run_autotrageur
+
+            mocker.spy(autotrageur, 'original_run_autotrageur')
+            mocker.patch.object(autotrageur, 'run_autotrageur')
+            mocker.patch.object(autotrageur, 'dry_run', None, create=True)
+            autotrageur.original_run_autotrageur(self.FAKE_ARGS)
+
+            assert autotrageur.config[DRYRUN] is True
+
+            # Perhaps redundant checks, but ensures that the two are differentiated.
+            autotrageur.original_run_autotrageur.assert_called_once_with(
+                self.FAKE_ARGS)
+            autotrageur.run_autotrageur.assert_called_once_with(
+                self.FAKE_ARGS, False)
+
+        autotrageur._setup.assert_called_once_with()
+        autotrageur._load_configs.assert_called_with(self.FAKE_ARGS)
+        assert autotrageur._clean_up.call_count == 2
+        assert autotrageur._wait.call_count == 1
+        assert autotrageur._poll_opportunity.call_count == 2
+        assert autotrageur._execute_trade.call_count == 1
