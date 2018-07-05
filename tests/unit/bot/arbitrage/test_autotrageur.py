@@ -156,12 +156,12 @@ def test_setup(
 
     # If wallet balance fetch fails, expect either AuthenticationError or
     # ExchangeNotAvailable to be thrown.
-    if balance_check_success:
-        autotrageur._setup()
-    else:
+    if balance_check_success is False and dryrun is False:
         instance.update_wallet_balances.side_effect = ccxt.AuthenticationError()
         with pytest.raises(AuthenticationError):
             autotrageur._setup()
+    else:
+        autotrageur._setup()
 
     # Dry run verification.
     if dryrun:
@@ -193,13 +193,13 @@ def test_setup(
 
     schedule.clear()
 
-    if balance_check_success:
-        assert(instance.update_wallet_balances.call_count == 2)
-        instance.update_wallet_balances.assert_called_with(is_dry_run=dryrun)
-    else:
+    if balance_check_success is False and dryrun is False:
         # Expect called once and encountered exception.
         instance.update_wallet_balances.assert_called_once_with(
             is_dry_run=dryrun)
+    else:
+        assert(instance.update_wallet_balances.call_count == 2)
+        instance.update_wallet_balances.assert_called_with(is_dry_run=dryrun)
 
 
 class TestRunAutotrageur:
