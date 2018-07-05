@@ -597,16 +597,25 @@ class TestGetAdjustedMarketPriceFromOrderbook:
         assert usd_price == result_usd_price
         assert quote_price == result_quote_price
 
-    def test_get_prices_from_orderbook_exception(self, mocker, fake_ccxt_trader):
-        mocker.patch.object(fake_ccxt_trader, '_CCXTTrader__calc_vol_by_book',
-                            return_value=Decimal('0'))
+    @pytest.mark.parametrize('orderbook_exception', [True, False])
+    def test_get_prices_from_orderbook_exception(self, mocker, fake_ccxt_trader, orderbook_exception):
+        calc_volume = mocker.patch.object(fake_ccxt_trader,
+                                          '_CCXTTrader__calc_vol_by_book',
+                                          return_value=Decimal('0'))
         mocker.patch.object(fake_ccxt_trader, 'usd_target_amount',
                             self.fake_usd_target_amount)
         mocker.patch.object(fake_ccxt_trader, 'quote_target_amount',
                             self.fake_quote_target_amount)
 
-        with pytest.raises(ZeroDivisionError):
-            fake_ccxt_trader.get_prices_from_orderbook(self.fake_bids_or_asks)
+        if orderbook_exception:
+            calc_volume.side_effect = ccxt_trader.OrderbookException
+            with pytest.raises(ccxt_trader.OrderbookException):
+                fake_ccxt_trader.get_prices_from_orderbook(
+                    self.fake_bids_or_asks)
+        else:
+            with pytest.raises(ZeroDivisionError):
+                fake_ccxt_trader.get_prices_from_orderbook(
+                    self.fake_bids_or_asks)
 
 
 def test_load_markets(mocker, fake_ccxt_trader):
