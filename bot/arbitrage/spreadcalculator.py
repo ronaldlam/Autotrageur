@@ -1,14 +1,10 @@
 import logging
+
+from bot.common.decimal_constants import ZERO, ONE, NEGATIVE_ONE, HUNDRED
 from libs.utilities import num_to_decimal
 
 
-ZERO = num_to_decimal('0')
-ONE = num_to_decimal('1')
-NEGATIVE_ONE = num_to_decimal(-1)
-HUNDRED = num_to_decimal(100)
-
-
-def __is_invalid_price(exc2_num_price, exc1_denom_price):
+def _is_invalid_price(exc2_num_price, exc1_denom_price):
     """Checks price inputs to see if either are None, zero, or negative.
 
     Args:
@@ -35,19 +31,33 @@ def __is_invalid_price(exc2_num_price, exc1_denom_price):
     else:
         return False
 
-def calc_fixed_spread(buy_price, sell_price, buy_fee, sell_fee):
+def calc_fixed_spread(buy_price, sell_price, buy_fee, sell_fee, buy_incl_fee):
     """Calculates the fixed spread between two prices.  Will not change the
     denominator and calculates a more absolute spread between two prices.
 
     Applies the given exchange trading fees from the calculated spread before
-    returning.  The equation used to calculate the spread with fees is:
+    returning.  The equation used is dependent upon how fees are factored into
+    an exchange's 'buy order'.  This variable is represented by `buy_incl_fee`.
+    An exchange can either:
 
-    (x/p2 * (1 - f2)) * p1 * (1 - f1), where:
+    1) Charge fees inclusive with the buy order.  E.g. $1000 with a 1% fee will
+       end up as a $990 buy order and $10 in fees.
+    2) Charge fees on top of the buy order.  E.g. $1000 with a 1% fee will cost
+       $1010 overall.
+
+    The equation used in Scenario 1 is:
+    y = (x/bp * (1 - bf)) * sp * (1 - sf)
+
+    And Scenario 2:
+    y = (x/bp / (1 + bf)) * sp * (1 - sf)
+
+    where:
+        - y is the amount of quote acquired
         - x is the amount of quote to purchase with
-        - p2 is the buy exchange's price (buy_price)
-        - f2 is the buy exchange's fee (buy_fee)
-        - p1 is the sell exchange's price (sell_price)
-        - f1 is the sell exchange's fee (sell_fee)
+        - bp is the buy exchange's price (buy_price)
+        - bf is the buy exchange's fee (buy_fee)
+        - sp is the sell exchange's price (sell_price)
+        - sf is the sell exchange's fee (sell_fee)
 
     Args:
         buy_price (Decimal): The price from the buy exchange, to be used as
@@ -58,22 +68,31 @@ def calc_fixed_spread(buy_price, sell_price, buy_fee, sell_fee):
             as a percentage in ratio form (e.g. 0.01 for 1%).
         sell_fee (Decimal): The trading fee from the sell exchange.  Expected
             as a percentage in ratio form (e.g. 0.01 for 1%).
+        buy_incl_fee (bool): True if an exchange's `buy_price` will have fees
+            factored into the price (Scenario 1, as described above). Else,
+            False.
 
     Returns:
         Decimal: The calculated spread as a percentage. Returns None if either
             input price is None, zero or negative.
     """
-    if __is_invalid_price(buy_price, sell_price):
+    if _is_invalid_price(buy_price, sell_price):
         return None
     else:
-        spread = ((ONE / buy_price)
-                 * (ONE - buy_fee)
-                 * sell_price
-                 * (ONE - sell_fee) - ONE) * HUNDRED
+        if buy_incl_fee:
+            spread = ((ONE / buy_price)
+                    * (ONE - buy_fee)
+                    * sell_price
+                    * (ONE - sell_fee) - ONE) * HUNDRED
+
+        else:
+            spread = ((ONE / buy_price)
+                    / (ONE + buy_fee)
+                    * sell_price
+                    * (ONE - sell_fee) - ONE) * HUNDRED
 
         logging.info("Calculated spread of: {}\nWith buy price {} buy fee {}\n"
             "With sell price {} sell fee {}".format(spread, buy_price,
                                                     buy_fee, sell_price,
                                                     sell_fee))
-
         return spread

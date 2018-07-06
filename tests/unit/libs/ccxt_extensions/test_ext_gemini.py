@@ -1,9 +1,17 @@
+import time
 from decimal import Decimal
 
+import ccxt
 import pytest
 
+from bot.common.decimal_constants import HUNDRED
 import libs.ccxt_extensions as ccxt_extensions
+from ext_gemini_data import (BUY_RESPONSES, BUY_RESULTS, SELL_RESPONSES,
+                             SELL_RESULTS)
 
+BUY = 'buy'
+SELL = 'sell'
+OPTIONS = {"options": ["immediate-or-cancel"]}
 
 BUY_PARAMS = [
     ('ETH/USD', Decimal('10000'), Decimal('600'), Decimal('1'), 0),
@@ -27,8 +35,6 @@ SELL_PARAMS = [
     ('BTC/USD', Decimal('10000'), Decimal('2'), Decimal('1.134'), 4),
     ('BTC/USD', Decimal('12345'), Decimal('6'), Decimal('7'), 5),
 ]
-
-HUNDRED = Decimal('100')
 
 
 @pytest.fixture(scope='module')
@@ -74,6 +80,38 @@ def sell_results(request):
     return (result_amount, result_price)
 
 
+@pytest.mark.parametrize('side, calls, expected_result', zip(
+    [BUY]*len(BUY_RESPONSES) + [SELL]*len(SELL_RESPONSES),
+    BUY_RESPONSES + SELL_RESPONSES,
+    BUY_RESULTS + SELL_RESULTS))
+def test_package_result(mocker, gemini, side, calls, expected_result):
+    mocker.patch.object(
+        gemini, 'fetch_my_trades', return_value=calls['fetch_my_trades'])
+    local_timestamp = int(time.time())
+
+    response = gemini._package_result(
+        calls['create_order'],
+        'ETH/USD',
+        local_timestamp,
+        OPTIONS)
+
+    gemini.fetch_my_trades.assert_called_with('ETH/USD')
+    assert response['local_timestamp'] == local_timestamp
+    assert response['pre_fee_base'] == expected_result['pre_fee_base']
+    assert response['pre_fee_quote'] == expected_result['pre_fee_quote']
+    assert response['post_fee_base'] == expected_result['post_fee_base']
+    assert response['post_fee_quote'] == expected_result['post_fee_quote']
+    assert response['fees'] == expected_result['fees']
+    assert response['fee_asset'] == expected_result['fee_asset']
+    assert response['price'] == expected_result['price']
+    assert response['true_price'] == expected_result['true_price']
+    assert response['side'] == expected_result['side']
+    assert response['type'] == expected_result['type']
+    assert response['order_id'] == expected_result['order_id']
+    assert response['exchange_timestamp'] == expected_result['exchange_timestamp']
+    assert response['extra_info'] == expected_result['extra_info']
+
+
 def test_fetch_markets(gemini):
     for market in gemini.fetch_markets():
         if market['symbol'] in PRECISION:
@@ -113,6 +151,7 @@ def test_emulated_market_buy_order(
         mocker, gemini, symbol, quote_amount, asset_price, slippage,
         buy_results):
     mocker.patch.object(gemini, 'create_limit_buy_order')
+    mocker.patch.object(gemini, '_package_result')
 
     gemini.create_emulated_market_buy_order(
         symbol, quote_amount, asset_price, slippage)
@@ -123,7 +162,8 @@ def test_emulated_market_buy_order(
         symbol,
         result_volume,
         result_price,
-        {"options": ["immediate-or-cancel"]})
+        OPTIONS)
+    gemini._package_result.called_once()
 
 
 @pytest.mark.parametrize(
@@ -151,6 +191,7 @@ def test_emulated_market_sell_order(
         mocker, gemini, symbol, asset_price, asset_amount, slippage,
         sell_results):
     mocker.patch.object(gemini, 'create_limit_sell_order')
+    mocker.patch.object(gemini, '_package_result')
 
     gemini.create_emulated_market_sell_order(
         symbol, asset_price, asset_amount, slippage)
@@ -161,7 +202,8 @@ def test_emulated_market_sell_order(
         symbol,
         result_amount,
         result_price,
-        {"options": ["immediate-or-cancel"]})
+        OPTIONS)
+    gemini._package_result.called_once()
 
 
 PRECISION = {

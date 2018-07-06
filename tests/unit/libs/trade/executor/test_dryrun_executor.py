@@ -1,9 +1,14 @@
+from decimal import Decimal
 from unittest.mock import PropertyMock
 
 import pytest
 
+from bot.common.decimal_constants import ONE
 import libs.ccxt_extensions as ccxt_extensions
-from libs.trade.executor.dryrun_executor import DryRunExecutor
+from libs.trade.executor.dryrun_executor import (BUY_SIDE,
+                                                 ORDER_TYPE_LIMIT,
+                                                 ORDER_TYPE_MARKET, SELL_SIDE,
+                                                 DryRunExecutor)
 
 
 @pytest.fixture(scope="module")
@@ -17,7 +22,60 @@ def executor(mocker, exchange):
     # only way to do this.
     mocker.patch.object(
         exchange, 'name', new_callable=PropertyMock(return_value='Gemini'))
-    return DryRunExecutor(exchange)
+    return DryRunExecutor(exchange, mocker.Mock(), mocker.Mock())
+
+
+@pytest.mark.parametrize("side", [BUY_SIDE, SELL_SIDE])
+@pytest.mark.parametrize("order_type", [ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET])
+@pytest.mark.parametrize("symbol", ["ETH/USD", "ETH/KRW", "BTC/USD"])
+@pytest.mark.parametrize("amount", [Decimal('10'), Decimal('25.5')])
+@pytest.mark.parametrize("price", [Decimal('10'), Decimal('2000.55'), Decimal('1234567.89')])
+@pytest.mark.parametrize("taker_fee", [Decimal('0.0015'), Decimal('0.0026')])
+@pytest.mark.parametrize("buy_target_includes_fee", [True, False])
+def test_complete_order(
+        mocker, executor, side, order_type, symbol, amount, price, taker_fee,
+        buy_target_includes_fee):
+    mocker.patch.object(
+        executor.fetcher, 'fetch_taker_fees', return_value=taker_fee)
+    mocker.patch.object(
+        executor.exchange, 'buy_target_includes_fee', buy_target_includes_fee)
+    base, quote = symbol.upper().split('/')
+
+    result = executor._complete_order(side, order_type, symbol, amount, price)
+
+    if side == BUY_SIDE:
+        executor.dry_run_exchange.buy.assert_called_once()
+    else:
+        executor.dry_run_exchange.sell.assert_called_once()
+
+    pre_fee_quote = amount * price
+
+    if side == BUY_SIDE and buy_target_includes_fee:
+        post_fee_base = amount * (ONE - taker_fee)
+        post_fee_quote = pre_fee_quote
+        fee_asset = base
+        fees = amount - post_fee_base
+    else:
+        post_fee_base = amount
+        fee_asset = quote
+        if side == BUY_SIDE:
+            post_fee_quote = pre_fee_quote * (ONE + taker_fee)
+            fees = post_fee_quote - pre_fee_quote
+        else:
+            post_fee_quote = pre_fee_quote * (ONE - taker_fee)
+            fees = pre_fee_quote - post_fee_quote
+
+    assert result['pre_fee_base'] == amount
+    assert result['pre_fee_quote'] == pre_fee_quote
+    assert result['post_fee_base'] == post_fee_base
+    assert result['post_fee_quote'] == post_fee_quote
+    assert result['fees'] == fees
+    assert result['fee_asset'] == fee_asset
+    assert result['price'] == price
+    assert result['true_price'] == post_fee_quote / post_fee_base
+    assert result['side'] == side
+    assert result['type'] == order_type
+
 
 @pytest.mark.parametrize(
     "symbol, quote_amount, asset_price, slippage, test_id", [
@@ -29,12 +87,16 @@ def executor(mocker, exchange):
 def test_create_emulated_market_buy_order(
         mocker, executor, exchange, symbol, quote_amount, asset_price,
         slippage, test_id):
-    mocker.patch.object(exchange, 'prepare_emulated_market_buy_order')
-    exchange.prepare_emulated_market_buy_order.return_value = (
-        round(quote_amount/asset_price, 6), None)
-    result = executor.create_emulated_market_buy_order(
+    prepare = mocker.patch.object(exchange, 'prepare_emulated_market_buy_order')
+    complete_order = mocker.patch.object(executor, '_complete_order')
+    prepare.return_value = (round(quote_amount/asset_price, 6), None)
+
+    executor.create_emulated_market_buy_order(
         symbol, quote_amount, asset_price, slippage)
-    assert(result == EMULATED_BUY_RESULT[test_id])
+
+    complete_order.assert_called_once_with(
+        BUY_SIDE, ORDER_TYPE_LIMIT, symbol, prepare.return_value[0],
+        asset_price)
 
 
 @pytest.mark.parametrize(
@@ -48,12 +110,16 @@ def test_create_emulated_market_buy_order(
 def test_create_emulated_market_sell_order(
         mocker, executor, exchange, symbol, asset_price, asset_amount,
         slippage, test_id):
-    mocker.patch.object(exchange, 'prepare_emulated_market_sell_order')
-    exchange.prepare_emulated_market_sell_order.return_value = (
-        round(asset_amount, 6), None)
-    result = executor.create_emulated_market_sell_order(
+    prepare = mocker.patch.object(exchange, 'prepare_emulated_market_sell_order')
+    complete_order = mocker.patch.object(executor, '_complete_order')
+    prepare.return_value = (round(asset_amount, 6), None)
+
+    executor.create_emulated_market_sell_order(
         symbol, asset_price, asset_amount, slippage)
-    assert(result == EMULATED_SELL_RESULT[test_id])
+
+    complete_order.assert_called_once_with(
+        SELL_SIDE, ORDER_TYPE_LIMIT, symbol, prepare.return_value[0],
+        asset_price)
 
 
 @pytest.mark.parametrize(
@@ -63,11 +129,13 @@ def test_create_emulated_market_sell_order(
     ]
 )
 def test_create_market_buy_order(
-        executor, symbol, asset_amount, asset_price, test_id):
-    result = executor.create_market_buy_order(
-        symbol, asset_amount, asset_price)
-    assert(result == RESULT[test_id])
+        mocker, executor, symbol, asset_amount, asset_price, test_id):
+    complete_order = mocker.patch.object(executor, '_complete_order')
 
+    executor.create_market_buy_order(symbol, asset_amount, asset_price)
+
+    complete_order.assert_called_once_with(
+        BUY_SIDE, ORDER_TYPE_MARKET, symbol, asset_amount, asset_price)
 
 @pytest.mark.parametrize(
     "symbol, asset_amount, asset_price, test_id", [
@@ -76,100 +144,10 @@ def test_create_market_buy_order(
     ]
 )
 def test_create_market_sell_order(
-        executor, symbol, asset_amount, asset_price, test_id):
-    result = executor.create_market_sell_order(
-        symbol, asset_amount, asset_price)
-    assert(result == RESULT[test_id])
+        mocker, executor, symbol, asset_amount, asset_price, test_id):
+    complete_order = mocker.patch.object(executor, '_complete_order')
 
+    executor.create_market_sell_order(symbol, asset_amount, asset_price)
 
-EMULATED_BUY_RESULT = [
-    {
-        "info": {
-            "symbol": 'ETH/USD',
-            "exchange": 'Gemini',
-            "price": 600,
-            "executed_amount": round(10000/600, 6),
-        },
-        "id": "DRYRUN"
-    },
-    {
-        "info": {
-            "symbol": 'ETH/USD',
-            "exchange": 'Gemini',
-            "price": 600,
-            "executed_amount": round(0/600, 6),
-        },
-        "id": "DRYRUN"
-    },
-    {
-        "info": {
-            "symbol": 'ETH/USD',
-            "exchange": 'Gemini',
-            "price": 2,
-            "executed_amount": round(10000/2, 6),
-        },
-        "id": "DRYRUN"
-    }
-]
-
-
-EMULATED_SELL_RESULT = [
-    {
-        "info": {
-            "symbol": 'ETH/USD',
-            "exchange": 'Gemini',
-            "price": 600,
-            "executed_amount": round(2, 6),
-        },
-        "id": "DRYRUN"
-    },
-    {
-        "info": {
-            "symbol": 'ETH/USD',
-            "exchange": 'Gemini',
-            "price": 0,
-            "executed_amount": round(2, 6),
-        },
-        "id": "DRYRUN"
-    },
-    {
-        "info": {
-            "symbol": 'ETH/USD',
-            "exchange": 'Gemini',
-            "price": 600,
-            "executed_amount": round(0, 6),
-        },
-        "id": "DRYRUN"
-    },
-    {
-        "info": {
-            "symbol": 'ETH/USD',
-            "exchange": 'Gemini',
-            "price": 0,
-            "executed_amount": round(0, 6),
-        },
-        "id": "DRYRUN"
-    }
-]
-
-
-RESULT = [
-    {
-        "info": {
-            "symbol": 'ETH/USD',
-            "exchange": 'Gemini',
-            "price": 600,
-            "executed_amount": 2,
-        },
-        "id": "DRYRUN"
-    },
-    {
-        "info": {
-            "symbol": None,
-            "exchange": 'Gemini',
-            "price": None,
-            "executed_amount": None,
-        },
-        "id": "DRYRUN"
-    }
-]
+    complete_order.assert_called_once_with(
+        SELL_SIDE, ORDER_TYPE_MARKET, symbol, asset_amount, asset_price)

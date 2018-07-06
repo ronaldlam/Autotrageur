@@ -1,9 +1,11 @@
+from collections import namedtuple
 from enum import Enum
 import logging
 import sys
 
 import ccxt
 
+from bot.common.decimal_constants import ZERO
 import bot.currencyconverter as currencyconverter
 import libs.ccxt_extensions as ccxt_extensions
 from libs.trade.executor.ccxt_executor import CCXTExecutor
@@ -14,32 +16,7 @@ from libs.utilities import keys_exists, num_to_decimal
 EXTENSION_PREFIX = "ext_"
 
 
-class MarketOrderType(Enum):
-    """An Enum for Market order types.
-
-    Args:
-        Enum (str): One of: 'buy' or 'sell'.
-    """
-    BUY = 'buy',
-    SELL = 'sell'
-
-    @classmethod
-    def has_value(cls, value):
-        """Checks if a value is in the MarketOrderType Enum.
-
-        Args:
-            value (str): A string value to check against the MarketOrderType
-                Enum.
-
-        Returns:
-            bool: True if value belongs in MarketOrderType Enum. Else, false.
-        """
-        return any(value.lower() == item.value for item in cls)
-
-
-class InvalidMarketOrderTypeError(Exception):
-    """Exception thrown when invalid or unspecified MarketOrderType."""
-    pass
+PricePair = namedtuple('PricePair', ['usd_price', 'quote_price'])
 
 
 class OrderbookException(Exception):
@@ -61,7 +38,7 @@ class CCXTTrader():
     """CCXT Trader for performing trades."""
 
     def __init__(self, base, quote, exchange_name, slippage,
-        exchange_config={}, dry_run=False):
+        exchange_config={}, dry_run=None):
         """Constructor.
 
         The trading client for interacting with the CCXT library.
@@ -85,8 +62,9 @@ class CCXTTrader():
                     "secret": [SOME_API_SECRET]
                     "verbose": False,
                 }
-            dry_run (bool): Whether to perform a dry run or not.  If True,
-                trades will be logged, rather than actually executed.
+            dry_run (DryRunExchange): The object to hold the state of
+                the dry run for the associated exchange. Is None if not
+                a dry run.
         """
         # Instantiate the CCXT Exchange object, or a custom extended CCXT
         # Exchange object.
@@ -101,18 +79,19 @@ class CCXTTrader():
         self.quote = quote
         self.exchange_name = exchange_name
         self.fetcher = CCXTFetcher(self.ccxt_exchange)
-        self.executor = DryRunExecutor(self.ccxt_exchange) if dry_run else \
-            CCXTExecutor(self.ccxt_exchange)
         self.slippage = slippage
 
+        if dry_run:
+            self.executor = DryRunExecutor(
+                self.ccxt_exchange, self.fetcher, dry_run)
+        else:
+            self.executor = CCXTExecutor(self.ccxt_exchange)
+
         # Initialized variables not from config.
-        self.quote_target_amount = num_to_decimal(0.0)
+        self.quote_target_amount = ZERO
+        self.usd_target_amount = ZERO
         self.conversion_needed = False
         self.forex_ratio = None
-
-        if dry_run:
-            self.base_bal = num_to_decimal(0.0)
-            self.quote_bal = num_to_decimal(0.0)
 
     def __calc_vol_by_book(self, orders, quote_target_amount):
         """Calculates the asset volume with which to execute a trade.
@@ -134,9 +113,8 @@ class CCXTTrader():
                 target_amount via the orderbook.
         """
         index = 0
-        base_asset_volume = num_to_decimal(0.0)
+        base_asset_volume = ZERO
         remaining_amount = quote_target_amount
-        ZERO = num_to_decimal(0.0)
 
         # The decimal orders.
         d_orders = []
@@ -228,29 +206,6 @@ class CCXTTrader():
                 "Test connection to %s not implemented." %
                 self.ccxt_exchange.id)
 
-    def fetch_wallet_balances(self):
-        """Fetches and saves the wallet balances of the base and quote
-        currencies on the exchange.
-
-        Note that quote balances are in USD.
-
-        TODO: Should implement some fail-fast mechanism here, if wallet
-            balances do not meet a minimum.
-        """
-        self.base_bal, self.quote_bal = self.fetcher.fetch_free_balances(
-            self.base, self.quote)
-        if self.conversion_needed:
-            self.quote_bal /= self.forex_ratio
-        logging.log(logging.INFO,
-                    "%s balances:\n"
-                    "%s: %s\n"
-                    "%s: %s\n" % (
-                        self.exchange_name,
-                        self.base,
-                        self.base_bal,
-                        self.quote,
-                        self.quote_bal))
-
     def execute_market_buy(self, asset_price):
         """Execute a market buy order.
 
@@ -269,9 +224,21 @@ class CCXTTrader():
         """
         symbol = "%s/%s" % (self.base, self.quote)
         market_order = self.ccxt_exchange.has['createMarketOrder']
-        # TODO: Take into account exchange fees.
-        asset_amount = self.__round_exchange_precision(market_order, symbol,
-            self.quote_target_amount / asset_price)
+        quote_target_amount = self.quote_target_amount
+        asset_amount = quote_target_amount / asset_price
+
+        # If the buy target does not include fees, we want to deduct the fees
+        # from the original quote_target_amount. Since the price per unit base
+        # is always a fixed price, we can divide by the fee ratio to get both
+        # the true target asset_amount and quote_target_amount. Note that all
+        # exchanges MUST implement buy_target_includes_fee.
+        if self.ccxt_exchange.buy_target_includes_fee is False:
+            fee_ratio = num_to_decimal(1) + self.get_taker_fee()
+            asset_amount /= fee_ratio
+            quote_target_amount /= fee_ratio
+
+        asset_amount = self.__round_exchange_precision(
+            market_order, symbol, asset_amount)
 
         # For 'emulated', We check before rounding which is not strictly
         # correct, but it is likely larger issues are at hand if the error is
@@ -279,13 +246,13 @@ class CCXTTrader():
         self.__check_exchange_limits(asset_amount, asset_price)
 
         if market_order is True:
-            result = self.executor.create_market_buy_order(symbol, asset_amount,
-                                                           asset_price)
+            result = self.executor.create_market_buy_order(
+                symbol, asset_amount, asset_price)
         elif market_order == 'emulated':
             # Rounding will be deferred to emulated implementation.
             result = self.executor.create_emulated_market_buy_order(
                 symbol,
-                self.quote_target_amount,
+                quote_target_amount,
                 asset_price,
                 self.slippage)
         else:
@@ -341,19 +308,38 @@ class CCXTTrader():
 
         return result
 
+    def get_buy_target_includes_fee(self):
+        """Gets whether the exchange includes fees in its buy orders.
+
+        Please refer to `spreadcalculator.calc_fixed_spread` for more detail.
+
+        Returns:
+            bool: True if an exchange's buy order will have fees factored into
+                the price (Scenario 1, as described above). Else, False.
+        """
+        return self.ccxt_exchange.buy_target_includes_fee
+
     def get_full_orderbook(self):
-        """Gets the full orderbook (bids and asks) from the exchange."""
+        """Gets the full orderbook (bids and asks) from the exchange.
+
+        Please refer to `ccxt_fetcher.get_full_orderbook` for sample orderbook
+        response.
+
+        Returns:
+            dict: The full orderbook.
+        """
         return self.fetcher.get_full_orderbook(self.base, self.quote)
 
-    def get_adjusted_market_price_from_orderbook(self, bids_or_asks):
-        """Get market buy or sell price
+    def get_prices_from_orderbook(self, bids_or_asks):
+        """Get market buy or sell price in USD and quote currency.
 
-        Return adjusted market buy or sell price given bids or asks and
-        amount to be sold. The market price is adjusted based on orderbook
-        depth and the 'target amount' requested at the beginning of the program.
+        Return adjusted market buy or sell prices given bids or asks and
+        amount to be sold. The market price is adjusted based on
+        orderbook depth and the quote_target_amount/usd_target_amount
+        set by set_target_amounts().
 
-        Input of bids will retrieve market sell price; input of asks will
-        retrieve market buy price.
+        Input of bids will retrieve market sell price; input of asks
+        will retrieve market buy price.
 
         Args:
             bids_or_asks (list[list(float)]): The bids or asks in the
@@ -363,32 +349,104 @@ class CCXTTrader():
             OrderbookException: If the orderbook is not deep enough.
 
         Returns:
-            Decimal: Prospective price of a market buy or sell.
+            PricePair (Decimal, Decimal): Prospective USD and quote
+                prices of a market buy or sell.
         """
-        if self.conversion_needed:
-            if self.forex_ratio is None:
-                 raise NoForexQuoteException("Inaccurate target for orderbook."
-                    "  Set a forex ratio.")
-            target_amount = self.forex_ratio * self.quote_target_amount
-        else:
-            target_amount = self.quote_target_amount
-
+        target_amount = self.quote_target_amount
         asset_volume = self.__calc_vol_by_book(bids_or_asks, target_amount)
-        return self.quote_target_amount / asset_volume
+        usd_price = self.usd_target_amount / asset_volume
+        quote_price = target_amount / asset_volume
+        return PricePair(usd_price, quote_price)
 
     def get_taker_fee(self):
-        """Obtains the exchange's takers fee."""
+        """Obtains the exchange's takers fee.
+
+        Raises:
+            NotImplementedError: If not accessible through ccxt.
+
+        Returns:
+            Decimal: The taker fee, given as a ratio.
+        """
         return self.fetcher.fetch_taker_fees()
 
     def load_markets(self):
-        """Load the markets of the exchange."""
+        """Load the markets of the exchange.
+
+        Allows manual calling of `load_markets` from either a ccxt Exchange
+        object or a `ccxt_extensions` ext_ Exchange object.
+
+        Refer https://github.com/ccxt/ccxt/wiki/Manual in the Loading Markets
+        section for details.
+
+        Returns:
+            dict: Information about the `markets` which have been loaded into
+                memory.
+        """
         self.ccxt_exchange.load_markets()
 
     def set_forex_ratio(self):
         """Get foreign currency per USD.
 
-        `forex_quote_target` is set when the quote currency is not USD.
+        `forex_ratio` is set when the quote currency is not USD.
         """
         self.forex_ratio = currencyconverter.convert_currencies(
             'USD', self.quote, num_to_decimal(1))
         logging.info("forex_ratio set to {}".format(self.forex_ratio))
+
+    def set_target_amounts(self, target_amount, is_usd=True):
+        """Set the quote_target_amount and usd_target_amount.
+
+        NOTE: This is only valid for fiat currency with support for the
+        currencies supported by the forex_python API. Will fail for
+        crypto pairs.
+
+        Args:
+            target_amount (Decimal): The amount, can be USD or quote
+                currency.
+            is_usd (bool, optional): Defaults to True. Whether
+                target_amount is USD or quote currency.
+
+        Raises:
+            NoForexQuoteException: If forex_ratio is needed and not set.
+        """
+        if self.conversion_needed:
+            if self.forex_ratio is None:
+                raise NoForexQuoteException(
+                    "Forex ratio not set. Conversion not available.")
+            if is_usd:
+                self.usd_target_amount = target_amount
+                self.quote_target_amount = target_amount * self.forex_ratio
+            else:
+                self.usd_target_amount = target_amount / self.forex_ratio
+                self.quote_target_amount = target_amount
+        else:
+            self.usd_target_amount = target_amount
+            self.quote_target_amount = target_amount
+
+    def update_wallet_balances(self, is_dry_run=False):
+        """Fetches and saves the wallet balances of the base and quote
+        currencies on the exchange.
+
+        Note that quote balances are in USD.
+
+        Args:
+            is_dry_run (bool): Whether the bot is executing in dry run
+                mode.
+        """
+        if is_dry_run:
+            self.base_bal = self.executor.dry_run_exchange.base_balance
+            self.quote_bal = self.executor.dry_run_exchange.quote_balance
+        else:
+            self.base_bal, self.quote_bal = self.fetcher.fetch_free_balances(
+                self.base, self.quote)
+
+        if self.conversion_needed:
+            self.usd_bal = self.quote_bal / self.forex_ratio
+        else:
+            self.usd_bal = self.quote_bal
+
+        logging.debug("%s balances:", self.exchange_name)
+        logging.debug("%s: %s", self.base, self.base_bal)
+        logging.debug("%s: %s", self.quote, self.quote_bal)
+        if self.conversion_needed:
+            logging.debug("%s in USD: %s", self.quote, self.usd_bal)

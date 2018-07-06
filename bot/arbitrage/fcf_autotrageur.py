@@ -4,16 +4,14 @@ from decimal import Decimal
 import ccxt
 
 import bot.arbitrage.arbseeker as arbseeker
-from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, MAX_EMAILS,
-    SPREAD_ROUNDING, SPREAD_TOLERANCE, SPREAD_MIN, VOL_MIN, H_TO_E1_MAX,
-    H_TO_E2_MAX)
+from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
+                                         H_TO_E2_MAX, SPREAD_MIN, VOL_MIN)
 from bot.common.enums import Momentum
+from bot.trader.ccxt_trader import OrderbookException
 from libs.email_client.simple_email_client import send_all_emails
-from libs.utilities import (num_to_decimal, set_autotrageur_decimal_context,
-                            set_human_friendly_decimal_context)
+from libs.utilities import (num_to_decimal, set_autotrageur_decimal_context)
 
 from .autotrageur import Autotrageur
-
 
 # Global module variables.
 prev_spread = Decimal('0')
@@ -25,6 +23,60 @@ DECIMAL_ONE = num_to_decimal('1')
 EMAIL_HIGH_SPREAD_HEADER = "Subject: Arb Forward-Spread Alert!\nThe spread of "
 EMAIL_LOW_SPREAD_HEADER = "Subject: Arb Backward-Spread Alert!\nThe spread of "
 EMAIL_NONE_SPREAD = "No arb opportunity found."
+
+
+class IncompleteArbitrageError(Exception):
+    """Error indicating an uneven buy/sell base amount."""
+    pass
+
+
+class FCFCheckpoint():
+    """Contains the current algorithm state.
+
+    Encapsulates values pertaining to the algorithm.  Useful for rollback
+    situations.
+    """
+    def __init__(self):
+        """Constructor."""
+        self.has_started = False
+        self.momentum = None
+        self.e1_targets = None
+        self.e2_targets = None
+        self.target_index = None
+        self.last_target_index = None
+        self.h_to_e1_max = None
+        self.h_to_e2_max = None
+
+    def save(self, autotrageur):
+        """Saves the current autotrageur state before another algorithm
+        iteration.
+
+        Args:
+            autotrageur (FCFAutotrageur): The current FCFAutotrageur.
+        """
+        self.has_started = autotrageur.has_started
+        self.momentum = autotrageur.momentum
+        self.e1_targets = autotrageur.e1_targets
+        self.e2_targets = autotrageur.e2_targets
+        self.target_index = autotrageur.target_index
+        self.last_target_index = autotrageur.last_target_index
+        self.h_to_e1_max = autotrageur.h_to_e1_max
+        self.h_to_e2_max = autotrageur.h_to_e2_max
+
+    def restore(self, autotrageur):
+        """Restores the saved autotrageur state.
+
+        Args:
+            autotrageur (FCFAutotrageur): The current FCFAutotrageur.
+        """
+        autotrageur.has_started = self.has_started
+        autotrageur.momentum = self.momentum
+        autotrageur.e1_targets = self.e1_targets
+        autotrageur.e2_targets = self.e2_targets
+        autotrageur.target_index = self.target_index
+        autotrageur.last_target_index = self.last_target_index
+        autotrageur.h_to_e1_max = self.h_to_e1_max
+        autotrageur.h_to_e2_max = self.h_to_e2_max
 
 
 class InsufficientCryptoBalance(Exception):
@@ -43,43 +95,6 @@ class FCFAutotrageur(Autotrageur):
     specified target high; vice versa if the calculated spread is less
     than the specified target low.
     """
-    @staticmethod
-    def _is_within_tolerance(curr_spread, prev_spread, spread_rnd,
-                              spread_tol):
-        """Compares the current spread with the previous spread to see if
-        within user-specified spread tolerance.
-
-        If rounding specified (spread_rnd), the current and previous spreads
-        will be rounded before check against tolerance.
-
-        Args:
-            curr_spread (Decimal): The current spread of the arb opportunity.
-            prev_spread (Decimal): The previous spread to compare to.
-            spread_rnd (int): Number of decimals to round the spreads to.
-            spread_tol (Decimal): The spread tolerance to check if curr_spread
-                minus prev_spread is within.
-
-        Returns:
-            bool: True if the (current spread - previous spread) is still
-                within the tolerance.  Else, False.
-        """
-        set_human_friendly_decimal_context()
-
-        if spread_rnd is not None:
-            logging.info("Rounding spreads to %d decimal place", spread_rnd)
-            curr_spread = round(curr_spread, spread_rnd)
-            prev_spread = round(prev_spread, spread_rnd)
-
-        logging.info("\nPrevious spread of: %f Current spread of: %f\n"
-                     "spread tolerance of: %f", prev_spread, curr_spread,
-                     spread_tol)
-
-        within_tolerance = (abs(curr_spread - prev_spread) <= spread_tol)
-
-        set_autotrageur_decimal_context()
-
-        return within_tolerance
-
     def __advance_target_index(self, spread, targets):
         """Increment the target index to minimum target greater than
         spread.
@@ -91,65 +106,6 @@ class FCFAutotrageur(Autotrageur):
         while (self.target_index + 1 < len(targets) and
                 spread >= targets[self.target_index + 1][0]):
             self.target_index += 1
-
-    # def __set_message(self, opp_type):
-    #     """Sets the message used for emails and logging based on the type of
-    #     spread opportunity.
-
-    #     Args:
-    #         opp_type (SpreadOpportunity): A classification of the spread
-    #             opportunity present.
-    #     """
-    #     if opp_type is SpreadOpportunity.LOW:
-    #         self.message = (
-    #             EMAIL_LOW_SPREAD_HEADER
-    #             + self.exchange1_basequote[0]
-    #             + " is "
-    #             + str(self.spread_opp[arbseeker.SPREAD]))
-    #     elif opp_type is SpreadOpportunity.HIGH:
-    #         self.message = (
-    #             EMAIL_HIGH_SPREAD_HEADER
-    #             + self.exchange1_basequote[0]
-    #             + " is "
-    #             + str(self.spread_opp[arbseeker.SPREAD]))
-    #     else:
-    #         self.message = EMAIL_NONE_SPREAD
-
-    def __email_or_throttle(self, curr_spread):
-        """Sends emails for a new arbitrage opportunity.  Throttles if too
-        frequent.
-
-        Based on preference of SPREAD_ROUNDING, SPREAD_TOLERANCE and MAX_EMAILS,
-        an e-mail will be sent if the current spread is not similar to previous
-        spread AND if a max email threshold has not been hit with similar
-        spreads.
-
-        Args:
-            curr_spread (Decimal): The current arbitrage spread for the arbitrage
-                opportunity.
-        """
-        global prev_spread
-        global email_count
-
-        max_num_emails = self.config[MAX_EMAILS]
-        spread_tol = num_to_decimal(self.config[SPREAD_TOLERANCE])
-        spread_rnd = self.config[SPREAD_ROUNDING]
-
-        within_tolerance = FCFAutotrageur._is_within_tolerance(
-            curr_spread, prev_spread, spread_rnd, spread_tol)
-
-        if not within_tolerance or email_count < max_num_emails:
-            if email_count == max_num_emails:
-                email_count = 0
-            prev_spread = curr_spread
-
-            # Continue running bot even if unable to send e-mail.
-            try:
-                send_all_emails(self.config[EMAIL_CFG_PATH], self.message)
-            except Exception:
-                logging.error(
-                    "Unable to send e-mail due to: \n", exc_info=True)
-            email_count += 1
 
     def __calc_targets(self, spread, h_max, from_balance):
         """Calculate the target spreads and cash positions.
@@ -202,7 +158,7 @@ class FCFAutotrageur(Autotrageur):
             self.e1_targets,
             spread_opp)
         self.e2_targets = self.__calc_targets(
-            spread_opp.e2_spread, self.h_to_e2_max, self.trader1.quote_bal)
+            spread_opp.e2_spread, self.h_to_e2_max, self.trader1.usd_bal)
 
     def __evaluate_to_e2_trade(self, momentum_change, spread_opp):
         """Changes state information to prepare for the trades from e1
@@ -220,7 +176,7 @@ class FCFAutotrageur(Autotrageur):
             self.e2_targets,
             spread_opp)
         self.e1_targets = self.__calc_targets(
-            spread_opp.e1_spread, self.h_to_e1_max, self.trader2.quote_bal)
+            spread_opp.e1_spread, self.h_to_e1_max, self.trader2.usd_bal)
 
     def __evaluate_spread(self, spread_opp):
         """Evaluate spread numbers against targets and set up state for
@@ -291,7 +247,7 @@ class FCFAutotrageur(Autotrageur):
             trade_vol = targets[self.target_index][1]
 
         # NOTE: Trader's `quote_target_amount` is updated here.
-        buy_trader.quote_target_amount = min(trade_vol, buy_trader.quote_bal)
+        buy_trader.set_target_amounts(min(trade_vol, buy_trader.usd_bal))
 
         if buy_trader is self.trader1:
             buy_price = spread_opp.e1_buy
@@ -319,22 +275,66 @@ class FCFAutotrageur(Autotrageur):
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
         actions which may be harmed by previous state."""
-        self.message = None
+        self.trade_metadata = None
 
     def _execute_trade(self):
         """Execute the arbitrage."""
-        # TODO: Evaluate options and implement retry logic.
         if self.config[DRYRUN]:
             logging.info("**Dry run - begin fake execution")
-            arbseeker.execute_arbitrage(self.trade_metadata)
+            buy_response = arbseeker.execute_buy(
+                self.trade_metadata['buy_trader'],
+                self.trade_metadata['buy_price'])
+
+            executed_amount = buy_response['post_fee_base']
+            arbseeker.execute_sell(
+                self.trade_metadata['sell_trader'],
+                self.trade_metadata['sell_price'],
+                executed_amount)
+            self.trader1.update_wallet_balances(is_dry_run=True)
+            self.trader2.update_wallet_balances(is_dry_run=True)
+            self.dry_run.log_balances()
             logging.info("**Dry run - end fake execution")
         else:
-            logging.info("Attempting to execute trades")
-            if arbseeker.execute_arbitrage(self.trade_metadata):
-                self.trader1.fetch_wallet_balances()
-                self.trader2.fetch_wallet_balances()
+            try:
+                buy_response = arbseeker.execute_buy(
+                    self.trade_metadata['buy_trader'],
+                    self.trade_metadata['buy_price'])
+                executed_amount = buy_response['post_fee_base']
+                # TODO: Persist into database.
+            except Exception as exc:
+                logging.error(exc, exc_info=True)
+                self.checkpoint.restore(self)
             else:
-                logging.info("Trade was not executed.")
+                # If an exception is thrown, we want the program to stop on the
+                # second trade.
+                try:
+                    sell_response = arbseeker.execute_sell(
+                        self.trade_metadata['sell_trader'],
+                        self.trade_metadata['sell_price'],
+                        executed_amount)
+
+                    if executed_amount != sell_response['pre_fee_base']:
+                        msg = ("The purchased base amount does not match with "
+                               "the sold amount. Normal execution has "
+                               "terminated.\nBought amount: {}\n, Sold amount:"
+                               " {}").format(
+                                    executed_amount,
+                                    sell_response['pre_fee_base'])
+
+                        raise IncompleteArbitrageError(msg)
+                    else:
+                        # TODO: Persist into database.
+                        pass
+                except Exception as exc:
+                    self._send_email("TRADE ERROR ALERT", repr(exc))
+                    logging.error(exc, exc_info=True)
+                    # TODO: Update to start dryrun bot if irrecoverable error occurs.
+                    raise
+                else:
+                    # Retrieve updated wallet balances if everything worked
+                    # as expected.
+                    self.trader1.update_wallet_balances()
+                    self.trader2.update_wallet_balances()
 
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
@@ -342,15 +342,15 @@ class FCFAutotrageur(Autotrageur):
         Returns:
             bool: Whether there is an opportunity.
         """
-        # Set quote target amount based on strategy.
-        self.trader1.quote_target_amount = max(self.vol_min, self.trader1.quote_bal)
-        self.trader2.quote_target_amount = max(self.vol_min, self.trader2.quote_bal)
+        # Set trader target amounts based on strategy.
+        self.trader1.set_target_amounts(max(self.vol_min, self.trader1.usd_bal))
+        self.trader2.set_target_amounts(max(self.vol_min, self.trader2.usd_bal))
 
         try:
             spread_opp = arbseeker.get_spreads_by_ob(
                 self.trader1, self.trader2)
-        except ccxt.NetworkError as network_error:
-            logging.error(network_error, exc_info=True)
+        except (ccxt.NetworkError, OrderbookException) as exc:
+            logging.error(exc, exc_info=True)
             return False
 
         is_opportunity = False
@@ -359,18 +359,16 @@ class FCFAutotrageur(Autotrageur):
             self.momentum = Momentum.NEUTRAL
 
             self.e1_targets = self.__calc_targets(spread_opp.e1_spread,
-                self.h_to_e1_max, self.trader2.quote_bal)
+                self.h_to_e1_max, self.trader2.usd_bal)
             self.e2_targets = self.__calc_targets(spread_opp.e2_spread,
-                self.h_to_e2_max, self.trader1.quote_bal)
-            logging.info('-----To %s targets: %s' %
-                (self.trader1.exchange_name, self.e1_targets))
-            logging.info('-----To %s targets: %s' %
-                (self.trader2.exchange_name, self.e2_targets))
+                self.h_to_e2_max, self.trader1.usd_bal)
 
             self.target_index = 0
             self.last_target_index = 0
             self.has_started = True
         else:
+            # Save the autotrageur state before proceeding with algorithm.
+            self.checkpoint.save(self)
             is_opportunity = self.__evaluate_spread(spread_opp)
 
         self.h_to_e1_max = max(self.h_to_e1_max, spread_opp.e1_spread)
@@ -378,15 +376,27 @@ class FCFAutotrageur(Autotrageur):
 
         return is_opportunity
 
+    def _send_email(self, subject, msg):
+        """Send email alert to preconfigured emails.
+
+        Args:
+            subject (str): The subject of the message
+            msg (str): The contents of the email to send out.
+        """
+        send_all_emails(self.config[EMAIL_CFG_PATH],
+                        'Subject: {}\n{}'.format(subject, msg))
+
     # @Override
-    def _setup_markets(self):
-        """Set up the market objects for the algorithm to use.
+    def _setup(self):
+        """Sets up the algorithm to use.
 
         Raises:
             AuthenticationError: If not dryrun and authentication fails.
         """
-        super()._setup_markets()
+        super()._setup()
+        self.has_started = False
         self.spread_min = num_to_decimal(self.config[SPREAD_MIN])
         self.vol_min = num_to_decimal(self.config[VOL_MIN])
         self.h_to_e1_max = num_to_decimal(self.config[H_TO_E1_MAX])
         self.h_to_e2_max = num_to_decimal(self.config[H_TO_E2_MAX])
+        self.checkpoint = FCFCheckpoint()

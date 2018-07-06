@@ -7,8 +7,12 @@ import libs.ccxt_extensions as ccxt_extensions
 from libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
 from libs.trade.executor.ccxt_executor import CCXTExecutor
 from libs.trade.executor.dryrun_executor import DryRunExecutor
+from libs.utilities import set_autotrageur_decimal_context
 from bot.trader.ccxt_trader import CCXTTrader
 
+
+# Set the Decimal context before test runs.
+set_autotrageur_decimal_context()
 
 # ------------------ Constants fixtures ---------------------------------------
 @pytest.fixture(scope='session')
@@ -82,7 +86,10 @@ def fake_dryrun_executor(mocker, ext_gemini_exchange):
     mocker.patch.object(ext_gemini_exchange, 'create_emulated_market_sell_order')
     mocker.patch.object(ext_gemini_exchange, 'create_market_buy_order')
     mocker.patch.object(ext_gemini_exchange, 'create_market_sell_order')
-    return DryRunExecutor(ext_gemini_exchange)
+    fake_fetcher = mocker.Mock()
+    fake_dryrun_exchange = mocker.Mock()
+    return DryRunExecutor(
+        ext_gemini_exchange, fake_fetcher, fake_dryrun_exchange)
 
 # ------------------ Mock trader fixtures -------------------------------------
 @pytest.fixture()
