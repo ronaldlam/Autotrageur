@@ -456,9 +456,9 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
         no_patch_fcf_autotrageur.trader2, 'usd_bal', e2_quote_balance,
         create=True)
     mocker.patch.object(
-        no_patch_fcf_autotrageur.trader1, 'set_target_amount')
+        no_patch_fcf_autotrageur.trader1, 'set_target_amounts')
     mocker.patch.object(
-        no_patch_fcf_autotrageur.trader2, 'set_target_amount')
+        no_patch_fcf_autotrageur.trader2, 'set_target_amounts')
     mocker.patch.object(
         no_patch_fcf_autotrageur.trader2, 'usd_bal', e2_quote_balance,
         create=True)
@@ -485,9 +485,9 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
 
     is_opportunity_result = no_patch_fcf_autotrageur._poll_opportunity()
 
-    no_patch_fcf_autotrageur.trader1.set_target_amount.assert_called_once_with(
+    no_patch_fcf_autotrageur.trader1.set_target_amounts.assert_called_once_with(
         max(vol_min, e1_quote_balance))
-    no_patch_fcf_autotrageur.trader2.set_target_amount.assert_called_once_with(
+    no_patch_fcf_autotrageur.trader2.set_target_amounts.assert_called_once_with(
         max(vol_min, e2_quote_balance))
 
     if exc_type:

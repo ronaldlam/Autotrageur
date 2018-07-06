@@ -4,10 +4,8 @@ import time
 import ccxt
 
 from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
+from bot.common.decimal_constants import ZERO
 from libs.utilities import num_to_decimal
-
-
-ZERO = num_to_decimal('0')
 
 
 class ext_gdax(ccxt.gdax):

@@ -3,11 +3,10 @@ import time
 
 import ccxt
 
+from bot.common.ccxt_constants import BUY_SIDE
+from bot.common.decimal_constants import ZERO, HUNDRED
 from libs.utilities import num_to_decimal
 
-
-HUNDRED = num_to_decimal(100.0)
-ZERO = num_to_decimal(0)
 
 OPTIONS = {"options": ["immediate-or-cancel"]}
 
@@ -132,7 +131,7 @@ class ext_gemini(ccxt.gemini):
         trade_list = self.fetch_my_trades(symbol)
         order_id = result['id']
         side = result['info']['side']
-        _, quote = symbol.split('/')
+        _, quote = symbol.upper().split('/')
         trades = list(filter(lambda x: x['order'] == order_id, trade_list))
 
         pre_fee_base = num_to_decimal(result['info']['executed_amount'])
@@ -148,7 +147,7 @@ class ext_gemini(ccxt.gemini):
         # Calculate post fee numbers.
         post_fee_base = pre_fee_base
 
-        if side == 'buy':
+        if side == BUY_SIDE:
             post_fee_quote = pre_fee_quote + fees   # Pay additional fees
         else:
             post_fee_quote = pre_fee_quote - fees   # Pay from proceeds

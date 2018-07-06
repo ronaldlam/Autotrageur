@@ -675,7 +675,7 @@ class TestSetTargetAmount:
         mocker.patch.object(fake_ccxt_trader, 'forex_ratio', FAKE_FOREX_RATIO)
         mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
 
-        fake_ccxt_trader.set_target_amount(target_amount, is_usd)
+        fake_ccxt_trader.set_target_amounts(target_amount, is_usd)
 
         assert fake_ccxt_trader.usd_target_amount == result_usd
         assert fake_ccxt_trader.quote_target_amount == result_quote
@@ -685,13 +685,13 @@ class TestSetTargetAmount:
         mocker.patch.object(fake_ccxt_trader, 'forex_ratio', None)
         mocker.patch.object(fake_ccxt_trader, 'conversion_needed', True)
         with pytest.raises(ccxt_trader.NoForexQuoteException):
-            fake_ccxt_trader.set_target_amount(self.fake_target_amount, is_usd)
+            fake_ccxt_trader.set_target_amounts(self.fake_target_amount, is_usd)
 
     def test_set_target_amount_bad_forex_quote(self, mocker, fake_ccxt_trader):
         mocker.patch.object(fake_ccxt_trader, 'forex_ratio', Decimal('0'))
         mocker.patch.object(fake_ccxt_trader, 'conversion_needed', True)
         with pytest.raises(ZeroDivisionError):
-            fake_ccxt_trader.set_target_amount(self.fake_target_amount, False)
+            fake_ccxt_trader.set_target_amounts(self.fake_target_amount, False)
 
 
 @pytest.mark.parametrize('live_balances, dryrun_balances, conversion_needed, is_dry_run, result_usd_bal', [

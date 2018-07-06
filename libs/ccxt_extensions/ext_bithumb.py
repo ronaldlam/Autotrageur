@@ -6,11 +6,9 @@ import time
 import ccxt
 from googletrans import Translator
 
-from bot.common.ccxt_constants import UNIFIED_FUNCTION_NAMES
+from bot.common.ccxt_constants import UNIFIED_FUNCTION_NAMES, BUY_SIDE, SELL_SIDE
+from bot.common.decimal_constants import ZERO
 from libs.utilities import num_to_decimal
-
-
-ZERO = Decimal('0')
 
 
 class ext_bithumb(ccxt.bithumb):
@@ -59,7 +57,7 @@ class ext_bithumb(ccxt.bithumb):
         }
 
         Args:
-            side (str): Either 'buy' or 'sell'.
+            side (str): Either BUY_SIDE or SELL_SIDE.
             symbol (str): The market symbol, ie. 'ETH/KRW'.
             amount (str): The base asset amount.
             params (dict): The extra parameters to pass to the ccxt call.
@@ -73,12 +71,12 @@ class ext_bithumb(ccxt.bithumb):
         pre_fee_base = ZERO
         pre_fee_quote = ZERO
         fees = ZERO
-        base, quote = symbol.split('/')
+        base, quote = symbol.upper().split('/')
         local_timestamp = int(time.time())
 
-        if side == 'buy':
+        if side == BUY_SIDE:
             response = super().create_market_buy_order(symbol, amount, params)
-        elif side == 'sell':
+        elif side == SELL_SIDE:
             response = super().create_market_sell_order(symbol, amount, params)
         else:
             raise ccxt.ExchangeError(
@@ -95,7 +93,7 @@ class ext_bithumb(ccxt.bithumb):
 
         # Bithumb buy fees are taken off base amounts; sell fees off
         # quote amounts
-        if side == 'buy':
+        if side == BUY_SIDE:
             post_fee_base = pre_fee_base - fees
             post_fee_quote = pre_fee_quote
             fee_asset = base
@@ -201,7 +199,7 @@ class ext_bithumb(ccxt.bithumb):
             'fee_asset' (String): 'USD',
             'price' (Decimal): 500.00,
             'true_price' (Decimal): 495.00,
-            'side' (String): 'sell',
+            'side' (String): SELL_SIDE,
             'type' (String): 'limit',
             'order_id' (String): 'RU486',
             'exchange_timestamp' (int): 1529651177,
@@ -217,7 +215,7 @@ class ext_bithumb(ccxt.bithumb):
         Returns:
             dict: An Autotrageur specific unified response.
         """
-        return self._create_market_order('buy', symbol, amount, params)
+        return self._create_market_order(BUY_SIDE, symbol, amount, params)
 
     # @Override
     def create_market_sell_order(self, symbol, amount, params={}):
@@ -233,7 +231,7 @@ class ext_bithumb(ccxt.bithumb):
             'fee_asset' (String): 'USD',
             'price' (Decimal): 500.00,
             'true_price' (Decimal): 495.00,
-            'side' (String): 'sell',
+            'side' (String): SELL_SIDE,
             'type' (String): 'limit',
             'order_id' (String): 'RU486',
             'exchange_timestamp' (int): 1529651177,
@@ -249,7 +247,7 @@ class ext_bithumb(ccxt.bithumb):
         Returns:
             dict: An Autotrageur specific unified response.
         """
-        return self._create_market_order('sell', symbol, amount, params)
+        return self._create_market_order(SELL_SIDE, symbol, amount, params)
 
 
     # @Override

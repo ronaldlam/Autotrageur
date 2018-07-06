@@ -5,6 +5,7 @@ import sys
 
 import ccxt
 
+from bot.common.decimal_constants import ZERO
 import bot.currencyconverter as currencyconverter
 import libs.ccxt_extensions as ccxt_extensions
 from libs.trade.executor.ccxt_executor import CCXTExecutor
@@ -13,7 +14,6 @@ from libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
 from libs.utilities import keys_exists, num_to_decimal
 
 EXTENSION_PREFIX = "ext_"
-ZERO = num_to_decimal(0.0)
 
 
 PricePair = namedtuple('PricePair', ['usd_price', 'quote_price'])
@@ -336,7 +336,7 @@ class CCXTTrader():
         Return adjusted market buy or sell prices given bids or asks and
         amount to be sold. The market price is adjusted based on
         orderbook depth and the quote_target_amount/usd_target_amount
-        set by set_target_amount().
+        set by set_target_amounts().
 
         Input of bids will retrieve market sell price; input of asks
         will retrieve market buy price.
@@ -393,7 +393,7 @@ class CCXTTrader():
             'USD', self.quote, num_to_decimal(1))
         logging.info("forex_ratio set to {}".format(self.forex_ratio))
 
-    def set_target_amount(self, target_amount, is_usd=True):
+    def set_target_amounts(self, target_amount, is_usd=True):
         """Set the quote_target_amount and usd_target_amount.
 
         NOTE: This is only valid for fiat currency with support for the

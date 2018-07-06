@@ -128,8 +128,8 @@ class Autotrageur(ABC):
         """
         # Extract the pairs and compare them to see if conversion needed to
         # USD.
-        e1_base, e1_quote = self.config[EXCHANGE1_PAIR].split("/")
-        e2_base, e2_quote = self.config[EXCHANGE2_PAIR].split("/")
+        e1_base, e1_quote = self.config[EXCHANGE1_PAIR].upper().split("/")
+        e2_base, e2_quote = self.config[EXCHANGE2_PAIR].upper().split("/")
 
         exchange1 = self.config[EXCHANGE1]
         exchange2 = self.config[EXCHANGE2]

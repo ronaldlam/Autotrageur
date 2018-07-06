@@ -4,13 +4,13 @@ from decimal import Decimal
 import ccxt
 import pytest
 
+from bot.common.decimal_constants import HUNDRED
 import libs.ccxt_extensions as ccxt_extensions
 from ext_gemini_data import (BUY_RESPONSES, BUY_RESULTS, SELL_RESPONSES,
                              SELL_RESULTS)
 
 BUY = 'buy'
 SELL = 'sell'
-HUNDRED = Decimal('100')
 OPTIONS = {"options": ["immediate-or-cancel"]}
 
 BUY_PARAMS = [

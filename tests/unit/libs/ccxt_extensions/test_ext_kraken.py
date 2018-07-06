@@ -234,7 +234,7 @@ SELL_FETCH_ORDER_RESPONSE = {
     'post_fee_quote': Decimal('11.01'),
     'fees': Decimal('0.02'),
     'price': Decimal('525.28'),
-    'true_price': Decimal('524.2857142857142857142857143')
+    'true_price': Decimal('524.2857142857142857142857142')
 }
 
 SELL_FETCH_ORDER_NOT_FILLED_RESPONSE = {

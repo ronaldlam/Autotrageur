@@ -3,8 +3,9 @@ from unittest.mock import PropertyMock
 
 import pytest
 
+from bot.common.decimal_constants import ONE
 import libs.ccxt_extensions as ccxt_extensions
-from libs.trade.executor.dryrun_executor import (BUY_SIDE, ONE,
+from libs.trade.executor.dryrun_executor import (BUY_SIDE,
                                                  ORDER_TYPE_LIMIT,
                                                  ORDER_TYPE_MARKET, SELL_SIDE,
                                                  DryRunExecutor)
@@ -38,7 +39,7 @@ def test_complete_order(
         executor.fetcher, 'fetch_taker_fees', return_value=taker_fee)
     mocker.patch.object(
         executor.exchange, 'buy_target_includes_fee', buy_target_includes_fee)
-    base, quote = symbol.split('/')
+    base, quote = symbol.upper().split('/')
 
     result = executor._complete_order(side, order_type, symbol, amount, price)
 

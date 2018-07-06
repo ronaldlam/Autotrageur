@@ -9,8 +9,7 @@ from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import OrderbookException
 from libs.email_client.simple_email_client import send_all_emails
-from libs.utilities import (num_to_decimal, set_autotrageur_decimal_context,
-                            set_human_friendly_decimal_context)
+from libs.utilities import (num_to_decimal, set_autotrageur_decimal_context)
 
 from .autotrageur import Autotrageur
 
@@ -248,7 +247,7 @@ class FCFAutotrageur(Autotrageur):
             trade_vol = targets[self.target_index][1]
 
         # NOTE: Trader's `quote_target_amount` is updated here.
-        buy_trader.set_target_amount(min(trade_vol, buy_trader.usd_bal))
+        buy_trader.set_target_amounts(min(trade_vol, buy_trader.usd_bal))
 
         if buy_trader is self.trader1:
             buy_price = spread_opp.e1_buy
@@ -344,8 +343,8 @@ class FCFAutotrageur(Autotrageur):
             bool: Whether there is an opportunity.
         """
         # Set trader target amounts based on strategy.
-        self.trader1.set_target_amount(max(self.vol_min, self.trader1.usd_bal))
-        self.trader2.set_target_amount(max(self.vol_min, self.trader2.usd_bal))
+        self.trader1.set_target_amounts(max(self.vol_min, self.trader1.usd_bal))
+        self.trader2.set_target_amounts(max(self.vol_min, self.trader2.usd_bal))
 
         try:
             spread_opp = arbseeker.get_spreads_by_ob(
