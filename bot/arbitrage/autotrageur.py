@@ -2,6 +2,7 @@ import getpass
 import logging
 import sys
 import time
+import uuid
 from abc import ABC, abstractmethod
 
 import ccxt
@@ -14,7 +15,8 @@ from bot.common.config_constants import (DRYRUN, DRYRUN_E1_BASE,
                                          DRYRUN_E2_QUOTE, EXCHANGE1,
                                          EXCHANGE1_PAIR, EXCHANGE1_TEST,
                                          EXCHANGE2, EXCHANGE2_PAIR,
-                                         EXCHANGE2_TEST, SLIPPAGE)
+                                         EXCHANGE2_TEST, ID, SLIPPAGE,
+                                         START_TIMESTAMP)
 from bot.trader.ccxt_trader import CCXTTrader
 from bot.trader.dry_run import DryRun, DryRunExchange
 from libs.fiat_symbols import FIAT_SYMBOLS
@@ -51,6 +53,9 @@ class Autotrageur(ABC):
         """
         with open(file_name, "r") as ymlfile:
             self.config = yaml.load(ymlfile)
+
+    def __load_db(self):
+        pass
 
     def __load_keyfile(self, arguments):
         """Load the keyfile given in the arguments.
@@ -199,6 +204,12 @@ class Autotrageur(ABC):
             logging.error(auth_error)
             raise AuthenticationError(auth_error)
 
+        # Add extra config entries for database persistence.
+        self.__load_db()
+        self.config[START_TIMESTAMP] = int(time.time())
+        self.config[ID] = str(uuid.uuid4())
+        # TODO: DBHandler.persist(self.config)
+
     @abstractmethod
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
@@ -240,7 +251,6 @@ class Autotrageur(ABC):
             requires_configs (bool, optional): Defaults to True. Whether
                 the call requires the config file to be loaded.
         """
-
         if requires_configs:
             self._load_configs(arguments)
 

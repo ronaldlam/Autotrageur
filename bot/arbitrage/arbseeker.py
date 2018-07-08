@@ -1,5 +1,6 @@
 import logging
 from collections import namedtuple
+import uuid
 
 from ccxt import NetworkError
 
@@ -23,7 +24,7 @@ PriceEntry = namedtuple(
 # Structure containing spread and price info for an arbitrage opportunity.
 SpreadOpportunity = namedtuple(
     'SpreadOpportunity',
-    ['e1_spread', 'e2_spread', 'e1_buy', 'e2_buy', 'e1_sell', 'e2_sell'])
+    ['id', 'e1_spread', 'e2_spread', 'e1_buy', 'e2_buy', 'e1_sell', 'e2_sell'])
 
 
 def get_spreads_by_ob(trader1, trader2):
@@ -88,7 +89,7 @@ def get_spreads_by_ob(trader1, trader2):
                   e2_spread))
 
     return SpreadOpportunity(
-        e1_spread, e2_spread, prices[E1_BUY].quote_price,
+        str(uuid.uuid4()), e1_spread, e2_spread, prices[E1_BUY].quote_price,
         prices[E2_BUY].quote_price, prices[E1_SELL].quote_price,
         prices[E2_SELL].quote_price)
 

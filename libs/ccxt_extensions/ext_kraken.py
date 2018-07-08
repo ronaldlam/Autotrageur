@@ -110,6 +110,7 @@ class ext_kraken(ccxt.kraken):
             'side': order['side'],
             'type': order['type'],
             'order_id': order['id'],
+            'exchange': self.name.lower(),
             'exchange_timestamp': int(order['timestamp'] / 1000),
             'local_timestamp': local_ts,
             'extra_info':  params

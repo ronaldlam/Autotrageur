@@ -173,6 +173,7 @@ class ext_gemini(ccxt.gemini):
             'side': side,
             'type': 'limit',
             'order_id': order_id,
+            'exchange': self.name.lower(),
             'exchange_timestamp': int(result['info']['timestamp']),
             'local_timestamp': local_timestamp,
             'extra_info': params

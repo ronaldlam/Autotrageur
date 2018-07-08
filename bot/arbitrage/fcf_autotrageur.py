@@ -257,6 +257,7 @@ class FCFAutotrageur(Autotrageur):
             sell_price = spread_opp.e1_sell
 
         self.trade_metadata = {
+            'spread_opp': spread_opp,
             'buy_price': buy_price,
             'sell_price': sell_price,
             'buy_trader': buy_trader,
@@ -300,7 +301,6 @@ class FCFAutotrageur(Autotrageur):
                     self.trade_metadata['buy_trader'],
                     self.trade_metadata['buy_price'])
                 executed_amount = buy_response['post_fee_base']
-                # TODO: Persist into database.
             except Exception as exc:
                 logging.error(exc, exc_info=True)
                 self.checkpoint.restore(self)
@@ -322,9 +322,6 @@ class FCFAutotrageur(Autotrageur):
                                     sell_response['pre_fee_base'])
 
                         raise IncompleteArbitrageError(msg)
-                    else:
-                        # TODO: Persist into database.
-                        pass
                 except Exception as exc:
                     self._send_email("TRADE ERROR ALERT", repr(exc))
                     logging.error(exc, exc_info=True)
@@ -335,6 +332,14 @@ class FCFAutotrageur(Autotrageur):
                     # as expected.
                     self.trader1.update_wallet_balances()
                     self.trader2.update_wallet_balances()
+            finally:
+                trade_opportunity_id = self.trade_metadata['spread_opp'].id
+                buy_response['trade_opportunity_id'] = trade_opportunity_id
+                sell_response['trade_opportunity_id'] = trade_opportunity_id
+                buy_response['autotrageur_config_id'] = self.config['id']
+                sell_response['autotrageur_config_id'] = self.config['id']
+                # TODO: DBHandler.persist(spread_opp, buy_response, sell_response)
+                pass
 
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.

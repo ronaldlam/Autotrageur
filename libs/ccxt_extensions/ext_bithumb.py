@@ -123,6 +123,7 @@ class ext_bithumb(ccxt.bithumb):
             'side': side,
             'type': 'market',
             'order_id': response['id'],
+            'exchange': self.name.lower(),
             # Bithumb does not return the timestamp.
             'exchange_timestamp': local_timestamp,
             'local_timestamp': local_timestamp,
