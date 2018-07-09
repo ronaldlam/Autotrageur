@@ -64,7 +64,7 @@ class ext_gdax(ccxt.gdax):
         order_id = response['id']
         order = self._poll_order(order_id)
 
-        logging.info('Raw fetched order response for order_id {}:\n {}'.format(
+        logging.debug('Raw fetched order response for order_id {}:\n {}'.format(
             order_id, order
         ))
 
@@ -135,7 +135,7 @@ class ext_gdax(ccxt.gdax):
         order, order_status = self._fetch_order_and_status(order_id)
 
         while order_status != 'done':
-            logging.info(
+            logging.debug(
                 'Order still processing with status: {}'.format(order_status))
             time.sleep(0.1)
             order, order_status = self._fetch_order_and_status(order_id)

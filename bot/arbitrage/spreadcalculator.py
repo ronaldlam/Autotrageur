@@ -91,7 +91,7 @@ def calc_fixed_spread(buy_price, sell_price, buy_fee, sell_fee, buy_incl_fee):
                     * sell_price
                     * (ONE - sell_fee) - ONE) * HUNDRED
 
-        logging.info("Calculated spread of: {}\nWith buy price {} buy fee {}\n"
+        logging.debug("Calculated spread of: {}\nWith buy price {} buy fee {}\n"
             "With sell price {} sell fee {}".format(spread, buy_price,
                                                     buy_fee, sell_price,
                                                     sell_fee))

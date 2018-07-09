@@ -281,7 +281,7 @@ class FCFAutotrageur(Autotrageur):
     def _execute_trade(self):
         """Execute the arbitrage."""
         if self.config[DRYRUN]:
-            logging.info("**Dry run - begin fake execution")
+            logging.debug("**Dry run - begin fake execution")
             buy_response = arbseeker.execute_buy(
                 self.trade_metadata['buy_trader'],
                 self.trade_metadata['buy_price'])
@@ -294,7 +294,7 @@ class FCFAutotrageur(Autotrageur):
             self.trader1.update_wallet_balances(is_dry_run=True)
             self.trader2.update_wallet_balances(is_dry_run=True)
             self.dry_run.log_balances()
-            logging.info("**Dry run - end fake execution")
+            logging.debug("**Dry run - end fake execution")
         else:
             try:
                 buy_response = arbseeker.execute_buy(
