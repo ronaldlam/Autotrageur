@@ -8,7 +8,7 @@ from googletrans import Translator
 
 from bot.common.ccxt_constants import UNIFIED_FUNCTION_NAMES, BUY_SIDE, SELL_SIDE
 from bot.common.decimal_constants import ZERO
-from libs.utilities import num_to_decimal
+from libs.utilities import num_to_decimal, split_symbol
 
 
 class ext_bithumb(ccxt.bithumb):
@@ -71,7 +71,7 @@ class ext_bithumb(ccxt.bithumb):
         pre_fee_base = ZERO
         pre_fee_quote = ZERO
         fees = ZERO
-        base, quote = symbol.upper().split('/')
+        base, quote = split_symbol(symbol)
         local_timestamp = int(time.time())
 
         if side == BUY_SIDE:

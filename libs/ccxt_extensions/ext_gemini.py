@@ -5,7 +5,7 @@ import ccxt
 
 from bot.common.ccxt_constants import BUY_SIDE
 from bot.common.decimal_constants import ZERO, HUNDRED
-from libs.utilities import num_to_decimal
+from libs.utilities import num_to_decimal, split_symbol
 
 
 OPTIONS = {"options": ["immediate-or-cancel"]}
@@ -131,7 +131,7 @@ class ext_gemini(ccxt.gemini):
         trade_list = self.fetch_my_trades(symbol)
         order_id = result['id']
         side = result['info']['side']
-        _, quote = symbol.upper().split('/')
+        _, quote = split_symbol(symbol)
         trades = list(filter(lambda x: x['order'] == order_id, trade_list))
 
         pre_fee_base = num_to_decimal(result['info']['executed_amount'])

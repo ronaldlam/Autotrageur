@@ -4,6 +4,7 @@ from unittest.mock import PropertyMock
 import pytest
 
 from bot.common.decimal_constants import ONE
+from libs.utilities import split_symbol
 import libs.ccxt_extensions as ccxt_extensions
 from libs.trade.executor.dryrun_executor import (BUY_SIDE,
                                                  ORDER_TYPE_LIMIT,
@@ -39,7 +40,7 @@ def test_complete_order(
         executor.fetcher, 'fetch_taker_fees', return_value=taker_fee)
     mocker.patch.object(
         executor.exchange, 'buy_target_includes_fee', buy_target_includes_fee)
-    base, quote = symbol.upper().split('/')
+    base, quote = split_symbol(symbol)
 
     result = executor._complete_order(side, order_type, symbol, amount, price)
 

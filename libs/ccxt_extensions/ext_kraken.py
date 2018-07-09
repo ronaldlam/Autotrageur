@@ -5,7 +5,7 @@ import ccxt
 
 from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
 from bot.common.decimal_constants import ZERO
-from libs.utilities import num_to_decimal
+from libs.utilities import num_to_decimal, split_symbol
 
 
 class ext_kraken(ccxt.kraken):
@@ -79,8 +79,8 @@ class ext_kraken(ccxt.kraken):
         filled = num_to_decimal(order['filled'])
         cost = num_to_decimal(order['cost'])
 
-        # Gdax takes the fees away from the quote.
-        fee_asset = symbol.split('/')[1].upper()
+        # Kraken takes the fees away from the quote.
+        _, fee_asset = split_symbol(symbol)
         pre_fee_base = filled
         pre_fee_quote = cost
         post_fee_base = filled

@@ -62,6 +62,18 @@ def keyfile_to_map(keyfile):
     return exchange_map
 
 
+def split_symbol(symbol):
+    """Get base/quote from symbol.
+
+    Args:
+        symbol (str): The symbol of the market (ie. ETH/USD).
+
+    Returns:
+        [str, str]: The list of base and quote strs.
+    """
+    return symbol.upper().split('/')
+
+
 def to_str(bytes_or_str):
     """Return bytes from string or byte data.
 

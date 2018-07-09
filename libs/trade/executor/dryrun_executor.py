@@ -5,7 +5,7 @@ from decimal import Decimal
 from bot.common.ccxt_constants import (BUY_SIDE, ORDER_TYPE_LIMIT,
                                        ORDER_TYPE_MARKET, SELL_SIDE)
 from bot.common.decimal_constants import ONE
-from libs.utilities import num_to_decimal
+from libs.utilities import num_to_decimal, split_symbol
 
 from .base_executor import BaseExecutor
 
@@ -42,7 +42,7 @@ class DryRunExecutor(BaseExecutor):
                 calling function's parameters.
         """
         local_ts = int(time.time())
-        base, quote = symbol.upper().split('/')
+        base, quote = split_symbol(symbol)
         pre_fee_base = amount
         pre_fee_quote = amount * price
         taker_fee = self.fetcher.fetch_taker_fees()
