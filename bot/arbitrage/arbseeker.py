@@ -80,11 +80,11 @@ def get_spreads_by_ob(trader1, trader2):
         trader1.get_buy_target_includes_fee())
 
     logging.info(
-        'Spread - {:^60} {} %'.format(
+        'Spread - {:^60} {:>30} %'.format(
             '{} -> {}:'.format(trader2.exchange_name, trader1.exchange_name),
             e1_spread))
     logging.info(
-        'Spread - {:^60} {} %'.format(
+        'Spread - {:^60} {:>30} %'.format(
             '{} -> {}:'.format(trader1.exchange_name, trader2.exchange_name),
             e2_spread))
 
