@@ -17,9 +17,6 @@ from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          EXCHANGE1_TEST, EXCHANGE2,
                                          EXCHANGE2_PAIR, EXCHANGE2_TEST,
                                          SLIPPAGE)
-from bot.common.db_constants import (CONFIG_MAP_TABLE,
-                                     FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
-                                     FCF_AUTOTRAGEUR_CONFIG_TABLE)
 from bot.trader.ccxt_trader import CCXTTrader
 from bot.trader.dry_run import DryRun, DryRunExchange
 from libs.fiat_symbols import FIAT_SYMBOLS

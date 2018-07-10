@@ -22,10 +22,10 @@ def _form_insert_ignore_query(table_name, columns, param_string):
         "INSERT IGNORE INTO "
         + table_name
         + re.sub(r"((?<=\()')"              # single quote, look-behind '('
-                r"|('(?=,))"               # single quote, look-ahead ','
-                r"|((?<=[^\S\r\n\t]|,)')"  # single quote, look-behind space character, or ','
-                r"|('(?=\)))",             # single quote, look-ahead ')'
-                '', str(columns))
+                 r"|('(?=,))"               # single quote, look-ahead ','
+                 r"|((?<=[^\S\r\n\t]|,)')"  # single quote, look-behind space character, or ','
+                 r"|('(?=\)))",             # single quote, look-ahead ')'
+                 '', str(columns))
         + " VALUES (" + param_string + ")"
     )
 
