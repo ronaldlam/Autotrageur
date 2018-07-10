@@ -1,15 +1,23 @@
 import logging
+import time
+import uuid
 from decimal import Decimal
 
 import ccxt
 
 import bot.arbitrage.arbseeker as arbseeker
+import libs.db.maria_db_handler as db_handler
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
-                                         H_TO_E2_MAX, SPREAD_MIN, VOL_MIN)
+                                         H_TO_E2_MAX, ID, SPREAD_MIN,
+                                         START_TIMESTAMP, VOL_MIN)
+from bot.common.db_constants import (CONFIG_MAP_TABLE, CONFIG_MAP_COLUMNS,
+                                     FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
+                                     FCF_AUTOTRAGEUR_CONFIG_TABLE,
+                                     TRADE_OPPORTUNITY_TABLE, TRADES_TABLE)
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import OrderbookException
 from libs.email_client.simple_email_client import send_all_emails
-from libs.utilities import (num_to_decimal, set_autotrageur_decimal_context)
+from libs.utilities import num_to_decimal, set_autotrageur_decimal_context
 
 from .autotrageur import Autotrageur
 
@@ -224,6 +232,30 @@ class FCFAutotrageur(Autotrageur):
 
         return False
 
+    def __persist_trade_data(self, buy_response, sell_response):
+        """Persists the completed trades into the database.
+
+        Adds any necessary information (such as foreign key IDs) to the trade
+        responses before saving to the database.
+
+        Args:
+            buy_response (dict): The autotrageur unified response from the
+                executed buy trade.
+            sell_response ([type]): The autotrageur unified response from the
+                executed sell trade.
+        """
+        trade_opportunity_id = self.trade_metadata['spread_opp'].id
+        buy_response['trade_opportunity_id'] = trade_opportunity_id
+        sell_response['trade_opportunity_id'] = trade_opportunity_id
+        buy_response['autotrageur_config_id'] = self.config['id']
+        sell_response['autotrageur_config_id'] = self.config['id']
+
+        db_handler.insert_row(TRADE_OPPORTUNITY_TABLE,
+            self.trade_metadata['spread_opp']._asdict())
+        db_handler.insert_row(TRADES_TABLE, buy_response)
+        db_handler.insert_row(TRADES_TABLE, sell_response)
+        db_handler.commit_all()
+
     def __prepare_trade(self, is_momentum_change, buy_trader, sell_trader,
                         targets, spread_opp):
         """Set up trade metadata and update target indices.
@@ -273,6 +305,24 @@ class FCFAutotrageur(Autotrageur):
         self.last_target_index = self.target_index
         self.target_index += 1
 
+    def __persist_configs(self):
+        """Persists the configuration for this `fcf_autotrageur` run."""
+
+        # Add extra config entries for database persistence.
+        self.config[START_TIMESTAMP] = int(time.time())
+        self.config[ID] = str(uuid.uuid4())
+
+        config_map_row = {
+            CONFIG_MAP_COLUMNS[0]: self.config[ID],
+            CONFIG_MAP_COLUMNS[1]: FCF_AUTOTRAGEUR_CONFIG_TABLE
+        }
+        db_handler.insert_row(CONFIG_MAP_TABLE, config_map_row)
+        fcf_autotrageur_config_row = db_handler.build_row(
+            FCF_AUTOTRAGEUR_CONFIG_COLUMNS, self.config)
+        db_handler.insert_row(
+            FCF_AUTOTRAGEUR_CONFIG_TABLE, fcf_autotrageur_config_row)
+        db_handler.commit_all()
+
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
         actions which may be harmed by previous state."""
@@ -287,13 +337,14 @@ class FCFAutotrageur(Autotrageur):
                 self.trade_metadata['buy_price'])
 
             executed_amount = buy_response['post_fee_base']
-            arbseeker.execute_sell(
+            sell_response = arbseeker.execute_sell(
                 self.trade_metadata['sell_trader'],
                 self.trade_metadata['sell_price'],
                 executed_amount)
             self.trader1.update_wallet_balances(is_dry_run=True)
             self.trader2.update_wallet_balances(is_dry_run=True)
             self.dry_run.log_balances()
+            self.__persist_trade_data(buy_response, sell_response)
             logging.info("**Dry run - end fake execution")
         else:
             try:
@@ -333,13 +384,7 @@ class FCFAutotrageur(Autotrageur):
                     self.trader1.update_wallet_balances()
                     self.trader2.update_wallet_balances()
             finally:
-                trade_opportunity_id = self.trade_metadata['spread_opp'].id
-                buy_response['trade_opportunity_id'] = trade_opportunity_id
-                sell_response['trade_opportunity_id'] = trade_opportunity_id
-                buy_response['autotrageur_config_id'] = self.config['id']
-                sell_response['autotrageur_config_id'] = self.config['id']
-                # TODO: DBHandler.persist(spread_opp, buy_response, sell_response)
-                pass
+                self.__persist_trade_data(buy_response, sell_response)
 
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
@@ -399,6 +444,7 @@ class FCFAutotrageur(Autotrageur):
             AuthenticationError: If not dryrun and authentication fails.
         """
         super()._setup()
+        self.__persist_configs()
         self.has_started = False
         self.spread_min = num_to_decimal(self.config[SPREAD_MIN])
         self.vol_min = num_to_decimal(self.config[VOL_MIN])
