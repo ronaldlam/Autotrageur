@@ -2,21 +2,21 @@ import getpass
 import logging
 import sys
 import time
-import uuid
 from abc import ABC, abstractmethod
 
 import ccxt
 import schedule
 import yaml
 
+import libs.db.maria_db_handler as db_handler
 from bot.common.ccxt_constants import API_KEY, API_SECRET
-from bot.common.config_constants import (DRYRUN, DRYRUN_E1_BASE,
-                                         DRYRUN_E1_QUOTE, DRYRUN_E2_BASE,
-                                         DRYRUN_E2_QUOTE, EXCHANGE1,
-                                         EXCHANGE1_PAIR, EXCHANGE1_TEST,
-                                         EXCHANGE2, EXCHANGE2_PAIR,
-                                         EXCHANGE2_TEST, ID, SLIPPAGE,
-                                         START_TIMESTAMP)
+from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
+                                         DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
+                                         DRYRUN_E2_BASE, DRYRUN_E2_QUOTE,
+                                         EXCHANGE1, EXCHANGE1_PAIR,
+                                         EXCHANGE1_TEST, EXCHANGE2,
+                                         EXCHANGE2_PAIR, EXCHANGE2_TEST,
+                                         SLIPPAGE)
 from bot.trader.ccxt_trader import CCXTTrader
 from bot.trader.dry_run import DryRun, DryRunExchange
 from libs.fiat_symbols import FIAT_SYMBOLS
@@ -55,7 +55,13 @@ class Autotrageur(ABC):
             self.config = yaml.load(ymlfile)
 
     def __load_db(self):
-        pass
+        """Initializes and connects to the database."""
+        db_password = getpass.getpass(
+            prompt="Enter database password:")
+        db_handler.start_db(
+            self.config[DB_USER],
+            db_password,
+            self.config[DB_NAME])
 
     def __load_keyfile(self, arguments):
         """Load the keyfile given in the arguments.
@@ -74,7 +80,7 @@ class Autotrageur(ABC):
                 unavailable.
         """
         try:
-            pw = getpass.getpass()
+            pw = getpass.getpass(prompt="Enter keyfile password:")
             with open(arguments[KEYFILE], "rb") as in_file:
                 keys = decrypt(
                     in_file.read(),
@@ -103,6 +109,9 @@ class Autotrageur(ABC):
         """
         # Load arb configuration.
         self.__load_config_file(arguments[CONFIGFILE])
+
+        # Initialize and connect to the database.
+        self.__load_db()
 
         # Load keyfile.
         exchange_key_map = self.__load_keyfile(arguments)
@@ -203,12 +212,6 @@ class Autotrageur(ABC):
         except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
             logging.error(auth_error)
             raise AuthenticationError(auth_error)
-
-        # Add extra config entries for database persistence.
-        self.__load_db()
-        self.config[START_TIMESTAMP] = int(time.time())
-        self.config[ID] = str(uuid.uuid4())
-        # TODO: DBHandler.persist(self.config)
 
     @abstractmethod
     def _poll_opportunity(self):

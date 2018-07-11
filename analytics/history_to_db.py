@@ -177,4 +177,5 @@ def persist_to_db(db_name, db_user, db_password, hist_fetchers):
                     + " %(volumefrom)s, %(volumeto)s, %(vwap)s, %(base)s, %(quote)s,"
                     + " %(exchange)s)",
                     price_history)
+                cursor.close()
                 db.commit()
