@@ -42,6 +42,7 @@ class DryRunExecutor(BaseExecutor):
                 calling function's parameters.
         """
         local_ts = int(time.time())
+        exchange_name = self.exchange.name.lower()
         base, quote = symbol.upper().split('/')
         pre_fee_base = amount
         pre_fee_quote = amount * price
@@ -74,6 +75,9 @@ class DryRunExecutor(BaseExecutor):
                                        post_fee_quote)
 
         return {
+            'exchange': exchange_name,
+            'base': base,
+            'quote': quote,
             'pre_fee_base': pre_fee_base,
             'pre_fee_quote': pre_fee_quote,
             'post_fee_base': post_fee_base,
@@ -89,7 +93,7 @@ class DryRunExecutor(BaseExecutor):
             'local_timestamp': local_ts,
             'extra_info':  {
                 'options': 'dryrun',
-                'exchange': self.exchange.name
+                'exchange': exchange_name
             }
         }
 
