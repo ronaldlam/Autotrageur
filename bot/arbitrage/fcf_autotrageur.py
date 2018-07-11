@@ -233,27 +233,34 @@ class FCFAutotrageur(Autotrageur):
         return False
 
     def __persist_trade_data(self, buy_response, sell_response):
-        """Persists the completed trades into the database.
+        """Persists data regarding the current trade into the database.
 
-        Adds any necessary information (such as foreign key IDs) to the trade
-        responses before saving to the database.
+        If a trade has been executed, we add any necessary information (such as
+        foreign key IDs) to the trade responses before saving to the database.
 
         Args:
             buy_response (dict): The autotrageur unified response from the
                 executed buy trade.
-            sell_response ([type]): The autotrageur unified response from the
+            sell_response (dict): The autotrageur unified response from the
                 executed sell trade.
         """
+        # Persist the spread_opp.
         trade_opportunity_id = self.trade_metadata['spread_opp'].id
-        buy_response['trade_opportunity_id'] = trade_opportunity_id
-        sell_response['trade_opportunity_id'] = trade_opportunity_id
-        buy_response['autotrageur_config_id'] = self.config['id']
-        sell_response['autotrageur_config_id'] = self.config['id']
-
         db_handler.insert_row(TRADE_OPPORTUNITY_TABLE,
             self.trade_metadata['spread_opp']._asdict())
-        db_handler.insert_row(TRADES_TABLE, buy_response)
-        db_handler.insert_row(TRADES_TABLE, sell_response)
+
+        # Persist the executed buy order, if available.
+        if buy_response is not None:
+            buy_response['trade_opportunity_id'] = trade_opportunity_id
+            buy_response['autotrageur_config_id'] = self.config[ID]
+            db_handler.insert_row(TRADES_TABLE, buy_response)
+
+        # Persist the executed sell order, if available.
+        if sell_response is not None:
+            sell_response['trade_opportunity_id'] = trade_opportunity_id
+            sell_response['autotrageur_config_id'] = self.config[ID]
+            db_handler.insert_row(TRADES_TABLE, sell_response)
+
         db_handler.commit_all()
 
     def __prepare_trade(self, is_momentum_change, buy_trader, sell_trader,
@@ -307,16 +314,10 @@ class FCFAutotrageur(Autotrageur):
 
     def __persist_configs(self):
         """Persists the configuration for this `fcf_autotrageur` run."""
-
         # Add extra config entries for database persistence.
         self.config[START_TIMESTAMP] = int(time.time())
         self.config[ID] = str(uuid.uuid4())
 
-        config_map_row = {
-            CONFIG_MAP_COLUMNS[0]: self.config[ID],
-            CONFIG_MAP_COLUMNS[1]: FCF_AUTOTRAGEUR_CONFIG_TABLE
-        }
-        db_handler.insert_row(CONFIG_MAP_TABLE, config_map_row)
         fcf_autotrageur_config_row = db_handler.build_row(
             FCF_AUTOTRAGEUR_CONFIG_COLUMNS, self.config)
         db_handler.insert_row(

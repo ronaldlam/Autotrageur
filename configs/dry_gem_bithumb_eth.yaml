@@ -33,6 +33,6 @@ slippage: 3 # Important for Gemini, eg. 3
 
 # ----------------DATABASE SETTINGS--------------------------------------------
 # (String) The database name.
-db_name: trade_history
+db_name: fcf_trade_history
 # (String) The database user.
 db_user: root

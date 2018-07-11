@@ -1,11 +1,6 @@
-CREATE DATABASE IF NOT EXISTS table_history;
+CREATE DATABASE IF NOT EXISTS fcf_table_history;
 
-USE DATABASE table_history;
-
-CREATE TABLE IF NOT EXISTS config_map (
-    id VARCHAR(36) NOT NULL,
-    table_name VARCHAR(40) NOT NULL,
-    PRIMARY KEY (id));
+USE DATABASE fcf_table_history;
 
 CREATE TABLE IF NOT EXISTS fcf_autotrageur_config (
     id VARCHAR(36) NOT NULL,

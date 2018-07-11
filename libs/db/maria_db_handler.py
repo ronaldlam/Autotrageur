@@ -39,8 +39,7 @@ def build_row(table_columns, map_data):
     Args:
         table_columns (list): A list of column names for the row to be built
             against.
-        map_data (dict): A map containing more entries than a row designated
-            against `table_columns`.
+        map_data (dict): The map to be filtered by `table_columns`.
 
     Returns:
         dict: A row object represented as a map with the filtered entries for
@@ -71,11 +70,9 @@ def insert_row(table_name, row):
     columns = *row,
     row_data = *row.values(),
     cursor = db.cursor()
-    params = ''
-    for i in range(len(row_data)):
-        params += '%s, '
+    params = ', '.join(['%s'] * len(row_data))
     cursor.execute(
-        _form_insert_ignore_query(table_name, columns, params[:-2]),
+        _form_insert_ignore_query(table_name, columns, params),
         row_data)
     cursor.close()
 

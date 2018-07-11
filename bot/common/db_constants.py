@@ -9,7 +9,6 @@ TRADE_OPPORTUNITY_TABLE = 'trade_opportunity'
 # Table columns.
 CONFIG_MAP_COLUMNS = [ 'id', 'table_name' ]
 FCF_AUTOTRAGEUR_CONFIG_COLUMNS = [
-    'id',
     'dryrun',
     'dryrun_e1_base',
     'dryrun_e1_quote',
