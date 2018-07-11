@@ -103,6 +103,9 @@ class ext_gemini(ccxt.gemini):
         }
         The result is formatted as:
         {
+            'exchange' (String): 'gemini',
+            'base' (String): 'ETH',
+            'quote' (String): 'USD',
             'pre_fee_base' (Decimal): 0.100,
             'pre_fee_quote' (Decimal): 50.00,
             'post_fee_base' (Decimal): 0.100,
@@ -131,7 +134,7 @@ class ext_gemini(ccxt.gemini):
         trade_list = self.fetch_my_trades(symbol)
         order_id = result['id']
         side = result['info']['side']
-        _, quote = split_symbol(symbol)
+        base, quote = split_symbol(symbol)
         trades = list(filter(lambda x: x['order'] == order_id, trade_list))
 
         pre_fee_base = num_to_decimal(result['info']['executed_amount'])
@@ -162,6 +165,9 @@ class ext_gemini(ccxt.gemini):
             true_price = post_fee_quote / post_fee_base
 
         return {
+            'exchange': self.name.lower(),
+            'base': base,
+            'quote': quote,
             'pre_fee_base': pre_fee_base,
             'pre_fee_quote': pre_fee_quote,
             'post_fee_base': post_fee_base,
@@ -173,7 +179,6 @@ class ext_gemini(ccxt.gemini):
             'side': side,
             'type': 'limit',
             'order_id': order_id,
-            'exchange': self.name.lower(),
             'exchange_timestamp': int(result['info']['timestamp']),
             'local_timestamp': local_timestamp,
             'extra_info': params

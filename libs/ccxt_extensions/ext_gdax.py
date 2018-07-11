@@ -52,6 +52,7 @@ class ext_gdax(ccxt.gdax):
             dict: An Autotrageur specific unified response.
         """
         local_ts = int(time.time())
+        base, quote = split_symbol(symbol)
 
         if side == BUY_SIDE:
             response = super().create_market_buy_order(symbol, amount, params)
@@ -92,6 +93,9 @@ class ext_gdax(ccxt.gdax):
             true_price = post_fee_quote / post_fee_base
 
         return {
+            'exchange': self.name.lower(),
+            'base': base,
+            'quote': quote,
             'pre_fee_base': pre_fee_base,
             'pre_fee_quote': pre_fee_quote,
             'post_fee_base': post_fee_base,
@@ -103,7 +107,6 @@ class ext_gdax(ccxt.gdax):
             'side': order['side'],
             'type': order['type'],
             'order_id': order['id'],
-            'exchange': self.name.lower(),
             'exchange_timestamp': int(order['timestamp'] / 1000),
             'local_timestamp': local_ts,
             'extra_info':  params

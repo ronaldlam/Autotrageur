@@ -112,6 +112,9 @@ class ext_bithumb(ccxt.bithumb):
             true_price = post_fee_quote / post_fee_base
 
         return {
+            'exchange': self.name.lower(),
+            'base': base,
+            'quote': quote,
             'pre_fee_base': pre_fee_base,
             'pre_fee_quote': pre_fee_quote,
             'post_fee_base': post_fee_base,
@@ -123,7 +126,6 @@ class ext_bithumb(ccxt.bithumb):
             'side': side,
             'type': 'market',
             'order_id': response['id'],
-            'exchange': self.name.lower(),
             # Bithumb does not return the timestamp.
             'exchange_timestamp': local_timestamp,
             'local_timestamp': local_timestamp,
@@ -192,6 +194,9 @@ class ext_bithumb(ccxt.bithumb):
 
         The response is formatted as:
         {
+            'exchange' (String): 'bithumb',
+            'base' (String): 'ETH',
+            'quote' (String): 'USD',
             'pre_fee_base' (Decimal): 0.100,
             'pre_fee_quote' (Decimal): 50.00,
             'post_fee_base' (Decimal): 0.100,
@@ -224,6 +229,9 @@ class ext_bithumb(ccxt.bithumb):
 
         The response is formatted as:
         {
+            'exchange' (String): 'bithumb',
+            'base' (String): 'ETH',
+            'quote' (String): 'USD',
             'pre_fee_base' (Decimal): 0.100,
             'pre_fee_quote' (Decimal): 50.00,
             'post_fee_base' (Decimal): 0.100,
