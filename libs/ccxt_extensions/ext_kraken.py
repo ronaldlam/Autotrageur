@@ -59,6 +59,7 @@ class ext_kraken(ccxt.kraken):
             dict: An Autotrageur specific unified response.
         """
         local_ts = int(time.time())
+        base, quote = symbol.upper().split('/')
 
         if side == BUY_SIDE:
             response = super().create_market_buy_order(symbol, amount, params)
@@ -99,6 +100,9 @@ class ext_kraken(ccxt.kraken):
             true_price = post_fee_quote / post_fee_base
 
         return {
+            'exchange': self.name.lower(),
+            'base': base,
+            'quote': quote,
             'pre_fee_base': pre_fee_base,
             'pre_fee_quote': pre_fee_quote,
             'post_fee_base': post_fee_base,
@@ -110,7 +114,6 @@ class ext_kraken(ccxt.kraken):
             'side': order['side'],
             'type': order['type'],
             'order_id': order['id'],
-            'exchange': self.name.lower(),
             'exchange_timestamp': int(order['timestamp'] / 1000),
             'local_timestamp': local_ts,
             'extra_info':  params
