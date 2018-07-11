@@ -4,6 +4,8 @@
 EMAIL_CFG_PATH = 'email_cfg_path'
 
 # Trade configuration constants.
+DB_NAME = 'db_name'
+DB_USER = 'db_user'
 DRYRUN = 'dryrun'
 DRYRUN_E1_BASE = 'dryrun_e1_base'
 DRYRUN_E1_QUOTE = 'dryrun_e1_quote'

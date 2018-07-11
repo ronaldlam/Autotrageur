@@ -30,3 +30,9 @@ spread_min:
 vol_min:
 # Percentage downside of limit order slippage tolerable for market order emulations
 slippage: # Important for Gemini, eg. 3
+
+# ----------------DATABASE SETTINGS--------------------------------------------
+# (String) The database name.
+db_name:
+# (String) The database user.
+db_user:
