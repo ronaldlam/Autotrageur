@@ -313,6 +313,8 @@ class FCFAutotrageur(Autotrageur):
                         self.trade_metadata['sell_price'],
                         executed_amount)
 
+                    # TODO: executed_amount must be rounded down to precision
+                    # that the sell exchange supports.
                     if executed_amount != sell_response['pre_fee_base']:
                         msg = ("The purchased base amount does not match with "
                                "the sold amount. Normal execution has "
