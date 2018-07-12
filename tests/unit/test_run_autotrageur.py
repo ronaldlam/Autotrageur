@@ -17,7 +17,7 @@ def test_setup_background_logging(mocker):
     mocker.patch.object(logging, 'Formatter',
                         side_effect=[stream_format, file_format])
     stream_handler = mocker.patch.object(logging, 'StreamHandler')
-    file_handler = mocker.patch.object(logging.handlers, 'RotatingFileHandler')
+    file_handler = mocker.patch.object(logging.handlers, 'TimedRotatingFileHandler')
     queue_handler = mocker.patch.object(logging.handlers, 'QueueHandler')
     queue_listener = mocker.patch.object(logging.handlers, 'QueueListener',
                                          return_value=listener)
