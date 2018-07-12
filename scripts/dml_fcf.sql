@@ -1,6 +1,6 @@
-CREATE DATABASE IF NOT EXISTS fcf_table_history;
+CREATE DATABASE IF NOT EXISTS fcf_trade_history;
 
-USE fcf_table_history;
+USE fcf_trade_history;
 
 CREATE TABLE IF NOT EXISTS fcf_autotrageur_config (
     id VARCHAR(36) NOT NULL,

@@ -33,7 +33,7 @@ def setup_background_logging():
             that passes the log records to its handlers.
     """
     logfile_name = (
-        '%s.log' % str(datetime.now()).replace(' ', '_').replace('.', '_').replace(':', '_'))
+        'logs/%s.log' % str(datetime.now()).replace(' ', '_').replace('.', '_').replace(':', '_'))
     stream_format = logging.Formatter(
         "%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S")
@@ -45,7 +45,9 @@ def setup_background_logging():
     stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(stream_format)
 
-    file_handler = logging.FileHandler(logfile_name)
+    # Support 100k files of ~20mb -> 2tb.
+    file_handler = logging.handlers.RotatingFileHandler(
+        logfile_name, maxBytes=20000000, backupCount=100000)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(file_format)
 
