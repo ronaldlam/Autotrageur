@@ -75,3 +75,4 @@ scratch/
 # Local log files
 *.log
 *.log.*
+*.zip

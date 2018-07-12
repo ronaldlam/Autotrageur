@@ -16,10 +16,11 @@ Description:
 
 import logging
 import logging.handlers
+import os
 from datetime import datetime
+from queue import Queue
 
 from docopt import docopt
-from queue import Queue
 
 from bot.arbitrage.fcf_autotrageur import FCFAutotrageur
 from libs.utilities import set_autotrageur_decimal_context
@@ -32,8 +33,14 @@ def setup_background_logging():
         logging.handlers.QueueListener: The background thread listener
             that passes the log records to its handlers.
     """
-    logfile_name = (
-        'logs/%s.log' % str(datetime.now()).replace(' ', '_').replace('.', '_').replace(':', '_'))
+    name = str(datetime.now()).replace(' ', '_').replace('.', '_').replace(':', '_')
+    directory_name = 'logs/{}'.format(name)
+    logfile_name = '{}/{}.log'.format(directory_name, name)
+
+    # Intentionally unprotected. If there's another log with the same
+    # timestamp, there's something wrong. Go figure it out.
+    os.makedirs(directory_name)
+
     stream_format = logging.Formatter(
         "%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S")
@@ -45,9 +52,11 @@ def setup_background_logging():
     stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(stream_format)
 
-    # Support 100k files of ~20mb -> 2tb.
-    file_handler = logging.handlers.RotatingFileHandler(
-        logfile_name, maxBytes=20000000, backupCount=100000)
+    # BackupCount is arbitrarily large, will generate approx 3tb of
+    # files before rollover. We rely on external scripts to archive the
+    # logs.
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+        logfile_name, when='H', interval=4, backupCount=100000)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(file_format)
 
