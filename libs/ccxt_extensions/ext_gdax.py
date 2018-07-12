@@ -5,7 +5,7 @@ import ccxt
 
 from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
 from bot.common.decimal_constants import ZERO
-from libs.utilities import num_to_decimal
+from libs.utilities import num_to_decimal, split_symbol
 
 
 class ext_gdax(ccxt.gdax):
@@ -52,7 +52,7 @@ class ext_gdax(ccxt.gdax):
             dict: An Autotrageur specific unified response.
         """
         local_ts = int(time.time())
-        base, quote = symbol.upper().split('/')
+        base, quote = split_symbol(symbol)
 
         if side == BUY_SIDE:
             response = super().create_market_buy_order(symbol, amount, params)
@@ -65,7 +65,7 @@ class ext_gdax(ccxt.gdax):
         order_id = response['id']
         order = self._poll_order(order_id)
 
-        logging.info('Raw fetched order response for order_id {}:\n {}'.format(
+        logging.debug('Raw fetched order response for order_id {}:\n {}'.format(
             order_id, order
         ))
 
@@ -74,7 +74,7 @@ class ext_gdax(ccxt.gdax):
         cost = num_to_decimal(order['cost'])
 
         # Gdax takes the fees away from the quote.
-        fee_asset = symbol.split('/')[1].upper()
+        _, fee_asset = split_symbol(symbol)
         pre_fee_base = filled
         pre_fee_quote = cost
         post_fee_base = filled
@@ -138,7 +138,7 @@ class ext_gdax(ccxt.gdax):
         order, order_status = self._fetch_order_and_status(order_id)
 
         while order_status != 'done':
-            logging.info(
+            logging.debug(
                 'Order still processing with status: {}'.format(order_status))
             time.sleep(0.1)
             order, order_status = self._fetch_order_and_status(order_id)

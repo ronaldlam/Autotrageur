@@ -332,7 +332,7 @@ class FCFAutotrageur(Autotrageur):
     def _execute_trade(self):
         """Execute the arbitrage."""
         if self.config[DRYRUN]:
-            logging.info("**Dry run - begin fake execution")
+            logging.debug("**Dry run - begin fake execution")
             buy_response = arbseeker.execute_buy(
                 self.trade_metadata['buy_trader'],
                 self.trade_metadata['buy_price'])
@@ -346,7 +346,7 @@ class FCFAutotrageur(Autotrageur):
             self.trader2.update_wallet_balances(is_dry_run=True)
             self.dry_run.log_balances()
             self.__persist_trade_data(buy_response, sell_response)
-            logging.info("**Dry run - end fake execution")
+            logging.debug("**Dry run - end fake execution")
         else:
             try:
                 buy_response = arbseeker.execute_buy(
@@ -365,6 +365,8 @@ class FCFAutotrageur(Autotrageur):
                         self.trade_metadata['sell_price'],
                         executed_amount)
 
+                    # TODO: executed_amount must be rounded down to precision
+                    # that the sell exchange supports.
                     if executed_amount != sell_response['pre_fee_base']:
                         msg = ("The purchased base amount does not match with "
                                "the sold amount. Normal execution has "

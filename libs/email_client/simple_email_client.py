@@ -3,9 +3,6 @@ import smtplib
 
 import yaml
 
-EMAIL_CONFIG_FILEPATH = "configs/email_info.yaml"
-LOGGER = logging.getLogger()
-
 
 def _extract_email_info(email_cfg_path):
     """Extracts e-mail configuration information from the e-mail_info file.
@@ -55,19 +52,19 @@ def send_single_email(recipient, email_cfg, msg):
         smtp_server.login(email_cfg['username'], email_cfg['password'])
 
         smtp_server.sendmail(email_cfg['username'], recipient, msg)
-        LOGGER.info("Email sent successfully to: %s", recipient)
+        logging.info("Email sent successfully to: %s", recipient)
     except smtplib.SMTPResponseException:
         errcode = getattr(smtp_ex, 'smtp_code')
         errmsg = getattr(smtp_ex, 'smtp_error')
-        LOGGER.error("SMTPResponseException encountered with smpt_code: %s and"
-            " smtp_error: %s", str(errcode), errmsg)
+        logging.error("SMTPResponseException encountered with smpt_code: %s "
+                      "and smtp_error: %s", str(errcode), errmsg)
         raise
     except smtplib.SMTPException as smtp_ex:
-        LOGGER.error("SMTPException encountered trying to send email: %s",
-            smtp_ex)
+        logging.error("SMTPException encountered trying to send email: %s",
+                      smtp_ex)
         raise
     except Exception as e:
-        LOGGER.error("Exception encountered trying to send email: %s", e)
+        logging.error("Exception encountered trying to send email: %s", e)
         raise
     finally:
         if smtp_server:

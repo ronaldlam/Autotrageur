@@ -27,6 +27,15 @@ from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
 CONFIGFILE = "CONFIGFILE"
 KEYFILE = "KEYFILE"
 
+# Logging constants
+START_END_FORMAT = "{} {:^15} {}"
+STARS = "*"*20
+
+
+def fancy_log(title):
+    """Log title surrounded by stars."""
+    logging.info(START_END_FORMAT.format(STARS, title, STARS))
+
 
 class AuthenticationError(Exception):
     """Incorrect credentials or exchange unavailable."""
@@ -263,13 +272,21 @@ class Autotrageur(ABC):
             while True:
                 schedule.run_pending()
                 self._clean_up()
+                fancy_log("Start Poll")
                 if self._poll_opportunity():
+                    fancy_log("End Poll")
+                    fancy_log("Start Trade")
                     self._execute_trade()
+                    fancy_log("End Trade")
+                else:
+                    fancy_log("End Poll")
                 self._wait()
         except KeyboardInterrupt:
             if self.config[DRYRUN]:
-                logging.critical("Interrupted, data summary:")
+                logging.critical("Keyboard Interrupt")
+                fancy_log("Summary")
                 self.dry_run.log_all()
+                fancy_log("End")
             else:
                 raise
         except Exception as e:

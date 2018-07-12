@@ -5,7 +5,7 @@ from decimal import Decimal
 from bot.common.ccxt_constants import (BUY_SIDE, ORDER_TYPE_LIMIT,
                                        ORDER_TYPE_MARKET, SELL_SIDE)
 from bot.common.decimal_constants import ONE
-from libs.utilities import num_to_decimal
+from libs.utilities import num_to_decimal, split_symbol
 
 from .base_executor import BaseExecutor
 
@@ -22,7 +22,7 @@ class DryRunExecutor(BaseExecutor):
             dry_run_exchange (DryRunExchange): The dry run exchange to
                 hold state for the dry run.
         """
-        logging.info("*** Dry run with: %s", exchange.name)
+        logging.debug("*** Dry run with: %s", exchange.name)
         self.exchange = exchange
         self.fetcher = fetcher
         self.dry_run_exchange = dry_run_exchange
@@ -43,7 +43,7 @@ class DryRunExecutor(BaseExecutor):
         """
         local_ts = int(time.time())
         exchange_name = self.exchange.name.lower()
-        base, quote = symbol.upper().split('/')
+        base, quote = split_symbol(symbol)
         pre_fee_base = amount
         pre_fee_quote = amount * price
         taker_fee = self.fetcher.fetch_taker_fees()
@@ -112,7 +112,7 @@ class DryRunExecutor(BaseExecutor):
             dict: A pre-defined order dictionary populated with the
                 function's parameters.
         """
-        logging.info("Arguments: %s", locals())
+        logging.debug("Arguments: %s", locals())
         (asset_volume, _) = (
             self.exchange.prepare_emulated_market_buy_order(
                 symbol, quote_amount, asset_price, slippage)
@@ -138,7 +138,7 @@ class DryRunExecutor(BaseExecutor):
             dict: A pre-defined order dictionary populated with the
                 function's parameters.
         """
-        logging.info("Arguments: %s", locals())
+        logging.debug("Arguments: %s", locals())
         (rounded_amount, _) = (
             self.exchange.prepare_emulated_market_sell_order(
                 symbol, asset_price, asset_amount, slippage)
@@ -161,7 +161,7 @@ class DryRunExecutor(BaseExecutor):
             dict: A pre-defined order dictionary populated with the
                 function's parameters.
         """
-        logging.info("Arguments: %s", locals())
+        logging.debug("Arguments: %s", locals())
         return self._complete_order(
             BUY_SIDE, ORDER_TYPE_MARKET, symbol, asset_amount, asset_price)
 
@@ -178,6 +178,6 @@ class DryRunExecutor(BaseExecutor):
             dict: A pre-defined order dictionary populated with the
                 function's parameters.
         """
-        logging.info("Arguments: %s", locals())
+        logging.debug("Arguments: %s", locals())
         return self._complete_order(
             SELL_SIDE, ORDER_TYPE_MARKET, symbol, asset_amount, asset_price)
