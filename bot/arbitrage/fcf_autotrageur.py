@@ -10,8 +10,7 @@ import libs.db.maria_db_handler as db_handler
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, SPREAD_MIN,
                                          START_TIMESTAMP, VOL_MIN)
-from bot.common.db_constants import (CONFIG_MAP_TABLE, CONFIG_MAP_COLUMNS,
-                                     FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
+from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
                                      TRADE_OPPORTUNITY_TABLE, TRADES_TABLE)
 from bot.common.enums import Momentum
@@ -232,6 +231,18 @@ class FCFAutotrageur(Autotrageur):
 
         return False
 
+    def __persist_configs(self):
+        """Persists the configuration for this `fcf_autotrageur` run."""
+        # Add extra config entries for database persistence.
+        self.config[START_TIMESTAMP] = int(time.time())
+        self.config[ID] = str(uuid.uuid4())
+
+        fcf_autotrageur_config_row = db_handler.build_row(
+            FCF_AUTOTRAGEUR_CONFIG_COLUMNS, self.config)
+        db_handler.insert_row(
+            FCF_AUTOTRAGEUR_CONFIG_TABLE, fcf_autotrageur_config_row)
+        db_handler.commit_all()
+
     def __persist_trade_data(self, buy_response, sell_response):
         """Persists data regarding the current trade into the database.
 
@@ -240,9 +251,11 @@ class FCFAutotrageur(Autotrageur):
 
         Args:
             buy_response (dict): The autotrageur unified response from the
-                executed buy trade.
+                executed buy trade.  If a buy trade was unsuccessful, then
+                buy_response is None.
             sell_response (dict): The autotrageur unified response from the
-                executed sell trade.
+                executed sell trade.  If a sell trade was unsuccessful, then
+                sell_response is None.
         """
         # Persist the spread_opp.
         trade_opportunity_id = self.trade_metadata['spread_opp'].id
@@ -312,18 +325,6 @@ class FCFAutotrageur(Autotrageur):
         self.last_target_index = self.target_index
         self.target_index += 1
 
-    def __persist_configs(self):
-        """Persists the configuration for this `fcf_autotrageur` run."""
-        # Add extra config entries for database persistence.
-        self.config[START_TIMESTAMP] = int(time.time())
-        self.config[ID] = str(uuid.uuid4())
-
-        fcf_autotrageur_config_row = db_handler.build_row(
-            FCF_AUTOTRAGEUR_CONFIG_COLUMNS, self.config)
-        db_handler.insert_row(
-            FCF_AUTOTRAGEUR_CONFIG_TABLE, fcf_autotrageur_config_row)
-        db_handler.commit_all()
-
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
         actions which may be harmed by previous state."""
@@ -331,6 +332,9 @@ class FCFAutotrageur(Autotrageur):
 
     def _execute_trade(self):
         """Execute the arbitrage."""
+        buy_response = None
+        sell_response = None
+
         if self.config[DRYRUN]:
             logging.debug("**Dry run - begin fake execution")
             buy_response = arbseeker.execute_buy(

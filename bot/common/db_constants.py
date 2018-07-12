@@ -1,13 +1,11 @@
 """Database constants."""
 
 # Table names.
-CONFIG_MAP_TABLE = 'config_map'
 FCF_AUTOTRAGEUR_CONFIG_TABLE = 'fcf_autotrageur_config'
 TRADES_TABLE = 'trades'
 TRADE_OPPORTUNITY_TABLE = 'trade_opportunity'
 
 # Table columns.
-CONFIG_MAP_COLUMNS = [ 'id', 'table_name' ]
 FCF_AUTOTRAGEUR_CONFIG_COLUMNS = [
     'dryrun',
     'dryrun_e1_base',

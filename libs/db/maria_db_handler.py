@@ -6,6 +6,13 @@ import MySQLdb
 # The database object.
 db = None
 
+
+class InvalidRowFormatError(Exception):
+    """Thrown when a row object is deemed invalid for DB insertion (e.g. Wrong
+    type, or empty)"""
+    pass
+
+
 def _form_insert_ignore_query(table_name, columns, param_string):
     """Forms an 'INSERT IGNORE INTO ...' query string.
 
@@ -21,10 +28,10 @@ def _form_insert_ignore_query(table_name, columns, param_string):
     return (
         "INSERT IGNORE INTO "
         + table_name
-        + re.sub(r"((?<=\()')"              # single quote, look-behind '('
-                 r"|('(?=,))"               # single quote, look-ahead ','
-                 r"|((?<=[^\S\r\n\t]|,)')"  # single quote, look-behind space character, or ','
-                 r"|('(?=\)))",             # single quote, look-ahead ')'
+        + re.sub(r"((?<=\()('|\"))"              # single quote, look-behind '('
+                 r"|(('|\")(?=,))"               # single quote, look-ahead ','
+                 r"|((?<=[^\S\r\n\t]|,)('|\"))"  # single quote, look-behind space character, or ','
+                 r"|(('|\")(?=\)))",             # single quote, look-ahead ')'
                  '', str(columns))
         + " VALUES (" + param_string + ")"
     )
@@ -66,7 +73,15 @@ def insert_row(table_name, row):
         table_name (str): The name of the table to insert into.
         row (dict): The row object containing the necessary information for
             insertion into database.
+
+    Raises:
+        InvalidRowFormatError: Thrown if the row object is not a dict or is
+            empty.  This is to maintain DB integrity.
     """
+    if not isinstance(row, dict) or len(row) is 0:
+        raise InvalidRowFormatError("Row object: {} is not a valid format for "
+            "DB insertion.  Please make sure it is a dict.".format(row))
+
     columns = *row,
     row_data = *row.values(),
     cursor = db.cursor()
