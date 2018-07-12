@@ -1,5 +1,6 @@
 import logging
 from collections import namedtuple
+import uuid
 
 from ccxt import NetworkError
 
@@ -23,7 +24,7 @@ PriceEntry = namedtuple(
 # Structure containing spread and price info for an arbitrage opportunity.
 SpreadOpportunity = namedtuple(
     'SpreadOpportunity',
-    ['e1_spread', 'e2_spread', 'e1_buy', 'e2_buy', 'e1_sell', 'e2_sell'])
+    ['id', 'e1_spread', 'e2_spread', 'e1_buy', 'e2_buy', 'e1_sell', 'e2_sell'])
 
 
 def get_spreads_by_ob(trader1, trader2):
@@ -60,7 +61,7 @@ def get_spreads_by_ob(trader1, trader2):
         prices[item.price_type] = item.trader.get_prices_from_orderbook(
             item.bids_or_asks)
 
-        logging.info("%s %s of %s %s of %s, price: %s USD",
+        logging.info("Price - %10s %4s of %30s %s of %s: %30s USD",
                         item.trader.exchange_name,
                         item.side,
                         item.trader.quote_target_amount,
@@ -78,17 +79,17 @@ def get_spreads_by_ob(trader1, trader2):
         trader1.get_taker_fee(), trader2.get_taker_fee(),
         trader1.get_buy_target_includes_fee())
 
-    logging.info("Ex2 (%s) buy Ex1 (%s) sell e1_spread: (%s)" %
-                 (trader2.exchange_name,
-                  trader1.exchange_name,
-                  e1_spread))
-    logging.info("Ex1 (%s) buy Ex2 (%s) sell e2_spread: (%s)" %
-                 (trader1.exchange_name,
-                  trader2.exchange_name,
-                  e2_spread))
+    logging.info(
+        'Spread - {:^60} {:>30} %'.format(
+            '{} -> {}:'.format(trader2.exchange_name, trader1.exchange_name),
+            e1_spread))
+    logging.info(
+        'Spread - {:^60} {:>30} %'.format(
+            '{} -> {}:'.format(trader1.exchange_name, trader2.exchange_name),
+            e2_spread))
 
     return SpreadOpportunity(
-        e1_spread, e2_spread, prices[E1_BUY].quote_price,
+        str(uuid.uuid4()), e1_spread, e2_spread, prices[E1_BUY].quote_price,
         prices[E2_BUY].quote_price, prices[E1_SELL].quote_price,
         prices[E2_SELL].quote_price)
 
@@ -110,7 +111,11 @@ def execute_buy(trader, price):
     """
     logging.debug("Buy price: %s" % (price))
     buy_result = trader.execute_market_buy(price)
-    logging.info("Buy result: %s" % buy_result)
+    logging.debug("Buy result: %s" % buy_result)
+    logging.info("{:<30} {:^20} -> {:^20}".format(
+        "Buy executed on {}:".format(trader.exchange_name),
+        "{:.2f} {}".format(buy_result['post_fee_quote'], trader.quote),
+        "{} {}".format(buy_result['post_fee_base'], trader.base)))
     return buy_result
 
 
@@ -134,5 +139,9 @@ def execute_sell(trader, price, executed_amount):
     sell_result = trader.execute_market_sell(
         price,
         executed_amount)
-    logging.info("Sell result: %s" % sell_result)
+    logging.debug("Sell result: %s" % sell_result)
+    logging.info("{:<54} {:^20} -> {:^20}".format(
+        "Sell executed on {}:".format(trader.exchange_name),
+        "{} {}".format(sell_result['pre_fee_base'], trader.base),
+        "{:.2f} {}".format(sell_result['post_fee_quote'], trader.quote)))
     return sell_result

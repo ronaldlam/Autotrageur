@@ -5,7 +5,7 @@ import ccxt
 
 from bot.common.ccxt_constants import BUY_SIDE
 from bot.common.decimal_constants import ZERO, HUNDRED
-from libs.utilities import num_to_decimal
+from libs.utilities import num_to_decimal, split_symbol
 
 
 OPTIONS = {"options": ["immediate-or-cancel"]}
@@ -103,6 +103,9 @@ class ext_gemini(ccxt.gemini):
         }
         The result is formatted as:
         {
+            'exchange' (String): 'gemini',
+            'base' (String): 'ETH',
+            'quote' (String): 'USD',
             'pre_fee_base' (Decimal): 0.100,
             'pre_fee_quote' (Decimal): 50.00,
             'post_fee_base' (Decimal): 0.100,
@@ -131,7 +134,7 @@ class ext_gemini(ccxt.gemini):
         trade_list = self.fetch_my_trades(symbol)
         order_id = result['id']
         side = result['info']['side']
-        _, quote = symbol.upper().split('/')
+        base, quote = split_symbol(symbol)
         trades = list(filter(lambda x: x['order'] == order_id, trade_list))
 
         pre_fee_base = num_to_decimal(result['info']['executed_amount'])
@@ -162,6 +165,9 @@ class ext_gemini(ccxt.gemini):
             true_price = post_fee_quote / post_fee_base
 
         return {
+            'exchange': self.name.lower(),
+            'base': base,
+            'quote': quote,
             'pre_fee_base': pre_fee_base,
             'pre_fee_quote': pre_fee_quote,
             'post_fee_base': post_fee_base,
@@ -358,10 +364,10 @@ class ext_gemini(ccxt.gemini):
         asset_volume = round(asset_volume, a_precision)
         limit_price = round(limit_price, p_precision)
 
-        logging.info("Gemini emulated market buy.")
-        logging.info("Estimated asset price: %s" % asset_price)
-        logging.info("Asset volume: %s" % asset_volume)
-        logging.info("Limit price: %s" % limit_price)
+        logging.debug("Gemini emulated market buy.")
+        logging.debug("Estimated asset price: %s" % asset_price)
+        logging.debug("Asset volume: %s" % asset_volume)
+        logging.debug("Limit price: %s" % limit_price)
 
         return (asset_volume, limit_price)
 
@@ -421,10 +427,10 @@ class ext_gemini(ccxt.gemini):
         rounded_amount = round(asset_amount, a_precision)
         rounded_limit_price = round(asset_price * ratio, p_precision)
 
-        logging.info("Gemini emulated market sell.")
-        logging.info("Estimated asset price: %s" % asset_price)
-        logging.info("Asset volume: %s" % rounded_amount)
-        logging.info("Limit price: %s" % rounded_limit_price)
+        logging.debug("Gemini emulated market sell.")
+        logging.debug("Estimated asset price: %s" % asset_price)
+        logging.debug("Asset volume: %s" % rounded_amount)
+        logging.debug("Limit price: %s" % rounded_limit_price)
 
         return (rounded_amount, rounded_limit_price)
 

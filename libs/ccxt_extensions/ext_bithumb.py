@@ -8,7 +8,7 @@ from googletrans import Translator
 
 from bot.common.ccxt_constants import UNIFIED_FUNCTION_NAMES, BUY_SIDE, SELL_SIDE
 from bot.common.decimal_constants import ZERO
-from libs.utilities import num_to_decimal
+from libs.utilities import num_to_decimal, split_symbol
 
 
 class ext_bithumb(ccxt.bithumb):
@@ -71,7 +71,7 @@ class ext_bithumb(ccxt.bithumb):
         pre_fee_base = ZERO
         pre_fee_quote = ZERO
         fees = ZERO
-        base, quote = symbol.upper().split('/')
+        base, quote = split_symbol(symbol)
         local_timestamp = int(time.time())
 
         if side == BUY_SIDE:
@@ -112,6 +112,9 @@ class ext_bithumb(ccxt.bithumb):
             true_price = post_fee_quote / post_fee_base
 
         return {
+            'exchange': self.name.lower(),
+            'base': base,
+            'quote': quote,
             'pre_fee_base': pre_fee_base,
             'pre_fee_quote': pre_fee_quote,
             'post_fee_base': post_fee_base,
@@ -191,6 +194,9 @@ class ext_bithumb(ccxt.bithumb):
 
         The response is formatted as:
         {
+            'exchange' (String): 'bithumb',
+            'base' (String): 'ETH',
+            'quote' (String): 'USD',
             'pre_fee_base' (Decimal): 0.100,
             'pre_fee_quote' (Decimal): 50.00,
             'post_fee_base' (Decimal): 0.100,
@@ -223,6 +229,9 @@ class ext_bithumb(ccxt.bithumb):
 
         The response is formatted as:
         {
+            'exchange' (String): 'bithumb',
+            'base' (String): 'ETH',
+            'quote' (String): 'USD',
             'pre_fee_base' (Decimal): 0.100,
             'pre_fee_quote' (Decimal): 50.00,
             'post_fee_base' (Decimal): 0.100,

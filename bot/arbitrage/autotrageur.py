@@ -8,13 +8,15 @@ import ccxt
 import schedule
 import yaml
 
+import libs.db.maria_db_handler as db_handler
 from bot.common.ccxt_constants import API_KEY, API_SECRET
-from bot.common.config_constants import (DRYRUN, DRYRUN_E1_BASE,
-                                         DRYRUN_E1_QUOTE, DRYRUN_E2_BASE,
-                                         DRYRUN_E2_QUOTE, EXCHANGE1,
-                                         EXCHANGE1_PAIR, EXCHANGE1_TEST,
-                                         EXCHANGE2, EXCHANGE2_PAIR,
-                                         EXCHANGE2_TEST, SLIPPAGE)
+from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
+                                         DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
+                                         DRYRUN_E2_BASE, DRYRUN_E2_QUOTE,
+                                         EXCHANGE1, EXCHANGE1_PAIR,
+                                         EXCHANGE1_TEST, EXCHANGE2,
+                                         EXCHANGE2_PAIR, EXCHANGE2_TEST,
+                                         SLIPPAGE)
 from bot.trader.ccxt_trader import CCXTTrader
 from bot.trader.dry_run import DryRun, DryRunExchange
 from libs.fiat_symbols import FIAT_SYMBOLS
@@ -24,6 +26,15 @@ from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
 # Program argument constants.
 CONFIGFILE = "CONFIGFILE"
 KEYFILE = "KEYFILE"
+
+# Logging constants
+START_END_FORMAT = "{} {:^15} {}"
+STARS = "*"*20
+
+
+def fancy_log(title):
+    """Log title surrounded by stars."""
+    logging.info(START_END_FORMAT.format(STARS, title, STARS))
 
 
 class AuthenticationError(Exception):
@@ -52,6 +63,15 @@ class Autotrageur(ABC):
         with open(file_name, "r") as ymlfile:
             self.config = yaml.load(ymlfile)
 
+    def __load_db(self):
+        """Initializes and connects to the database."""
+        db_password = getpass.getpass(
+            prompt="Enter database password:")
+        db_handler.start_db(
+            self.config[DB_USER],
+            db_password,
+            self.config[DB_NAME])
+
     def __load_keyfile(self, arguments):
         """Load the keyfile given in the arguments.
 
@@ -69,7 +89,7 @@ class Autotrageur(ABC):
                 unavailable.
         """
         try:
-            pw = getpass.getpass()
+            pw = getpass.getpass(prompt="Enter keyfile password:")
             with open(arguments[KEYFILE], "rb") as in_file:
                 keys = decrypt(
                     in_file.read(),
@@ -98,6 +118,9 @@ class Autotrageur(ABC):
         """
         # Load arb configuration.
         self.__load_config_file(arguments[CONFIGFILE])
+
+        # Initialize and connect to the database.
+        self.__load_db()
 
         # Load keyfile.
         exchange_key_map = self.__load_keyfile(arguments)
@@ -240,7 +263,6 @@ class Autotrageur(ABC):
             requires_configs (bool, optional): Defaults to True. Whether
                 the call requires the config file to be loaded.
         """
-
         if requires_configs:
             self._load_configs(arguments)
 
@@ -250,13 +272,21 @@ class Autotrageur(ABC):
             while True:
                 schedule.run_pending()
                 self._clean_up()
+                fancy_log("Start Poll")
                 if self._poll_opportunity():
+                    fancy_log("End Poll")
+                    fancy_log("Start Trade")
                     self._execute_trade()
+                    fancy_log("End Trade")
+                else:
+                    fancy_log("End Poll")
                 self._wait()
         except KeyboardInterrupt:
             if self.config[DRYRUN]:
-                logging.critical("Interrupted, data summary:")
+                logging.critical("Keyboard Interrupt")
+                fancy_log("Summary")
                 self.dry_run.log_all()
+                fancy_log("End")
             else:
                 raise
         except Exception as e:

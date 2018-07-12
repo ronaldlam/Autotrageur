@@ -30,3 +30,9 @@ spread_min: 0.05
 vol_min: 1000
 # Percentage downside of limit order slippage tolerable for market order emulations
 slippage: 3 # Important for Gemini, eg. 3
+
+# ----------------DATABASE SETTINGS--------------------------------------------
+# (String) The database name.
+db_name: fcf_trade_history
+# (String) The database user.
+db_user: root

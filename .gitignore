@@ -71,3 +71,8 @@ email_info.yaml
 .pytest_cache/
 scratch.py
 scratch/
+
+# Local log files
+*.log
+*.log.*
+*.zip

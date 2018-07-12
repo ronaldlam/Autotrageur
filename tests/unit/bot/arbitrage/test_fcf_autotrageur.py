@@ -1,26 +1,33 @@
 # pylint: disable=E1101
 import copy
+import time
+import uuid
 from decimal import Decimal, InvalidOperation
 
 import pytest
-from ccxt import NetworkError, ExchangeError
+from ccxt import ExchangeError, NetworkError
 
 import bot.arbitrage.arbseeker as arbseeker
 import bot.arbitrage.fcf_autotrageur
-from libs.email_client.simple_email_client import send_all_emails
-from libs.utilities import num_to_decimal
+import libs.db.maria_db_handler as db_handler
 from bot.arbitrage.arbseeker import SpreadOpportunity
 from bot.arbitrage.fcf_autotrageur import (EMAIL_HIGH_SPREAD_HEADER,
                                            EMAIL_LOW_SPREAD_HEADER,
                                            EMAIL_NONE_SPREAD, FCFAutotrageur,
                                            FCFCheckpoint,
-                                           InsufficientCryptoBalance,
                                            IncompleteArbitrageError,
+                                           InsufficientCryptoBalance,
                                            arbseeker, email_count, prev_spread)
-from bot.common.config_constants import (DRYRUN, H_TO_E1_MAX, H_TO_E2_MAX,
-                                         SPREAD_MIN, VOL_MIN, EMAIL_CFG_PATH)
+from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
+                                         H_TO_E2_MAX, ID, SPREAD_MIN,
+                                         START_TIMESTAMP, VOL_MIN)
+from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
+                                     FCF_AUTOTRAGEUR_CONFIG_TABLE,
+                                     TRADE_OPPORTUNITY_TABLE, TRADES_TABLE)
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import OrderbookException
+from libs.email_client.simple_email_client import send_all_emails
+from libs.utilities import num_to_decimal
 
 xfail = pytest.mark.xfail
 
@@ -29,23 +36,38 @@ xfail = pytest.mark.xfail
 FAKE_BUY_PRICE = num_to_decimal(100.99)
 FAKE_SELL_PRICE = num_to_decimal(105.99)
 FAKE_PRE_FEE_BASE = num_to_decimal(10.00)
-FAKE_PRE_FEE_QUOTE = num_to_decimal(100.99)
-FAKE_POST_FEE_BASE = num_to_decimal(10.00)
-FAKE_POST_FEE_QUOTE = num_to_decimal(100.99)
+FAKE_PRE_FEE_QUOTE_BUY = FAKE_BUY_PRICE
+FAKE_PRE_FEE_QUOTE_SELL = FAKE_SELL_PRICE
 
-FAKE_UNIFIED_RESPONSE = {
+FAKE_POST_FEE_BASE = num_to_decimal(10.00)
+FAKE_POST_FEE_QUOTE_BUY = FAKE_BUY_PRICE
+FAKE_POST_FEE_QUOTE_SELL = FAKE_SELL_PRICE
+
+FAKE_UNIFIED_RESPONSE_BUY = {
     'pre_fee_base': FAKE_PRE_FEE_BASE,
-    'pre_fee_quote': FAKE_PRE_FEE_QUOTE,
+    'pre_fee_quote': FAKE_PRE_FEE_QUOTE_BUY,
     'post_fee_base': FAKE_POST_FEE_BASE,
-    'post_fee_quote': FAKE_POST_FEE_QUOTE
+    'post_fee_quote': FAKE_POST_FEE_QUOTE_BUY
+}
+
+FAKE_UNIFIED_RESPONSE_SELL = {
+    'pre_fee_base': FAKE_PRE_FEE_BASE,
+    'pre_fee_quote': FAKE_PRE_FEE_QUOTE_SELL,
+    'post_fee_base': FAKE_POST_FEE_BASE,
+    'post_fee_quote': FAKE_POST_FEE_QUOTE_SELL
 }
 
 FAKE_UNIFIED_RESPONSE_DIFFERENT_AMOUNT = {
     'pre_fee_base': num_to_decimal(101.99),
-    'pre_fee_quote': FAKE_PRE_FEE_QUOTE,
+    'pre_fee_quote': FAKE_PRE_FEE_QUOTE_SELL,
     'post_fee_base': FAKE_POST_FEE_BASE,
-    'post_fee_quote': FAKE_POST_FEE_QUOTE
+    'post_fee_quote': FAKE_POST_FEE_QUOTE_SELL
 }
+
+FAKE_CONFIG_UUID = uuid.uuid4()
+FAKE_SPREAD_OPP_ID = 9999
+FAKE_CURR_TIME = time.time()
+FAKE_CONFIG_ROW = { 'fake': 'config_row' }
 
 @pytest.fixture(scope='module')
 def no_patch_fcf_autotrageur():
@@ -194,7 +216,7 @@ def test_evaluate_spread(
         mocker, fcf_autotrageur, e1_spread, e2_spread, momentum, target_index):
     # Setup fcf_autotrageur
     spread_opp = SpreadOpportunity(
-        e1_spread, e2_spread, None, None, None, None)
+        FAKE_CONFIG_UUID, e1_spread, e2_spread, None, None, None, None)
     mocker.patch.object(fcf_autotrageur, 'momentum', momentum, create=True)
     mocker.patch.object(fcf_autotrageur, 'target_index', target_index, create=True)
     # Chosen for the roughly round numbers.
@@ -257,6 +279,88 @@ def test_evaluate_spread(
             return
 
     assert result is False
+
+
+def test_persist_configs(mocker, no_patch_fcf_autotrageur):
+    mocker.patch.object(time, 'time', return_value=FAKE_CURR_TIME)
+    mocker.patch.object(uuid, 'uuid4', return_value=FAKE_CONFIG_UUID)
+    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {}, create=True)
+    mocker.patch.object(db_handler, 'build_row', return_value=FAKE_CONFIG_ROW)
+    mocker.patch.object(db_handler, 'insert_row')
+    mocker.patch.object(db_handler, 'commit_all')
+
+    no_patch_fcf_autotrageur._FCFAutotrageur__persist_configs()
+
+    time.time.assert_called_once_with()
+    uuid.uuid4.assert_called_once_with()
+    assert no_patch_fcf_autotrageur.config[START_TIMESTAMP] == int(FAKE_CURR_TIME)
+    assert no_patch_fcf_autotrageur.config[ID] == str(FAKE_CONFIG_UUID)
+    db_handler.build_row.assert_called_once_with(
+        FCF_AUTOTRAGEUR_CONFIG_COLUMNS, no_patch_fcf_autotrageur.config)
+    db_handler.insert_row.assert_called_once_with(
+        FCF_AUTOTRAGEUR_CONFIG_TABLE, FAKE_CONFIG_ROW)
+    db_handler.commit_all.assert_called_once_with()
+
+
+@pytest.mark.parametrize('buy_response', [
+    None, FAKE_UNIFIED_RESPONSE_BUY
+])
+@pytest.mark.parametrize('sell_response', [
+    None, FAKE_UNIFIED_RESPONSE_SELL
+])
+def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
+                            buy_response, sell_response):
+    # Copy the response dicts, as the tested function mutates the variables.
+    buy_response_copy = copy.deepcopy(buy_response)
+    sell_response_copy = copy.deepcopy(sell_response)
+
+    mocker.patch.object(no_patch_fcf_autotrageur, 'trade_metadata', {
+        'spread_opp': SpreadOpportunity(FAKE_SPREAD_OPP_ID, None, None, None,
+                                        None, None, None)
+    }, create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
+        ID: FAKE_CONFIG_UUID
+    }, create=True)
+    mocker.patch.object(db_handler, 'insert_row')
+    mocker.patch.object(db_handler, 'commit_all')
+
+    # Number of insert calls will vary depending on number of successful trades.
+    insert_num_calls = 1
+    insert_call_args_list = [
+        mocker.call(
+            TRADE_OPPORTUNITY_TABLE,
+            no_patch_fcf_autotrageur.trade_metadata['spread_opp']._asdict())
+    ]
+
+    # Check that the ids are not populated until function is called.
+    if buy_response_copy is not None:
+        assert buy_response_copy.get('trade_opportunity_id') is None
+        assert buy_response_copy.get('autotrageur_config_id') is None
+    if sell_response_copy is not None:
+        assert sell_response_copy.get('trade_opportunity_id') is None
+        assert sell_response_copy.get('autotrageur_config_id') is None
+    no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data(
+        buy_response_copy, sell_response_copy)
+
+    if buy_response_copy is not None:
+        insert_num_calls += 1
+        insert_call_args_list.append(mocker.call(
+            TRADES_TABLE, buy_response_copy
+        ))
+        assert buy_response_copy.get('trade_opportunity_id') is FAKE_SPREAD_OPP_ID
+        assert buy_response_copy.get('autotrageur_config_id') is FAKE_CONFIG_UUID
+
+    if sell_response_copy is not None:
+        insert_num_calls += 1
+        insert_call_args_list.append(mocker.call(
+            TRADES_TABLE, sell_response_copy
+        ))
+        assert sell_response_copy.get('trade_opportunity_id') is FAKE_SPREAD_OPP_ID
+        assert sell_response_copy.get('autotrageur_config_id') is FAKE_CONFIG_UUID
+
+    assert db_handler.insert_row.call_count == insert_num_calls
+    assert db_handler.insert_row.call_args_list == insert_call_args_list
+    db_handler.commit_all.assert_called_once_with()
 
 
 @pytest.mark.parametrize(
@@ -347,11 +451,13 @@ class TestExecuteTrade:
             'sell_trader': no_patch_fcf_autotrageur.trader2
         }, create=True)
         mocker.patch.object(
-            arbseeker, 'execute_buy', return_value=FAKE_UNIFIED_RESPONSE)
+            arbseeker, 'execute_buy', return_value=FAKE_UNIFIED_RESPONSE_BUY)
         mocker.patch.object(
-            arbseeker, 'execute_sell', return_value=FAKE_UNIFIED_RESPONSE)
+            arbseeker, 'execute_sell', return_value=FAKE_UNIFIED_RESPONSE_SELL)
         mocker.patch.object(no_patch_fcf_autotrageur.trader1, 'update_wallet_balances')
         mocker.patch.object(no_patch_fcf_autotrageur.trader2, 'update_wallet_balances')
+        mocker.patch.object(
+            no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_trade_data', create=True)
 
         if dryrun:
             mocker.patch.object(no_patch_fcf_autotrageur, 'dry_run', create=True)
@@ -368,7 +474,9 @@ class TestExecuteTrade:
         arbseeker.execute_sell.assert_called_once_with(
             no_patch_fcf_autotrageur.trade_metadata['sell_trader'],
             no_patch_fcf_autotrageur.trade_metadata['sell_price'],
-            FAKE_UNIFIED_RESPONSE['post_fee_base'])
+            FAKE_UNIFIED_RESPONSE_BUY['post_fee_base'])
+        no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data.assert_called_once_with(
+            FAKE_UNIFIED_RESPONSE_BUY, FAKE_UNIFIED_RESPONSE_SELL)
         if dryrun:
             no_patch_fcf_autotrageur.trader1.update_wallet_balances.assert_called_once_with(is_dry_run=True)
             no_patch_fcf_autotrageur.trader2.update_wallet_balances.assert_called_once_with(is_dry_run=True)
@@ -392,6 +500,8 @@ class TestExecuteTrade:
             no_patch_fcf_autotrageur.trade_metadata['buy_trader'],
             no_patch_fcf_autotrageur.trade_metadata['buy_price'])
         arbseeker.execute_sell.assert_not_called()
+        no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data.assert_called_once_with(
+            None, None)
         no_patch_fcf_autotrageur.trader1.update_wallet_balances.assert_not_called()
         no_patch_fcf_autotrageur.trader2.update_wallet_balances.assert_not_called()
 
@@ -419,7 +529,16 @@ class TestExecuteTrade:
         arbseeker.execute_sell.assert_called_once_with(
             no_patch_fcf_autotrageur.trade_metadata['sell_trader'],
             no_patch_fcf_autotrageur.trade_metadata['sell_price'],
-            FAKE_UNIFIED_RESPONSE['post_fee_base'])
+            FAKE_UNIFIED_RESPONSE_BUY['post_fee_base'])
+
+        # IncompleteArbitrageError gets raised with a populated sell_response,
+        # just that the base amount doesn't match the buy_order.
+        if exc_type is IncompleteArbitrageError:
+            no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data.assert_called_once_with(
+                FAKE_UNIFIED_RESPONSE_BUY, FAKE_UNIFIED_RESPONSE_DIFFERENT_AMOUNT)
+        else:
+            no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data.assert_called_once_with(
+                FAKE_UNIFIED_RESPONSE_BUY, None)
         no_patch_fcf_autotrageur.checkpoint.restore.assert_not_called()
         no_patch_fcf_autotrageur._send_email.assert_called_once()
         no_patch_fcf_autotrageur.trader1.update_wallet_balances.assert_not_called()
@@ -532,21 +651,25 @@ def test_send_email(mocker, no_patch_fcf_autotrageur):
     )
 
 
-def test_setup(mocker, fcf_autotrageur):
+def test_setup(mocker, no_patch_fcf_autotrageur):
     import builtins
     s = mocker.patch.object(builtins, 'super')
-    mocker.patch.dict(fcf_autotrageur.config, {
+    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
         SPREAD_MIN: 2,
         VOL_MIN: 1000,
         H_TO_E1_MAX: 3,
         H_TO_E2_MAX: 50
-    })
+    }, create=True)
+    mock_persist_configs = mocker.patch.object(
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_configs',
+        create=True)
 
-    fcf_autotrageur._setup()
+    no_patch_fcf_autotrageur._setup()
 
     s.assert_called_once()
-    assert fcf_autotrageur.spread_min == Decimal('2')
-    assert fcf_autotrageur.vol_min == Decimal('1000')
-    assert fcf_autotrageur.h_to_e1_max == Decimal('3')
-    assert fcf_autotrageur.h_to_e2_max == Decimal('50')
-    assert isinstance(fcf_autotrageur.checkpoint, FCFCheckpoint)
+    mock_persist_configs.assert_called_once_with()
+    assert no_patch_fcf_autotrageur.spread_min == Decimal('2')
+    assert no_patch_fcf_autotrageur.vol_min == Decimal('1000')
+    assert no_patch_fcf_autotrageur.h_to_e1_max == Decimal('3')
+    assert no_patch_fcf_autotrageur.h_to_e2_max == Decimal('50')
+    assert isinstance(no_patch_fcf_autotrageur.checkpoint, FCFCheckpoint)

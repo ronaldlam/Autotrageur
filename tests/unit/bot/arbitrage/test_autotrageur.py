@@ -6,13 +6,15 @@ import schedule
 import yaml
 
 import bot.arbitrage.autotrageur
-from bot.arbitrage.autotrageur import (AuthenticationError, Autotrageur)
-from bot.common.config_constants import (DRYRUN, DRYRUN_E1_BASE, DRYRUN_E2_BASE,
-                                        DRYRUN_E1_QUOTE, DRYRUN_E2_QUOTE,
-                                        EXCHANGE1, EXCHANGE1_PAIR,
-                                        EXCHANGE1_TEST, EXCHANGE2,
-                                        EXCHANGE2_PAIR, EXCHANGE2_TEST,
-                                        SLIPPAGE)
+import libs.db.maria_db_handler as db_handler
+from bot.arbitrage.autotrageur import AuthenticationError, Autotrageur
+from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
+                                         DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
+                                         DRYRUN_E2_BASE, DRYRUN_E2_QUOTE,
+                                         EXCHANGE1, EXCHANGE1_PAIR,
+                                         EXCHANGE1_TEST, EXCHANGE2,
+                                         EXCHANGE2_PAIR, EXCHANGE2_TEST,
+                                         SLIPPAGE)
 from bot.trader.dry_run import DryRun, DryRunExchange
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map
@@ -69,6 +71,7 @@ def test_load_keyfile(mocker, autotrageur, succeed, dryrun):
 
     key_map = autotrageur._Autotrageur__load_keyfile(args)
 
+    getpass.getpass.assert_called_once_with(prompt="Enter keyfile password:")   # pylint: disable=E1101
     if succeed:
         assert(key_map)
     else:
@@ -85,6 +88,7 @@ def test_load_configs(mocker, autotrageur, keyfile_loaded):
     args = mocker.MagicMock()
     # These are name mangled.
     mocker.patch.object(autotrageur, '_Autotrageur__load_config_file')
+    mocker.patch.object(autotrageur, '_Autotrageur__load_db')
     mocker.patch.object(autotrageur, '_Autotrageur__load_keyfile')
     mocker.patch.dict(autotrageur.config, { EXCHANGE1: 'e1', EXCHANGE2: 'e2' })
     if not keyfile_loaded:
@@ -93,6 +97,7 @@ def test_load_configs(mocker, autotrageur, keyfile_loaded):
     autotrageur._load_configs(args)
 
     autotrageur._Autotrageur__load_config_file.assert_called_once()
+    autotrageur._Autotrageur__load_db.assert_called_once()
     autotrageur._Autotrageur__load_keyfile.assert_called_once()
     assert("nonce" in autotrageur.exchange1_configs)
     assert("nonce" in autotrageur.exchange2_configs)
@@ -108,6 +113,23 @@ def test_load_configs(mocker, autotrageur, keyfile_loaded):
         assert("secret" not in autotrageur.exchange1_configs)
         assert("secret" not in autotrageur.exchange2_configs)
 
+
+def test_load_db(mocker, autotrageur):
+    MOCK_DB_PASSWORD = 'FAKE_DB_PASSWORD'
+    mocker.patch('getpass.getpass', return_value=MOCK_DB_PASSWORD)
+    mocker.patch.object(db_handler, 'start_db')
+    mocker.patch.dict(autotrageur.config, {
+        DB_USER: 'test_user',
+        DB_NAME: 'test_db'
+    })
+
+    autotrageur._Autotrageur__load_db()
+
+    getpass.getpass.assert_called_once_with(prompt="Enter database password:")  # pylint: disable=E1101
+    db_handler.start_db.assert_called_once_with(        # pylint: disable=E1101
+        autotrageur.config[DB_USER],
+        MOCK_DB_PASSWORD,
+        autotrageur.config[DB_NAME])
 
 @pytest.mark.parametrize("ex1_test", [True, False])
 @pytest.mark.parametrize("ex2_test", [True, False])
