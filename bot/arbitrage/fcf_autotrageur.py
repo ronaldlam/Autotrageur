@@ -1,4 +1,5 @@
 import logging
+import pprint
 import time
 import uuid
 from decimal import Decimal
@@ -21,15 +22,7 @@ from libs.utilities import num_to_decimal, set_autotrageur_decimal_context
 from .autotrageur import Autotrageur
 
 # Global module variables.
-prev_spread = Decimal('0')
-email_count = 0
 DECIMAL_ONE = num_to_decimal('1')
-
-
-# Email message constants.
-EMAIL_HIGH_SPREAD_HEADER = "Subject: Arb Forward-Spread Alert!\nThe spread of "
-EMAIL_LOW_SPREAD_HEADER = "Subject: Arb Backward-Spread Alert!\nThe spread of "
-EMAIL_NONE_SPREAD = "No arb opportunity found."
 
 
 class IncompleteArbitrageError(Exception):
@@ -325,6 +318,14 @@ class FCFAutotrageur(Autotrageur):
         self.last_target_index = self.target_index
         self.target_index += 1
 
+    def _alert(self, exception):
+        """Last ditch effort to alert user on operation failure.
+
+        Args:
+            exception (Exception): The exception to alert about.
+        """
+        self._send_email("LIVE EXECUTION FAILURE", repr(exception))
+
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
         actions which may be harmed by previous state."""
@@ -358,6 +359,7 @@ class FCFAutotrageur(Autotrageur):
                     self.trade_metadata['buy_price'])
                 executed_amount = buy_response['post_fee_base']
             except Exception as exc:
+                self._send_email("BUY ERROR ALERT - CONTINUING", repr(exc))
                 logging.error(exc, exc_info=True)
                 self.checkpoint.restore(self)
             else:
@@ -375,21 +377,28 @@ class FCFAutotrageur(Autotrageur):
                         msg = ("The purchased base amount does not match with "
                                "the sold amount. Normal execution has "
                                "terminated.\nBought amount: {}\n, Sold amount:"
-                               " {}").format(
+                               " {}\n\nBuy results:\n\n{}\n\nSell results:\n\n"
+                               "{}\n").format(
                                     executed_amount,
-                                    sell_response['pre_fee_base'])
+                                    sell_response['pre_fee_base'],
+                                    pprint.pformat(buy_response),
+                                    pprint.pformat(sell_response))
 
                         raise IncompleteArbitrageError(msg)
                 except Exception as exc:
-                    self._send_email("TRADE ERROR ALERT", repr(exc))
+                    self._send_email("SELL ERROR ALERT - ABORT", repr(exc))
                     logging.error(exc, exc_info=True)
-                    # TODO: Update to start dryrun bot if irrecoverable error occurs.
                     raise
                 else:
                     # Retrieve updated wallet balances if everything worked
                     # as expected.
                     self.trader1.update_wallet_balances()
                     self.trader2.update_wallet_balances()
+                    self._send_email(
+                        "TRADE SUMMARY",
+                        "Buy results:\n\n{}\n\nSell results:\n\n{}\n".format(
+                            pprint.pformat(buy_response),
+                            pprint.pformat(sell_response)))
             finally:
                 self.__persist_trade_data(buy_response, sell_response)
 

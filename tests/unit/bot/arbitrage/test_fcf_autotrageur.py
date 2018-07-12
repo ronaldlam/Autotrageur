@@ -11,13 +11,10 @@ import bot.arbitrage.arbseeker as arbseeker
 import bot.arbitrage.fcf_autotrageur
 import libs.db.maria_db_handler as db_handler
 from bot.arbitrage.arbseeker import SpreadOpportunity
-from bot.arbitrage.fcf_autotrageur import (EMAIL_HIGH_SPREAD_HEADER,
-                                           EMAIL_LOW_SPREAD_HEADER,
-                                           EMAIL_NONE_SPREAD, FCFAutotrageur,
-                                           FCFCheckpoint,
+from bot.arbitrage.fcf_autotrageur import (FCFAutotrageur, FCFCheckpoint,
                                            IncompleteArbitrageError,
                                            InsufficientCryptoBalance,
-                                           arbseeker, email_count, prev_spread)
+                                           arbseeker)
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, SPREAD_MIN,
                                          START_TIMESTAMP, VOL_MIN)
@@ -458,6 +455,7 @@ class TestExecuteTrade:
         mocker.patch.object(no_patch_fcf_autotrageur.trader2, 'update_wallet_balances')
         mocker.patch.object(
             no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_trade_data', create=True)
+        mocker.patch.object(no_patch_fcf_autotrageur, '_send_email')
 
         if dryrun:
             mocker.patch.object(no_patch_fcf_autotrageur, 'dry_run', create=True)
@@ -481,9 +479,11 @@ class TestExecuteTrade:
             no_patch_fcf_autotrageur.trader1.update_wallet_balances.assert_called_once_with(is_dry_run=True)
             no_patch_fcf_autotrageur.trader2.update_wallet_balances.assert_called_once_with(is_dry_run=True)
             no_patch_fcf_autotrageur.dry_run.log_balances.assert_called_once_with()
+            no_patch_fcf_autotrageur._send_email.assert_not_called()
         else:
             no_patch_fcf_autotrageur.trader1.update_wallet_balances.assert_called_once_with()
             no_patch_fcf_autotrageur.trader2.update_wallet_balances.assert_called_once_with()
+            no_patch_fcf_autotrageur._send_email.assert_called_once()
 
     @pytest.mark.parametrize('exc_type', [
         ExchangeError,
@@ -504,6 +504,7 @@ class TestExecuteTrade:
             None, None)
         no_patch_fcf_autotrageur.trader1.update_wallet_balances.assert_not_called()
         no_patch_fcf_autotrageur.trader2.update_wallet_balances.assert_not_called()
+        no_patch_fcf_autotrageur._send_email.assert_called_once()
 
     @pytest.mark.parametrize('exc_type', [
         ExchangeError,
@@ -513,7 +514,6 @@ class TestExecuteTrade:
     def test_execute_trade_sell_error(self, mocker, fake_ccxt_trader,
                                       no_patch_fcf_autotrageur, exc_type):
         self._setup_mocks(mocker, fake_ccxt_trader, no_patch_fcf_autotrageur, False)
-        mocker.patch.object(no_patch_fcf_autotrageur, '_send_email')
 
         if exc_type is IncompleteArbitrageError:
             arbseeker.execute_sell.return_value = FAKE_UNIFIED_RESPONSE_DIFFERENT_AMOUNT
@@ -673,3 +673,12 @@ def test_setup(mocker, no_patch_fcf_autotrageur):
     assert no_patch_fcf_autotrageur.h_to_e1_max == Decimal('3')
     assert no_patch_fcf_autotrageur.h_to_e2_max == Decimal('50')
     assert isinstance(no_patch_fcf_autotrageur.checkpoint, FCFCheckpoint)
+
+
+def test_alert(mocker, no_patch_fcf_autotrageur):
+    send_email = mocker.patch.object(no_patch_fcf_autotrageur, '_send_email')
+    exception = mocker.Mock()
+
+    no_patch_fcf_autotrageur._alert(exception)
+
+    send_email.assert_called_once_with("LIVE EXECUTION FAILURE", repr(exception))

@@ -41,6 +41,14 @@ def archive_logs():
 
 
 def dir_filter(x):
+    """Checks if x is a directory in the 'logs' folder.
+
+    Args:
+        x (str): The file name.
+
+    Returns:
+        bool: Whether the item is a directory.
+    """
     return os.path.isdir('logs/{}'.format(x))
 
 

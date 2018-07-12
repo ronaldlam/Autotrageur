@@ -23,6 +23,9 @@ from libs.utilities import keyfile_to_map
 class Mocktrageur(Autotrageur):
     """Mock concrete class. ABC's cannot be instantiated."""
 
+    def _alert(self, exception):
+        pass
+
     def _poll_opportunity(self):
         pass
 
@@ -229,6 +232,7 @@ class TestRunAutotrageur:
 
     def _setup_mocks(self, mocker, autotrageur):
         # Use SystemExit to stop the infinite loop.
+        mocker.patch.object(autotrageur, '_alert')
         mocker.patch.object(autotrageur, '_setup')
         mocker.patch.object(autotrageur, '_clean_up', create=True)
         mocker.patch.object(autotrageur, '_execute_trade')
@@ -248,6 +252,7 @@ class TestRunAutotrageur:
         with pytest.raises(SystemExit):
             autotrageur.run_autotrageur(self.FAKE_ARGS, requires_configs)
 
+        autotrageur._alert.assert_not_called()
         autotrageur._setup.assert_called_once_with()
         assert autotrageur._clean_up.call_count == 5
         assert autotrageur._wait.call_count == 5
@@ -275,6 +280,7 @@ class TestRunAutotrageur:
             with pytest.raises(KeyboardInterrupt):
                 autotrageur.run_autotrageur(self.FAKE_ARGS)
 
+        autotrageur._alert.assert_not_called()
         autotrageur._setup.assert_called_once_with()
         autotrageur._load_configs.assert_called_with(self.FAKE_ARGS)
         assert autotrageur._clean_up.call_count == 4
@@ -304,6 +310,7 @@ class TestRunAutotrageur:
             mocker.patch.object(autotrageur, 'dry_run', create=True)
             with pytest.raises(exc_type):
                 autotrageur.run_autotrageur(self.FAKE_ARGS)
+            autotrageur._alert.assert_not_called()
         else:
             # Save original function before mocking out `run_autotrageur`
             autotrageur.original_run_autotrageur = autotrageur.run_autotrageur
@@ -313,6 +320,7 @@ class TestRunAutotrageur:
             mocker.patch.object(autotrageur, 'dry_run', None, create=True)
             autotrageur.original_run_autotrageur(self.FAKE_ARGS)
 
+            autotrageur._alert.assert_called_once()
             assert autotrageur.config[DRYRUN] is True
 
             # Perhaps redundant checks, but ensures that the two are differentiated.
