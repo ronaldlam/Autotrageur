@@ -14,15 +14,13 @@ from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
                                      TRADE_OPPORTUNITY_TABLE, TRADES_TABLE)
+from bot.common.decimal_constants import ONE
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import OrderbookException
 from libs.email_client.simple_email_client import send_all_emails
 from libs.utilities import num_to_decimal, set_autotrageur_decimal_context
 
 from .autotrageur import Autotrageur
-
-# Global module variables.
-DECIMAL_ONE = num_to_decimal('1')
 
 
 class IncompleteArbitrageError(Exception):
@@ -130,14 +128,14 @@ class FCFAutotrageur(Autotrageur):
             return targets
 
         inc = (h_max - spread) / num_to_decimal(t_num)
-        x = (from_balance / self.vol_min) ** (DECIMAL_ONE / (t_num - DECIMAL_ONE))
+        x = (from_balance / self.vol_min) ** (ONE / (t_num - ONE))
         targets = []
         for i in range(1, t_num + 1):
             if self.vol_min >= from_balance:
                 # Min vol will empty from_balance on buying exchange.
                 position = from_balance
             else:
-                position = self.vol_min * (x ** (num_to_decimal(i) - DECIMAL_ONE))
+                position = self.vol_min * (x ** (num_to_decimal(i) - ONE))
             targets.append((spread + num_to_decimal(i) * inc, position))
 
         return targets
@@ -178,7 +176,7 @@ class FCFAutotrageur(Autotrageur):
         self.e1_targets = self.__calc_targets(
             spread_opp.e1_spread, self.h_to_e1_max, self.trader2.usd_bal)
 
-    def __evaluate_spread(self, spread_opp):
+    def __is_trade_opportunity(self, spread_opp):
         """Evaluate spread numbers against targets and set up state for
         trade execution.
 
@@ -186,7 +184,7 @@ class FCFAutotrageur(Autotrageur):
             spread_opp (SpreadOpportunity): The spread and price info.
 
         Returns:
-            bool: Whether there is a trade opportunity
+            bool: Whether there is a trade opportunity.
         """
         if self.momentum is Momentum.NEUTRAL:
             if (self.target_index < len(self.e2_targets) and
@@ -435,7 +433,15 @@ class FCFAutotrageur(Autotrageur):
         else:
             # Save the autotrageur state before proceeding with algorithm.
             self.checkpoint.save(self)
-            is_opportunity = self.__evaluate_spread(spread_opp)
+            if self.__is_trade_opportunity(spread_opp):
+                buy_trader = self.trade_metadata['buy_trader']
+                sell_trader = self.trade_metadata['sell_trader']
+                min_base_buy = buy_trader.get_min_base_limit()
+                min_base_sell = sell_trader.get_min_base_limit()
+                min_target_amount = (self.trade_metadata['buy_price']
+                                        * max(min_base_buy, min_base_sell))
+                is_opportunity = (
+                    buy_trader.quote_target_amount > min_target_amount)
 
         self.h_to_e1_max = max(self.h_to_e1_max, spread_opp.e1_spread)
         self.h_to_e2_max = max(self.h_to_e2_max, spread_opp.e2_spread)

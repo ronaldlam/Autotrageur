@@ -330,6 +330,17 @@ class CCXTTrader():
         """
         return self.fetcher.get_full_orderbook(self.base, self.quote)
 
+    def get_min_base_limit(self):
+        """Retrieves the minimum base amount limit of the trader's 'base/quote'
+        pair.
+
+        Returns:
+            Decimal: The minimum base amount limit.
+        """
+        symbol = "{}/{}".format(self.base, self.quote)
+        return num_to_decimal(
+            self.ccxt_exchange.markets[symbol]['limits']['amount']['min'])
+
     def get_prices_from_orderbook(self, bids_or_asks):
         """Get market buy or sell price in USD and quote currency.
 
