@@ -223,6 +223,15 @@ class Autotrageur(ABC):
             raise AuthenticationError(auth_error)
 
     @abstractmethod
+    def _alert(self, exception):
+        """Last ditch effort to alert user on operation failure.
+
+        Args:
+            exception (Exception): The exception to alert about.
+        """
+        pass
+
+    @abstractmethod
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
 
@@ -293,6 +302,7 @@ class Autotrageur(ABC):
             if not self.dry_run:
                 logging.critical("Falling back to dry run, error encountered:")
                 logging.critical(e)
+                self._alert(e)
                 self.config[DRYRUN] = True
                 self.run_autotrageur(arguments, False)
             else:

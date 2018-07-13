@@ -29,10 +29,14 @@ TEST_BITHUMB_TAKER_FEE = num_to_decimal(0.0015)
 TEST_GEMINI_BUY_INCL_FEE = False
 TEST_BITHUMB_BUY_INCL_FEE = True
 TEST_FAKE_BUY_RESULT = {
-    'fake_buy': 'result'
+    'fake_buy': 'result',
+    'post_fee_base': 1.1,
+    'post_fee_quote': 1.1,
 }
 TEST_FAKE_SELL_RESULT = {
-    'fake_sell': 'result'
+    'fake_sell': 'result',
+    'pre_fee_base': 1.1,
+    'post_fee_quote': 1.1,
 }
 
 @pytest.fixture(scope='module')
