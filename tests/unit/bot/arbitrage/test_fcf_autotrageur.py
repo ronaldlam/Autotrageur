@@ -209,7 +209,7 @@ def test_evaluate_to_e2_trade(mocker, fcf_autotrageur, momentum_change):
     (None, Decimal('-3'), Momentum.NEUTRAL, 1),
     (Decimal('-3'), None, Momentum.NEUTRAL, 1),
 ])
-def test_evaluate_spread(
+def test_is_trade_opportunity(
         mocker, fcf_autotrageur, e1_spread, e2_spread, momentum, target_index):
     # Setup fcf_autotrageur
     spread_opp = SpreadOpportunity(
@@ -229,10 +229,10 @@ def test_evaluate_spread(
     # Execute test
     if e1_spread is None or e2_spread is None:
         with pytest.raises(TypeError):
-            fcf_autotrageur._FCFAutotrageur__evaluate_spread(spread_opp)
+            fcf_autotrageur._FCFAutotrageur__is_trade_opportunity(spread_opp)
         return
     else:
-        result = fcf_autotrageur._FCFAutotrageur__evaluate_spread(spread_opp)
+        result = fcf_autotrageur._FCFAutotrageur__is_trade_opportunity(spread_opp)
 
     # Check results
     if momentum is Momentum.NEUTRAL:
@@ -430,6 +430,45 @@ def test_prepare_trade(mocker, fcf_autotrageur, is_momentum_change, to_e1,
     assert buy_trader.quote_target_amount == result['quote_target_amount']
 
 
+@pytest.mark.parametrize(
+    'min_base_buy, min_base_sell, buy_price, buy_quote_target, expected_result', [
+        (Decimal('0.1'), Decimal('0.1'), Decimal('100'), Decimal('10'), False),
+        (Decimal('0.1'), Decimal('0.1'), Decimal('100'), Decimal('11'), True),
+        (Decimal('0.1'), Decimal('0.1'), Decimal('100'), Decimal('9'), False),
+        (Decimal('0.1'), Decimal('0.05'), Decimal('100'), Decimal('10'), False),
+        (Decimal('0.1'), Decimal('0.05'), Decimal('100'), Decimal('11'), True),
+        (Decimal('0.1'), Decimal('0.05'), Decimal('100'), Decimal('9'), False),
+        (Decimal('0.05'), Decimal('0.1'), Decimal('100'), Decimal('10'), False),
+        (Decimal('0.05'), Decimal('0.1'), Decimal('100'), Decimal('11'), True),
+        (Decimal('0.05'), Decimal('0.1'), Decimal('100'), Decimal('9'), False),
+        (Decimal('0.05'), Decimal('0.1'), Decimal('200'), Decimal('10'), False),
+        (Decimal('0.05'), Decimal('0.1'), Decimal('200'), Decimal('11'), False),
+        (Decimal('0.05'), Decimal('0.1'), Decimal('200'), Decimal('9'), False),
+        (Decimal('0.05'), Decimal('0.1'), Decimal('20'), Decimal('10'), True),
+        (Decimal('0.05'), Decimal('0.1'), Decimal('20'), Decimal('11'), True),
+        (Decimal('0.05'), Decimal('0.1'), Decimal('20'), Decimal('9'), True),
+    ])
+def test_check_within_limits(mocker, no_patch_fcf_autotrageur, min_base_buy,
+                             min_base_sell, buy_price, buy_quote_target,
+                             expected_result):
+    buy_trader = mocker.Mock()
+    buy_trader.get_min_base_limit.return_value = min_base_buy
+    buy_trader.quote_target_amount = buy_quote_target
+    sell_trader = mocker.Mock()
+    sell_trader.get_min_base_limit.return_value = min_base_sell
+    fake_trade_metadata = {
+        'buy_trader': buy_trader,
+        'sell_trader': sell_trader,
+        'buy_price': buy_price
+    }
+    mocker.patch.object(no_patch_fcf_autotrageur, 'trade_metadata',
+                        fake_trade_metadata, create=True)
+
+    result = no_patch_fcf_autotrageur._FCFAutotrageur__check_within_limits()
+
+    assert result == expected_result
+
+
 class TestExecuteTrade:
     def _setup_mocks(self, mocker, fake_ccxt_trader, no_patch_fcf_autotrageur, dryrun):
         trader1 = fake_ccxt_trader
@@ -555,10 +594,11 @@ class TestExecuteTrade:
 @pytest.mark.parametrize('h_to_e1_max', [Decimal('5'), Decimal('50')])
 @pytest.mark.parametrize('h_to_e2_max', [Decimal('0'), Decimal('3')])
 @pytest.mark.parametrize('is_opportunity', [True, False])
+@pytest.mark.parametrize('is_in_limits', [True, False])
 def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
                           e1_quote_balance, e2_quote_balance, exc_type,
                           has_started, e1_spread, e2_spread, h_to_e1_max,
-                          h_to_e2_max, is_opportunity):
+                          h_to_e2_max, is_opportunity, is_in_limits):
     trader1 = mocker.Mock()
     trader2 = mocker.Mock()
     mocker.patch.object(
@@ -594,9 +634,12 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
     spread_opp.e2_spread = e2_spread
     calc_targets = mocker.patch.object(no_patch_fcf_autotrageur,
                         '_FCFAutotrageur__calc_targets')
-    evaluate_spread = mocker.patch.object(no_patch_fcf_autotrageur,
-                        '_FCFAutotrageur__evaluate_spread',
+    is_trade_opportunity = mocker.patch.object(no_patch_fcf_autotrageur,
+                        '_FCFAutotrageur__is_trade_opportunity',
                         return_value=is_opportunity)
+    is_within_limits = mocker.patch.object(no_patch_fcf_autotrageur,
+                                           '_FCFAutotrageur__check_within_limits',
+                                           return_value=is_in_limits)
     mocker.patch.object(
         arbseeker, 'get_spreads_by_ob', return_value=spread_opp)
     if exc_type:
@@ -612,7 +655,7 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
     if exc_type:
         assert is_opportunity_result is False
         calc_targets.assert_not_called()
-        evaluate_spread.assert_not_called()
+        is_trade_opportunity.assert_not_called()
     else:
         if not has_started:
             assert no_patch_fcf_autotrageur.momentum == Momentum.NEUTRAL
@@ -621,12 +664,17 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
             assert no_patch_fcf_autotrageur.has_started is True
             assert calc_targets.call_count == 2
             assert is_opportunity_result is False
-            evaluate_spread.assert_not_called()
+            is_trade_opportunity.assert_not_called()
         else:
             no_patch_fcf_autotrageur.checkpoint.save.assert_called_once_with(
                 no_patch_fcf_autotrageur)
-            evaluate_spread.assert_called_with(spread_opp)
+            is_trade_opportunity.assert_called_with(spread_opp)
             calc_targets.assert_not_called()
+            if is_opportunity:
+                is_within_limits.assert_called_once_with()
+            else:
+                is_within_limits.assert_not_called()
+            assert is_opportunity_result == (is_opportunity and is_in_limits)
         assert no_patch_fcf_autotrageur.h_to_e1_max == max(h_to_e1_max, e1_spread)
         assert no_patch_fcf_autotrageur.h_to_e2_max == max(h_to_e2_max, e2_spread)
 
