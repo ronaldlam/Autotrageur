@@ -23,6 +23,13 @@ pip install bandit
 bandit -r bot libs analytics *.py
 ```
 
+## Run safety
+Checks dependencies against database of known vulnerabilities. Updated monthly, so run every month or whenever dependencies are updated.
+```
+pip install safety
+safety check -r requirements.txt
+```
+
 ## Run Autotrageur
 The following are examples of commands that would work. Top level scripts listed below are documented using `docopt`, so using a `-h` command will bring up usage instructions.
 ### Script list
