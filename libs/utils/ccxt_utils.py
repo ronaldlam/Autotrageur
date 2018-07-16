@@ -31,9 +31,9 @@ def wrap_ccxt_retry(funclist, arglist=DEFAULT_ARG_LIST,
     Returns:
         list: A list of returned function results.
     """
-    if arglist is DEFAULT_ARG_LIST:
+    if arglist == DEFAULT_ARG_LIST:
         arglist = DEFAULT_ARG_LIST * len(funclist)
-    if kwarglist is DEFAULT_KWARG_LIST:
+    if kwarglist == DEFAULT_KWARG_LIST:
         kwarglist = DEFAULT_KWARG_LIST * len(funclist)
 
     for _ in range(MAX_RETRIES):
