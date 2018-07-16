@@ -59,7 +59,7 @@ def build_row(table_columns, map_data):
     return row
 
 def commit_all():
-    """Commits any outstanding transacations into the databse."""
+    """Commits any outstanding transactions into the database."""
     db.commit()
 
 

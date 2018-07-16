@@ -316,6 +316,23 @@ class FCFAutotrageur(Autotrageur):
         self.last_target_index = self.target_index
         self.target_index += 1
 
+    def __check_within_limits(self):
+        """Check whether potential trade meets minimum volume limits.
+
+        Should be used only when trade_metadata is set and there is a
+        potential trade.
+
+        Returns:
+            bool: Whether the trade falls within the limits.
+        """
+        buy_trader = self.trade_metadata['buy_trader']
+        sell_trader = self.trade_metadata['sell_trader']
+        min_base_buy = buy_trader.get_min_base_limit()
+        min_base_sell = sell_trader.get_min_base_limit()
+        min_target_amount = (self.trade_metadata['buy_price']
+                                * max(min_base_buy, min_base_sell))
+        return buy_trader.quote_target_amount > min_target_amount
+
     def _alert(self, exception):
         """Last ditch effort to alert user on operation failure.
 
@@ -434,14 +451,7 @@ class FCFAutotrageur(Autotrageur):
             # Save the autotrageur state before proceeding with algorithm.
             self.checkpoint.save(self)
             if self.__is_trade_opportunity(spread_opp):
-                buy_trader = self.trade_metadata['buy_trader']
-                sell_trader = self.trade_metadata['sell_trader']
-                min_base_buy = buy_trader.get_min_base_limit()
-                min_base_sell = sell_trader.get_min_base_limit()
-                min_target_amount = (self.trade_metadata['buy_price']
-                                        * max(min_base_buy, min_base_sell))
-                is_opportunity = (
-                    buy_trader.quote_target_amount > min_target_amount)
+                is_opportunity = self.__check_within_limits()
 
         self.h_to_e1_max = max(self.h_to_e1_max, spread_opp.e1_spread)
         self.h_to_e2_max = max(self.h_to_e2_max, spread_opp.e2_spread)

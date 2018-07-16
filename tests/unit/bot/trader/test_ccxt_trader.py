@@ -566,6 +566,30 @@ def test_get_full_orderbook(mocker, fake_ccxt_trader, symbols):
     fake_ccxt_trader.fetcher.get_full_orderbook.assert_called_with(symbols['bitcoin'], symbols['usd'])
 
 
+@pytest.mark.parametrize('limit, expected_result', [
+    (0.02, Decimal('0.02')),
+    (0, Decimal('0')),
+    (1, Decimal('1')),
+    (1234569, Decimal('1234569')),
+    (None, None)
+])
+def test_get_min_base_limit(mocker, fake_ccxt_trader, limit, expected_result):
+    fake_markets = {
+        '{}/{}'.format(fake_ccxt_trader.base, fake_ccxt_trader.quote): {
+            'limits': {
+                'amount': {
+                    "min": limit
+                }
+            }
+        }
+    }
+    mocker.patch.object(fake_ccxt_trader.ccxt_exchange, "markets", fake_markets)
+
+    result = fake_ccxt_trader.get_min_base_limit()
+
+    assert result == expected_result
+
+
 class TestGetAdjustedMarketPriceFromOrderbook:
     fake_bids_or_asks = [['fake', 'bids', 'asks']]
     fake_quote_target_amount = Decimal('100')
