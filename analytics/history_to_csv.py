@@ -50,7 +50,7 @@ if __name__ == "__main__":
     arguments = docopt(__doc__, version="HistoryToCSV 0.1")
 
     with open(arguments['CONFIGFILE'], "r") as in_configfile:
-        config = yaml.load(in_configfile)
+        config = yaml.safe_load(in_configfile)
 
     basecurr = config['base']
     quotecurr = config['quote']

@@ -90,7 +90,7 @@ def make_fetchers(cfg_filepaths):
     hist_fetchers = []
     for cfg_file in cfg_filepaths:
         with open(cfg_file, 'r') as in_configfile:
-            config = yaml.load(in_configfile)
+            config = yaml.safe_load(in_configfile)
 
             # General config.
             basecurr = config['base']
