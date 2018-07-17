@@ -127,9 +127,6 @@ def persist_to_db(db_name, db_user, db_password, hist_fetchers):
         hist_fetchers (list[HistoryFetcher]): A list of fetchers containing
             metadata, and used for fetching historical data through an API.
     """
-    db = MySQLdb.connect(user=db_user, passwd=db_password, db=db_name)
-    cursor = db.cursor()
-
     with ThreadPoolExecutor(max_workers=30) as executor:
         future_to_fetcher = {
             executor.submit(fetch_history, fetcher): fetcher for fetcher in hist_fetchers
@@ -151,9 +148,12 @@ def persist_to_db(db_name, db_user, db_password, hist_fetchers):
                 for row in price_history:
                     row_add_info(row, base, quote, exchange)
 
-                # Create table if needed and insert data.
+                db = MySQLdb.connect(user=db_user, passwd=db_password, db=db_name)
+                cursor = db.cursor()
                 if logging.getLogger().getEffectiveLevel() < logging.INFO:
                     filterwarnings('ignore', category=MySQLdb.Warning)
+
+                # Create table if needed and insert data.
                 dec_prec = '(11, 2)' if quote.upper() in FIAT_SYMBOLS else '(18,9)'
                 tablename = ''.join([exchange, base, quote, interval])
                 cursor.execute("CREATE TABLE IF NOT EXISTS " + tablename +
@@ -177,5 +177,5 @@ def persist_to_db(db_name, db_user, db_password, hist_fetchers):
                     + " %(volumefrom)s, %(volumeto)s, %(vwap)s, %(base)s, %(quote)s,"
                     + " %(exchange)s)",
                     price_history)
-                cursor.close()
                 db.commit()
+                cursor.close()
