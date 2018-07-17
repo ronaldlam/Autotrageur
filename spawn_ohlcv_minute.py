@@ -40,7 +40,7 @@ if __name__ == "__main__":
             args['--pi-mode']))
 
     with open(args['DBINFOFILE'], 'r') as db_info:
-        db_info = yaml.load(db_info)
+        db_info = yaml.safe_load(db_info)
         db_user = db_info['db_user']
         db_name = db_info['db_name']
 

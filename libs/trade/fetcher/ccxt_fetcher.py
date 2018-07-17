@@ -3,6 +3,7 @@ import logging
 import ccxt
 
 from libs.utilities import num_to_decimal
+from libs.utils.ccxt_utils import wrap_ccxt_retry
 
 
 class CCXTFetcher():
@@ -71,7 +72,7 @@ class CCXTFetcher():
         Returns:
             (Decimal, Decimal): The balances of the base and quote asset.
         """
-        balance = self.exchange.fetch_balance()
+        balance = wrap_ccxt_retry([self.exchange.fetch_balance])[0]
         return (num_to_decimal(balance[base]['free']),
                 num_to_decimal(balance[quote]['free']))
 
@@ -94,6 +95,9 @@ class CCXTFetcher():
             'datetime': '2017-07-05T18:47:14.692Z', // ISO8601 datetime string with milliseconds
         }
 
+        NOTE: Do not wrap this in `wrap_ccxt_retry` as we will likely need to
+        retry multiple orderbook calls.
+
         Args:
             base (str): The base currency of the token pair.
             quote (str): The quote currency of the token pair.
@@ -102,3 +106,18 @@ class CCXTFetcher():
             dict: The full orderbook.
         """
         return self.exchange.fetch_order_book(base + "/" + quote)
+
+    def load_markets(self):
+        """Load the markets of the exchange.
+
+        Allows manual calling of `load_markets` from either a ccxt Exchange
+        object or a `ccxt_extensions` ext_ Exchange object.
+
+        Refer https://github.com/ccxt/ccxt/wiki/Manual in the Loading Markets
+        section for details.
+
+        Returns:
+            dict: Information about the `markets` which have been loaded into
+                memory.
+        """
+        return wrap_ccxt_retry([self.exchange.load_markets])[0]

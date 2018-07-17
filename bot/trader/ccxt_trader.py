@@ -393,7 +393,7 @@ class CCXTTrader():
             dict: Information about the `markets` which have been loaded into
                 memory.
         """
-        self.ccxt_exchange.load_markets()
+        self.fetcher.load_markets()
 
     def set_forex_ratio(self):
         """Get foreign currency per USD.

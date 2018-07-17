@@ -7,6 +7,7 @@ from ccxt import NetworkError
 import bot.arbitrage.spreadcalculator as spreadcalculator
 from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
 from bot.trader.ccxt_trader import OrderbookException
+from libs.utils.ccxt_utils import wrap_ccxt_retry
 from libs.utilities import num_to_decimal
 
 BIDS = "bids"
@@ -45,8 +46,8 @@ def get_spreads_by_ob(trader1, trader2):
         SpreadOpportunity: Returns an object containing the spreads and prices
             pertaining to the current spread opportunity.
     """
-    ex1_orderbook = trader1.get_full_orderbook()
-    ex2_orderbook = trader2.get_full_orderbook()
+    ex1_orderbook, ex2_orderbook = wrap_ccxt_retry(      #pylint: disable=E0632
+        [trader1.get_full_orderbook, trader2.get_full_orderbook])
 
     prices = [None] * 4
     price_data = [

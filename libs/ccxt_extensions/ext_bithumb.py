@@ -112,7 +112,7 @@ class ext_bithumb(ccxt.bithumb):
             true_price = post_fee_quote / post_fee_base
 
         return {
-            'exchange': self.name.lower(),
+            'exchange': self.name.lower(),          # pylint: disable=E1101
             'base': base,
             'quote': quote,
             'pre_fee_base': pre_fee_base,
