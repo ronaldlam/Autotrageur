@@ -56,6 +56,8 @@ class TestWrapCcxtRetry():
         ([], DEFAULT_ARG_LIST, DEFAULT_KWARG_LIST, []),  # Case represents default params.
         ([MOCK_FUNC1, MOCK_FUNC2], EMPTY_ARGS, EMPTY_KWARGS, [MOCK_FUNC1_RETURN, MOCK_FUNC2_RETURN]),
         ([MOCK_FUNC1], ONE_ARG, ONE_KWARG, [MOCK_FUNC1_RETURN]),
+        ([MOCK_FUNC1, MOCK_FUNC2, MOCK_FUNC3], TRIPLE_ARG, DEFAULT_KWARG_LIST, [MOCK_FUNC1_RETURN, MOCK_FUNC2_RETURN, MOCK_FUNC3_RETURN]),
+        ([MOCK_FUNC1, MOCK_FUNC2, MOCK_FUNC3], DEFAULT_ARG_LIST, TRIPLE_KWARG, [MOCK_FUNC1_RETURN, MOCK_FUNC2_RETURN, MOCK_FUNC3_RETURN]),
         ([MOCK_FUNC1, MOCK_FUNC2, MOCK_FUNC3], TRIPLE_ARG, TRIPLE_KWARG, [MOCK_FUNC1_RETURN, MOCK_FUNC2_RETURN, MOCK_FUNC3_RETURN])
     ])
     def test_wrap_ccxt_retry(self, funclist, arglist, kwarglist, expected_returns):
@@ -72,7 +74,7 @@ class TestWrapCcxtRetry():
 
         assert func_returns == expected_returns
 
-    @pytest.mark.parametrize("scenario", [ None, SCENARIO_ONE, SCENARIO_TWO, SCENARIO_MAX ])
+    @pytest.mark.parametrize("scenario", [None, SCENARIO_ONE, SCENARIO_TWO, SCENARIO_MAX])
     def test_wrap_ccxt_retry_network_err(self, mocker, scenario):
         mock_time_sleep = mocker.patch('time.sleep')
         if scenario is SCENARIO_ONE:

@@ -28,9 +28,16 @@ def wrap_ccxt_retry(funclist, arglist=DEFAULT_ARG_LIST,
         kwarglist (list): A list of `kwargs` which correspond to funclist in
             order.
 
+    Raises:
+        NetworkError: After `MAX_RETRIES` number of retries, the NetworkError
+            is raised to its caller.
+
     Returns:
         list: A list of returned function results.
     """
+    if len(funclist) == 0:
+        logging.warning("Warning: An empty list of functions have been "
+            "provided for wrap_ccxt_retry.")
     if arglist == DEFAULT_ARG_LIST:
         arglist = DEFAULT_ARG_LIST * len(funclist)
     if kwarglist == DEFAULT_KWARG_LIST:
@@ -48,4 +55,5 @@ def wrap_ccxt_retry(funclist, arglist=DEFAULT_ARG_LIST,
             time.sleep(WAIT_SECONDS)
             saved_exc = network_err
 
-    raise saved_exc
+    if saved_exc:
+        raise saved_exc
