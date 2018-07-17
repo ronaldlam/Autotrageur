@@ -25,7 +25,7 @@ def _extract_email_info(email_cfg_path):
         }
     """
     with open(email_cfg_path, "r") as ymlfile:
-        email_cfg = yaml.load(ymlfile)
+        email_cfg = yaml.safe_load(ymlfile)
 
     return email_cfg
 

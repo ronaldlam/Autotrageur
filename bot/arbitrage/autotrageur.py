@@ -61,7 +61,7 @@ class Autotrageur(ABC):
             file_name (str): The name of the file.
         """
         with open(file_name, "r") as ymlfile:
-            self.config = yaml.load(ymlfile)
+            self.config = yaml.safe_load(ymlfile)
 
     def __load_db(self):
         """Initializes and connects to the database."""
