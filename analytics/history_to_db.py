@@ -128,7 +128,6 @@ def persist_to_db(db_name, db_user, db_password, hist_fetchers):
             metadata, and used for fetching historical data through an API.
     """
     db = MySQLdb.connect(user=db_user, passwd=db_password, db=db_name)
-    cursor = db.cursor()
 
     with ThreadPoolExecutor(max_workers=30) as executor:
         future_to_fetcher = {
@@ -156,6 +155,7 @@ def persist_to_db(db_name, db_user, db_password, hist_fetchers):
                     filterwarnings('ignore', category=MySQLdb.Warning)
                 dec_prec = '(11, 2)' if quote.upper() in FIAT_SYMBOLS else '(18,9)'
                 tablename = ''.join([exchange, base, quote, interval])
+                cursor = db.cursor()
                 cursor.execute("CREATE TABLE IF NOT EXISTS " + tablename +
                     "(time INT(11) UNSIGNED NOT NULL,\n"
                     "close DECIMAL" + dec_prec + " UNSIGNED NOT NULL,\n"
@@ -177,5 +177,5 @@ def persist_to_db(db_name, db_user, db_password, hist_fetchers):
                     + " %(volumefrom)s, %(volumeto)s, %(vwap)s, %(base)s, %(quote)s,"
                     + " %(exchange)s)",
                     price_history)
-                cursor.close()
                 db.commit()
+                cursor.close()
