@@ -27,3 +27,8 @@ FCF_AUTOTRAGEUR_CONFIG_COLUMNS = [
     'vol_min'
 ]
 
+# Table primary keys.
+FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID = 'id'
+TRADES_PRIM_KEY_TRADE_OPP_ID = 'trade_opportunity_id'
+TRADES_PRIM_KEY_SIDE = 'side'
+TRADE_OPPORTUNITY_PRIM_KEY_ID = 'id'

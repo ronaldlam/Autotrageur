@@ -169,13 +169,14 @@ def persist_to_db(db_name, db_user, db_password, hist_fetchers):
                     "quote VARCHAR(10) NOT NULL,\n"
                     "exchange VARCHAR(28) NOT NULL,\n"
                     "PRIMARY KEY (time));")
-                cursor.executemany("INSERT IGNORE INTO "
+                cursor.executemany("INSERT INTO "
                     + tablename
                     + "(time, close, high, low, open, volumefrom, volumeto, vwap, base,"
                     + " quote, exchange)\n"
                     + "VALUES (%(time)s, %(close)s, %(high)s, %(low)s, %(open)s,"
                     + " %(volumefrom)s, %(volumeto)s, %(vwap)s, %(base)s, %(quote)s,"
-                    + " %(exchange)s)",
+                    + " %(exchange)s)\n"
+                    + "ON DUPLICATE KEY UPDATE time=%(time)s",
                     price_history)
                 db.commit()
                 cursor.close()

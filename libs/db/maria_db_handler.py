@@ -13,7 +13,7 @@ class InvalidRowFormatError(Exception):
     pass
 
 
-def _form_insert_ignore_query(table_name, columns, param_string):
+def _form_insert_query(table_name, columns, param_string, prim_keys):
     """Forms an 'INSERT IGNORE INTO ...' query string.
 
     Utilizes regex to strip single quotes from the columns tuple string.
@@ -23,18 +23,34 @@ def _form_insert_ignore_query(table_name, columns, param_string):
         columns (tuple(str)): Column names represented as a tuple of strings.
         param_string (str): A param substitution string composed of repeating
             sequences of '%s'.  E.g. '%s, %s, %s"
+        prim_keys (dict): Any primary keys of the supplied table,
+            represented as a dict `{ COLUMN_NAME: PRIMARY_KEY_VALUE }`
     """
-
-    return (
-        "INSERT IGNORE INTO "
+    # Form the initial 'INSERT INTO ...' query
+    insert_query = (
+        "INSERT INTO "
         + table_name
         + re.sub(r"((?<=\()('|\"))"              # single quote, look-behind '('
                  r"|(('|\")(?=,))"               # single quote, look-ahead ','
                  r"|((?<=[^\S\r\n\t]|,)('|\"))"  # single quote, look-behind space character, or ','
                  r"|(('|\")(?=\)))",             # single quote, look-ahead ')'
                  '', str(columns))
-        + " VALUES (" + param_string + ")"
+        + " VALUES ("
+        + param_string
+        + ")"
     )
+
+    # Form redundant 'ON DUPLICATE KEY UPDATE ...' clause for 'ON CONFLICT DO
+    # NOTHING' equivalent.
+    redundant_update_prim_keys = ', '.join(
+        "{} = \"{}\"".format(key,val) for (key,val) in prim_keys.items())
+
+    if redundant_update_prim_keys:
+        insert_query += (
+            " ON DUPLICATE KEY UPDATE "
+            + redundant_update_prim_keys
+        )
+    return insert_query
 
 
 def build_row(table_columns, map_data):
@@ -63,7 +79,7 @@ def commit_all():
     db.commit()
 
 
-def insert_row(table_name, row):
+def insert_row(table_name, row, prim_keys):
     """Inserts a row into the database.
 
     The row object is represented as a map with keys containing the columns,
@@ -73,6 +89,8 @@ def insert_row(table_name, row):
         table_name (str): The name of the table to insert into.
         row (dict): The row object containing the necessary information for
             insertion into database.
+        prim_keys (dict): Any primary keys of the supplied table,
+            represented as a dict `{ COLUMN_NAME: PRIMARY_KEY_VALUE }`
 
     Raises:
         InvalidRowFormatError: Thrown if the row object is not a dict or is
@@ -87,7 +105,7 @@ def insert_row(table_name, row):
     cursor = db.cursor()
     params = ', '.join(['%s'] * len(row_data))
     cursor.execute(
-        _form_insert_ignore_query(table_name, columns, params),
+        _form_insert_query(table_name, columns, params, prim_keys),
         row_data)
     cursor.close()
 
