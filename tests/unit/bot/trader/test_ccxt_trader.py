@@ -310,7 +310,7 @@ class TestCheckExchangeLimits:
                     fake_ccxt_trader.base))
 
 
-class TestRoundExchangePrecision:
+class TestRoundExchangePrecisionPrivate:
     """Tests for ccxt_trader::_CCXTTrader__round_exchange_precision."""
 
     @pytest.mark.parametrize('precision, asset_amount, rounded_amount', [
@@ -356,8 +356,8 @@ class TestRoundExchangePrecision:
         }, Decimal('1.123456789'), Decimal('1.123456789'))
     ])
     @pytest.mark.parametrize('market_order', [True, 'emulated', False])
-    def test_round_exchange_precision(self, mocker, fake_ccxt_trader, precision,
-                                    market_order, asset_amount, rounded_amount):
+    def test_round_exchange_precision_private(self, mocker, fake_ccxt_trader, precision,
+                                              market_order, asset_amount, rounded_amount):
         fake_ccxt_trader.ccxt_exchange.markets = {}
         mocker.patch.dict(fake_ccxt_trader.ccxt_exchange.markets, precision)
         result = fake_ccxt_trader._CCXTTrader__round_exchange_precision(
@@ -386,8 +386,8 @@ class TestRoundExchangePrecision:
         }, Decimal('1.123456789'), Decimal('1.123456789'),
         marks=xfail(raises=KeyError, reason="Typo precision key", strict=True))
     ])
-    def test_round_exchange_precision_bad(self, mocker, fake_ccxt_trader, precision,
-                                          asset_amount, rounded_amount):
+    def test_round_exchange_precision_private_bad(self, mocker, fake_ccxt_trader,
+                                                  precision, asset_amount, rounded_amount):
         market_order = True
 
         fake_ccxt_trader.ccxt_exchange.markets = {}
@@ -648,10 +648,20 @@ def test_load_markets(mocker, fake_ccxt_trader):
     assert fake_ccxt_trader.ccxt_exchange.load_markets.call_count == 1
     fake_ccxt_trader.ccxt_exchange.load_markets.assert_called_with()
 
+
 def test_get_taker_fee(mocker, fake_ccxt_trader):
     mocker.patch.object(fake_ccxt_trader.fetcher, 'fetch_taker_fees')
     fake_ccxt_trader.get_taker_fee()
     fake_ccxt_trader.fetcher.fetch_taker_fees.assert_called_with()
+
+
+def test_round_exchange_precision_public(mocker, fake_ccxt_trader):
+    FAKE_AMOUNT_TO_ROUND = num_to_decimal(9999.99)
+    mocker.patch.object(fake_ccxt_trader, '_CCXTTrader__round_exchange_precision')
+    fake_ccxt_trader.round_exchange_precision(FAKE_AMOUNT_TO_ROUND)
+    fake_ccxt_trader._CCXTTrader__round_exchange_precision.assert_called_once_with(
+        True, 'BTC/USD', FAKE_AMOUNT_TO_ROUND)
+
 
 @pytest.mark.parametrize('forex_quote', [
     'KRW',
