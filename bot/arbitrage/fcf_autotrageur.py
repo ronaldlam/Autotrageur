@@ -372,7 +372,7 @@ class FCFAutotrageur(Autotrageur):
                 buy_response = arbseeker.execute_buy(
                     self.trade_metadata['buy_trader'],
                     self.trade_metadata['buy_price'])
-                executed_amount = buy_response['post_fee_base']
+                bought_amount = buy_response['post_fee_base']
             except Exception as exc:
                 self._send_email("BUY ERROR ALERT - CONTINUING", repr(exc))
                 logging.error(exc, exc_info=True)
@@ -384,17 +384,21 @@ class FCFAutotrageur(Autotrageur):
                     sell_response = arbseeker.execute_sell(
                         self.trade_metadata['sell_trader'],
                         self.trade_metadata['sell_price'],
-                        executed_amount)
+                        bought_amount)
 
-                    # TODO: executed_amount must be rounded down to precision
-                    # that the sell exchange supports.
-                    if executed_amount != sell_response['pre_fee_base']:
+                    sell_trader = self.trade_metadata['sell_trader']
+                    rounded_sell_amount = sell_trader.round_exchange_precision(
+                        bought_amount)
+
+                    if rounded_sell_amount != sell_response['pre_fee_base']:
                         msg = ("The purchased base amount does not match with "
                                "the sold amount. Normal execution has "
-                               "terminated.\nBought amount: {}\n, Sold amount:"
+                               "terminated.\nBought amount: {}\n, Expected "
+                               "sell amount: {}\nSold amount:"
                                " {}\n\nBuy results:\n\n{}\n\nSell results:\n\n"
                                "{}\n").format(
-                                    executed_amount,
+                                    bought_amount,
+                                    rounded_sell_amount,
                                     sell_response['pre_fee_base'],
                                     pprint.pformat(buy_response),
                                     pprint.pformat(sell_response))

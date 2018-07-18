@@ -395,6 +395,20 @@ class CCXTTrader():
         """
         self.fetcher.load_markets()
 
+    def round_exchange_precision(self, amount):
+        """Rounds the amount based on an exchange's precision.
+
+        Args:
+            amount (Decimal): The amount to be rounded.
+
+        Returns:
+            Decimal: The rounded amount based on an exchange's precision.  Can
+                return the original amount if the exchange supports arbitrary
+                precision.
+        """
+        symbol = "%s/%s" % (self.base, self.quote)
+        return self.__round_exchange_precision(True, symbol, amount)
+
     def set_forex_ratio(self):
         """Get foreign currency per USD.
 
