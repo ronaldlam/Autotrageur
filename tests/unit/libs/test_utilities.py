@@ -30,14 +30,15 @@ bad_keyfile_labels = [
 ]
 
 keyfiles = [
-    "exchange,api_key,api_secret\n"
-    "binance,binance_api_key,binance_api_secret\n"
-    "bithumb,bithumb_api_key,bithumb_api_secret\n"
-    "gemini,gemini_api_key,gemini_api_secret",
-    "exchange,api_key,api_secret\n"
-    "binance,binance_api_key,\n"
-    "bithumb,bithumb_api_key,bithumb_api_secret\n"
-    "gemini,gemini_api_key,gemini_api_secret",
+    "exchange,api_key,api_secret,password\n"
+    "binance,binance_api_key,binance_api_secret,\n"
+    "bithumb,bithumb_api_key,bithumb_api_secret,\n"
+    "gemini,gemini_api_key,gemini_api_secret,",
+    "exchange,api_key,api_secret,password\n"
+    "binance,binance_api_key,,\n"
+    "bithumb,bithumb_api_key,bithumb_api_secret,\n"
+    "gemini,gemini_api_key,gemini_api_secret,\n"
+    "gdax,gdax_api_key,gdax_api_secret,gdax_password",
 ]
 
 bad_keyfiles = [
@@ -221,28 +222,39 @@ keyfile_to_map_result = {
         "binance": {
             "api_key": "binance_api_key",
             "api_secret": "binance_api_secret",
+            "password": ""
         },
         "bithumb": {
             "api_key": "bithumb_api_key",
             "api_secret": "bithumb_api_secret",
+            "password": ""
         },
         "gemini": {
             "api_key": "gemini_api_key",
             "api_secret": "gemini_api_secret",
+            "password": ""
         },
     },
     "short param with comma": {
         "binance": {
             "api_key": "binance_api_key",
             "api_secret": "",
+            "password": ""
         },
         "bithumb": {
             "api_key": "bithumb_api_key",
             "api_secret": "bithumb_api_secret",
+            "password": ""
         },
         "gemini": {
             "api_key": "gemini_api_key",
             "api_secret": "gemini_api_secret",
+            "password": ""
+        },
+        "gdax": {
+            "api_key": "gdax_api_key",
+            "api_secret": "gdax_api_secret",
+            "password": "gdax_password"
         },
     },
 }

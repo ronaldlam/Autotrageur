@@ -1,6 +1,7 @@
 """Exchange configuration constants."""
 API_KEY = 'api_key'
 API_SECRET = 'api_secret'
+PASSWORD = 'password'
 
 """Extended ccxt exchanges constants."""
 BUY_SIDE = 'buy'

@@ -32,6 +32,7 @@ class ext_gdax(ccxt.gdax):
                     "verbose": False,
                 }
         """
+        exchange_config['nonce'] = ccxt.Exchange.seconds
         super().__init__(exchange_config)
         self.buy_target_includes_fee = False
 

@@ -24,7 +24,7 @@ class MockFernet():
         # Enforce type checking, throws TypeError on mismatch
         self.key + ciphertext
         assert(self.key == ciphertext[0:len(self.key)])
-        return ciphertext[len(self.key):-SALT_LEN]
+        return ciphertext[len(self.key):]
 
 
 def get_mock_fernet(key):

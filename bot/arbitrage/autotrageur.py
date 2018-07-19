@@ -9,7 +9,7 @@ import schedule
 import yaml
 
 import libs.db.maria_db_handler as db_handler
-from bot.common.ccxt_constants import API_KEY, API_SECRET
+from bot.common.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
                                          DRYRUN_E2_BASE, DRYRUN_E2_QUOTE,
@@ -138,10 +138,14 @@ class Autotrageur(ABC):
                 exchange_key_map[self.config[EXCHANGE1]][API_KEY])
             self.exchange1_configs['secret'] = (
                 exchange_key_map[self.config[EXCHANGE1]][API_SECRET])
+            self.exchange1_configs['password'] = (
+                exchange_key_map[self.config[EXCHANGE1]][PASSWORD])
             self.exchange2_configs['apiKey'] = (
                 exchange_key_map[self.config[EXCHANGE2]][API_KEY])
             self.exchange2_configs['secret'] = (
                 exchange_key_map[self.config[EXCHANGE2]][API_SECRET])
+            self.exchange2_configs['password'] = (
+                exchange_key_map[self.config[EXCHANGE2]][PASSWORD])
 
     def _setup(self):
         """Sets up the algorithm to use.
