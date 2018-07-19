@@ -76,4 +76,4 @@ def decrypt(ciphertext, password, pi_mode=False):
     kdf = get_scrypt(ciphertext[-SALT_LEN:], pi_mode)
     key = base64.urlsafe_b64encode(kdf.derive(password))
     f = get_fernet(key)
-    return f.decrypt(ciphertext)
+    return f.decrypt(ciphertext[:-SALT_LEN])

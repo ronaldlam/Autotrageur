@@ -3,7 +3,7 @@ from decimal import (ROUND_DOWN, ROUND_HALF_UP, Clamped, Context, Decimal,
                      InvalidOperation, Overflow, Subnormal, Underflow,
                      getcontext, setcontext)
 
-FIXED_KEYFILE_LABELS = ["exchange", "api_key", "api_secret"]
+FIXED_KEYFILE_LABELS = ["exchange", "api_key", "api_secret", "password"]
 
 # Context for console output.
 # Note the list ordering, the + operator appends to the first list, so
@@ -54,10 +54,10 @@ def keyfile_to_map(keyfile):
 
     for row in rows[1:]:
         cells = row.split(",")
-        if len(cells) != 3:
+        if len(cells) != len(FIXED_KEYFILE_LABELS):
             raise IncorrectFormatException(
                 "Incorrect number of elements in row: %s", cells)
-        exchange_map[cells[0]] = {labels[1]: cells[1], labels[2]: cells[2]}
+        exchange_map[cells[0]] = dict(zip(labels[1:], cells[1:]))
 
     return exchange_map
 
