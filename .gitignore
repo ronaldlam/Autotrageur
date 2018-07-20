@@ -62,8 +62,7 @@ ENV/
 .vscode/
 
 # API key files
-secret.txt
-encrypted-secret.txt
+*secret.txt
 encrypted-*.txt
 
 # Local test files
