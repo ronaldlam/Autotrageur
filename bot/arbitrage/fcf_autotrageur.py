@@ -22,8 +22,9 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
 from bot.common.decimal_constants import ONE
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import OrderbookException
+from libs.db.maria_db_handler import InsertRowObject
 from libs.email_client.simple_email_client import send_all_emails
-from libs.utilities import num_to_decimal, set_autotrageur_decimal_context
+from libs.utilities import num_to_decimal
 
 from .autotrageur import Autotrageur
 
@@ -235,15 +236,14 @@ class FCFAutotrageur(Autotrageur):
 
         fcf_autotrageur_config_row = db_handler.build_row(
             FCF_AUTOTRAGEUR_CONFIG_COLUMNS, self.config)
-        db_handler.insert_row(
+        config_row_obj = InsertRowObject(
             FCF_AUTOTRAGEUR_CONFIG_TABLE,
             fcf_autotrageur_config_row,
-            {
-                FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID:
-                    fcf_autotrageur_config_row[FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID]
-            }
-        )
+            (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID, ))
+
+        db_handler.insert_row(config_row_obj)
         db_handler.commit_all()
+
 
     def __persist_trade_data(self, buy_response, sell_response):
         """Persists data regarding the current trade into the database.
@@ -262,42 +262,31 @@ class FCFAutotrageur(Autotrageur):
         # Persist the spread_opp.
         trade_opportunity_id = self.trade_metadata['spread_opp'].id
         spread_opp = self.trade_metadata['spread_opp']._asdict()
-        db_handler.insert_row(
+        trade_opp_row_obj = InsertRowObject(
             TRADE_OPPORTUNITY_TABLE,
             spread_opp,
-            {
-                TRADE_OPPORTUNITY_PRIM_KEY_ID:
-                    spread_opp[TRADE_OPPORTUNITY_PRIM_KEY_ID]
-            }
-        )
+            (TRADE_OPPORTUNITY_PRIM_KEY_ID, ))
+        db_handler.insert_row(trade_opp_row_obj)
 
         # Persist the executed buy order, if available.
         if buy_response is not None:
             buy_response['trade_opportunity_id'] = trade_opportunity_id
             buy_response['autotrageur_config_id'] = self.config[ID]
-            db_handler.insert_row(
+            buy_trade_row_obj = InsertRowObject(
                 TRADES_TABLE,
                 buy_response,
-                {
-                    TRADES_PRIM_KEY_TRADE_OPP_ID:
-                        buy_response[TRADES_PRIM_KEY_TRADE_OPP_ID],
-                    TRADES_PRIM_KEY_SIDE: buy_response[TRADES_PRIM_KEY_SIDE]
-                }
-            )
+                (TRADES_PRIM_KEY_TRADE_OPP_ID, TRADES_PRIM_KEY_SIDE))
+            db_handler.insert_row(buy_trade_row_obj)
 
         # Persist the executed sell order, if available.
         if sell_response is not None:
             sell_response['trade_opportunity_id'] = trade_opportunity_id
             sell_response['autotrageur_config_id'] = self.config[ID]
-            db_handler.insert_row(
+            sell_trade_row_obj = InsertRowObject(
                 TRADES_TABLE,
                 sell_response,
-                {
-                    TRADES_PRIM_KEY_TRADE_OPP_ID:
-                        sell_response[TRADES_PRIM_KEY_TRADE_OPP_ID],
-                    TRADES_PRIM_KEY_SIDE: sell_response[TRADES_PRIM_KEY_SIDE]
-                }
-            )
+                (TRADES_PRIM_KEY_TRADE_OPP_ID, TRADES_PRIM_KEY_SIDE))
+            db_handler.insert_row(sell_trade_row_obj)
 
         db_handler.commit_all()
 

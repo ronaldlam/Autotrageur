@@ -1,4 +1,5 @@
 import re
+from collections import namedtuple
 
 import MySQLdb
 
@@ -13,21 +14,57 @@ class InvalidRowFormatError(Exception):
     pass
 
 
-def _form_insert_query(table_name, columns, param_string, prim_keys):
-    """Forms an 'INSERT IGNORE INTO ...' query string.
+"""Encapsulates the data needed to insert a row into the database.
 
-    Utilizes regex to strip single quotes from the columns tuple string.
+The metadata and data required to perform a row insertion include:
+    - a table name
+    - a row of data represented as a dict type.
+    - primary key columns represented as a tuple of strings.
+"""
+InsertRowObject = namedtuple(
+    'InsertRowObject', ['table_name', 'row', 'prim_key_columns'])
+
+
+def _form_insert_query(table_name, columns, row_data_params, prim_keys):
+    """Forms the completed 'INSERT INTO ...' query string.
+
+    Utilizes regex to strip single quotes from the columns tuple string.  The
+    query string contains an optional 'ON DUPLICATE KEY UPDATE ...' extension
+    if primary keys are provided.
 
     Args:
         table_name (str): Name of the table to insert into.
         columns (tuple(str)): Column names represented as a tuple of strings.
-        param_string (str): A param substitution string composed of repeating
-            sequences of '%s'.  E.g. '%s, %s, %s"
+        row_data_params (str): A param substitution string composed of repeating
+            sequences of '%s' for data insertion.  E.g. '%s, %s, %s"
         prim_keys (dict): Any primary keys of the supplied table,
-            represented as a dict `{ COLUMN_NAME: PRIMARY_KEY_VALUE }`
+            represented as a dict `{ COLUMN_NAME: PRIMARY_KEY_VALUE }`. Default
+            is an empty dict.
+
+    Returns:
+        str: A completed 'INSERT INTO ...' query string ready for execution.
     """
-    # Form the initial 'INSERT INTO ...' query
-    insert_query = (
+    insert_query = _insert_into_with_values(
+        table_name, columns, row_data_params)
+
+    # Form redundant 'ON DUPLICATE KEY UPDATE ...' clause for 'ON CONFLICT DO
+    # NOTHING' equivalent.
+    return _on_duplicate_key_update(insert_query, prim_keys)
+
+
+def _insert_into_with_values(table_name, columns, row_data_params):
+    """Forms a 'INSERT INTO ... VALUES(...)' query string.
+
+    Args:
+        table_name (str): Name of the table to insert into.
+        columns (tuple(str)): Column names represented as a tuple of strings.
+        row_data_params (str): A param substitution string composed of repeating
+            sequences of '%s' for data insertion.  E.g. '%s, %s, %s"
+
+    Returns:
+        str: A basic 'INSERT INTO ... VALUES(...)' query string.
+    """
+    return (
         "INSERT INTO "
         + table_name
         + re.sub(r"((?<=\()('|\"))"              # single quote, look-behind '('
@@ -36,20 +73,32 @@ def _form_insert_query(table_name, columns, param_string, prim_keys):
                  r"|(('|\")(?=\)))",             # single quote, look-ahead ')'
                  '', str(columns))
         + " VALUES ("
-        + param_string
+        + row_data_params
         + ")"
     )
 
-    # Form redundant 'ON DUPLICATE KEY UPDATE ...' clause for 'ON CONFLICT DO
-    # NOTHING' equivalent.
-    redundant_update_prim_keys = ', '.join(
-        "{} = \"{}\"".format(key,val) for (key,val) in prim_keys.items())
 
-    if redundant_update_prim_keys:
+def _on_duplicate_key_update(insert_query, prim_keys):
+    """Appends a 'ON DUPLICATE KEY UPDATE ...' clause to the query string.
+
+    The `insert_query` string will return unchanged if there are no `prim_keys`.
+
+    Args:
+        insert_query (str): An existing 'INSERT INTO ...' query string.
+        prim_keys (tuple(str)): A tuple of primary key column names.
+
+    Returns:
+        str: A completed 'INSERT INTO ...' query string with the appended
+            'ON DUPLICATE KEY UPDATE ...' portion (if necessary).
+    """
+    if prim_keys:
+        redundant_update_prim_keys = ', '.join(
+            "{} = {}".format(key, key) for key in prim_keys)
+
         insert_query += (
             " ON DUPLICATE KEY UPDATE "
-            + redundant_update_prim_keys
-        )
+            + redundant_update_prim_keys)
+
     return insert_query
 
 
@@ -79,7 +128,7 @@ def commit_all():
     db.commit()
 
 
-def insert_row(table_name, row, prim_keys):
+def insert_row(insert_obj):
     """Inserts a row into the database.
 
     The row object is represented as a map with keys containing the columns,
@@ -90,22 +139,29 @@ def insert_row(table_name, row, prim_keys):
         row (dict): The row object containing the necessary information for
             insertion into database.
         prim_keys (dict): Any primary keys of the supplied table,
-            represented as a dict `{ COLUMN_NAME: PRIMARY_KEY_VALUE }`
+            represented as a dict `{ COLUMN_NAME: PRIMARY_KEY_VALUE }`. Default
+            is an empty dict.
 
     Raises:
         InvalidRowFormatError: Thrown if the row object is not a dict or is
             empty.  This is to maintain DB integrity.
     """
-    if not isinstance(row, dict) or len(row) is 0:
-        raise InvalidRowFormatError("Row object: {} is not a valid format for "
-            "DB insertion.  Please make sure it is a dict.".format(row))
+    if not isinstance(insert_obj.row, dict) or len(insert_obj.row) is 0:
+        raise InvalidRowFormatError("Row type: {} is not a valid format for "
+            "DB insertion.  Please make sure it is a `dict`.".format(
+                type(insert_obj.row)))
 
-    columns = *row,
-    row_data = *row.values(),
+    columns = *insert_obj.row,
+    row_data = *insert_obj.row.values(),
     cursor = db.cursor()
     params = ', '.join(['%s'] * len(row_data))
+
     cursor.execute(
-        _form_insert_query(table_name, columns, params, prim_keys),
+        _form_insert_query(
+            insert_obj.table_name,
+            columns,
+            params,
+            insert_obj.prim_key_columns),
         row_data)
     cursor.close()
 
