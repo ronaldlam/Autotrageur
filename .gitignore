@@ -62,7 +62,7 @@ ENV/
 .vscode/
 
 # API key files
-secret.txt
+*secret.txt
 encrypted-secret.txt
 encrypted-*.txt
 
