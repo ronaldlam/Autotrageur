@@ -52,6 +52,10 @@ def keyfile_to_map(keyfile):
             FIXED_KEYFILE_LABELS,
             labels)
 
+    # Checks if the last character of the file was parsed a newline character
+    # '\n' and truncates the list of rows by 1 if present.
+    if not rows[-1]:
+        rows = rows[:-1]
     for row in rows[1:]:
         cells = row.split(",")
         if len(cells) != len(FIXED_KEYFILE_LABELS):

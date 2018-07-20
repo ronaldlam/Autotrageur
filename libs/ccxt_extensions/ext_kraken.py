@@ -252,7 +252,7 @@ class ext_kraken(ccxt.kraken):
             dict: The order result from the ccxt exchange.
         """
         return self._create_market_order(
-            BUY_SIDE, symbol, asset_amount, params)
+            BUY_SIDE, symbol, float(asset_amount), params)
 
     # @Override
     def create_market_sell_order(self, symbol, asset_amount, params={}):
@@ -327,4 +327,4 @@ class ext_kraken(ccxt.kraken):
             dict: The order result from the ccxt exchange.
         """
         return self._create_market_order(
-            SELL_SIDE, symbol, asset_amount, params)
+            SELL_SIDE, symbol, float(asset_amount), params)
