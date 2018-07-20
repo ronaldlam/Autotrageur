@@ -19,10 +19,16 @@ from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, SPREAD_MIN,
                                          START_TIMESTAMP, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
+                                     FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
-                                     TRADE_OPPORTUNITY_TABLE, TRADES_TABLE)
+                                     TRADE_OPPORTUNITY_PRIM_KEY_ID,
+                                     TRADE_OPPORTUNITY_TABLE,
+                                     TRADES_PRIM_KEY_SIDE,
+                                     TRADES_PRIM_KEY_TRADE_OPP_ID,
+                                     TRADES_TABLE)
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import OrderbookException
+from libs.db.maria_db_handler import InsertRowObject
 from libs.email_client.simple_email_client import send_all_emails
 from libs.utilities import num_to_decimal
 
@@ -295,7 +301,10 @@ def test_persist_configs(mocker, no_patch_fcf_autotrageur):
     db_handler.build_row.assert_called_once_with(
         FCF_AUTOTRAGEUR_CONFIG_COLUMNS, no_patch_fcf_autotrageur.config)
     db_handler.insert_row.assert_called_once_with(
-        FCF_AUTOTRAGEUR_CONFIG_TABLE, FAKE_CONFIG_ROW)
+        InsertRowObject(
+            FCF_AUTOTRAGEUR_CONFIG_TABLE,
+            FAKE_CONFIG_ROW,
+            (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID, )))
     db_handler.commit_all.assert_called_once_with()
 
 
@@ -325,8 +334,10 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
     insert_num_calls = 1
     insert_call_args_list = [
         mocker.call(
-            TRADE_OPPORTUNITY_TABLE,
-            no_patch_fcf_autotrageur.trade_metadata['spread_opp']._asdict())
+            InsertRowObject(
+                TRADE_OPPORTUNITY_TABLE,
+                no_patch_fcf_autotrageur.trade_metadata['spread_opp']._asdict(),
+                (TRADE_OPPORTUNITY_PRIM_KEY_ID, )))
     ]
 
     # Check that the ids are not populated until function is called.
@@ -342,7 +353,10 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
     if buy_response_copy is not None:
         insert_num_calls += 1
         insert_call_args_list.append(mocker.call(
-            TRADES_TABLE, buy_response_copy
+            InsertRowObject(
+                TRADES_TABLE,
+                buy_response_copy,
+                (TRADES_PRIM_KEY_TRADE_OPP_ID, TRADES_PRIM_KEY_SIDE))
         ))
         assert buy_response_copy.get('trade_opportunity_id') is FAKE_SPREAD_OPP_ID
         assert buy_response_copy.get('autotrageur_config_id') is FAKE_CONFIG_UUID
@@ -350,7 +364,10 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
     if sell_response_copy is not None:
         insert_num_calls += 1
         insert_call_args_list.append(mocker.call(
-            TRADES_TABLE, sell_response_copy
+            InsertRowObject(
+                TRADES_TABLE,
+                sell_response_copy,
+                (TRADES_PRIM_KEY_TRADE_OPP_ID, TRADES_PRIM_KEY_SIDE))
         ))
         assert sell_response_copy.get('trade_opportunity_id') is FAKE_SPREAD_OPP_ID
         assert sell_response_copy.get('autotrageur_config_id') is FAKE_CONFIG_UUID
