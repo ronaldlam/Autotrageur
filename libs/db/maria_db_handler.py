@@ -37,9 +37,8 @@ def _form_insert_query(table_name, columns, row_data_params, prim_keys):
         columns (tuple(str)): Column names represented as a tuple of strings.
         row_data_params (str): A param substitution string composed of repeating
             sequences of '%s' for data insertion.  E.g. '%s, %s, %s"
-        prim_keys (dict): Any primary keys of the supplied table,
-            represented as a dict `{ COLUMN_NAME: PRIMARY_KEY_VALUE }`. Default
-            is an empty dict.
+        prim_keys (tuple(str)): Any primary key columns of the supplied table,
+            represented as a tuple. E.g. ('col1', 'col2')
 
     Returns:
         str: A completed 'INSERT INTO ...' query string ready for execution.
@@ -53,7 +52,7 @@ def _form_insert_query(table_name, columns, row_data_params, prim_keys):
 
 
 def _insert_into_with_values(table_name, columns, row_data_params):
-    """Forms a 'INSERT INTO ... VALUES(...)' query string.
+    """Forms an 'INSERT INTO ... VALUES(...)' query string.
 
     Args:
         table_name (str): Name of the table to insert into.
@@ -79,7 +78,7 @@ def _insert_into_with_values(table_name, columns, row_data_params):
 
 
 def _on_duplicate_key_update(insert_query, prim_keys):
-    """Appends a 'ON DUPLICATE KEY UPDATE ...' clause to the query string.
+    """Appends an 'ON DUPLICATE KEY UPDATE ...' clause to the query string.
 
     The `insert_query` string will return unchanged if there are no `prim_keys`.
 
@@ -131,16 +130,12 @@ def commit_all():
 def insert_row(insert_obj):
     """Inserts a row into the database.
 
-    The row object is represented as a map with keys containing the columns,
-    and values containing the corresponding row data.
+   `insert_obj` is a data structure which should contain all the metadata and
+   data necessary for row insertion into the database.
 
     Args:
-        table_name (str): The name of the table to insert into.
-        row (dict): The row object containing the necessary information for
-            insertion into database.
-        prim_keys (dict): Any primary keys of the supplied table,
-            represented as a dict `{ COLUMN_NAME: PRIMARY_KEY_VALUE }`. Default
-            is an empty dict.
+        insert_obj (InsertRowObject): A data structure containing all the
+            metadata and data necessary for row insertion into the database.
 
     Raises:
         InvalidRowFormatError: Thrown if the row object is not a dict or is
