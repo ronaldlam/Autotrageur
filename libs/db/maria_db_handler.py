@@ -161,6 +161,12 @@ def insert_row(insert_obj):
     cursor.close()
 
 
+def ping_db():
+    """Ping the database to keep connection alive."""
+    global db
+    db.ping()
+
+
 def start_db(db_user, db_password, db_name):
     """Starts the database by initiating a connection, if no connection exists.
 
