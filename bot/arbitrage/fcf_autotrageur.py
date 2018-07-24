@@ -491,11 +491,10 @@ class FCFAutotrageur(Autotrageur):
         """Send email alert to preconfigured emails.
 
         Args:
-            subject (str): The subject of the message
+            subject (str): The subject of the message.
             msg (str): The contents of the email to send out.
         """
-        send_all_emails(self.config[EMAIL_CFG_PATH],
-                        'Subject: {}\n{}'.format(subject, msg))
+        send_all_emails(self.config[EMAIL_CFG_PATH], subject, msg)
 
     # @Override
     def _setup(self):
