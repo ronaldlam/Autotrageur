@@ -1,6 +1,7 @@
 import logging
 import pprint
 import time
+import traceback
 import uuid
 from decimal import Decimal
 
@@ -356,13 +357,14 @@ class FCFAutotrageur(Autotrageur):
                                 * max(min_base_buy, min_base_sell))
         return buy_trader.quote_target_amount > min_target_amount
 
-    def _alert(self, exception):
+    def _alert(self, subject, exception):
         """Last ditch effort to alert user on operation failure.
 
         Args:
+            subject (str): The subject/topic for the alert.
             exception (Exception): The exception to alert about.
         """
-        self._send_email("LIVE EXECUTION FAILURE", repr(exception))
+        self._send_email(subject, traceback.format_exc())
 
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
