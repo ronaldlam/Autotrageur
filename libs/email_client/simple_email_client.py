@@ -1,7 +1,29 @@
 import logging
 import smtplib
+from email.message import EmailMessage
 
 import yaml
+
+
+def _construct_email_msg(subject, body, from_addr, to_addr):
+    """Constructs an EmailMessage to be used in sending an e-mail.
+
+    Args:
+        subject (str): The subject of the message.
+        body (str): The body (main content) of the e-mail to be sent.
+        from_addr (str): Sender's e-mail address.
+        to_addr (str): Recipient's e-mail address.
+
+    Returns:
+        EmailMessage: An EmailMessage object containing all information
+            needed to send an email.
+    """
+    msg = EmailMessage()
+    msg['Subject'] = subject
+    msg['From'] = from_addr
+    msg['To'] = to_addr
+    msg.set_content(body)
+    return msg
 
 
 def _extract_email_info(email_cfg_path):
@@ -36,7 +58,8 @@ def send_single_email(recipient, email_cfg, msg):
     Args:
         recipient (str): A recipient's e-mail address.
         email_cfg (dict[]): A dictionary of e-mail configuration properties.
-        msg (str): A message formatted to be written as an e-mail (non-MIME).
+        msg (EmailMessage): An EmailMessage object containing all information
+            needed to send an email.
 
     Raises:
         SMTPResponseException: If an SMTP error occurs containing 'smtp_code'
@@ -51,7 +74,7 @@ def send_single_email(recipient, email_cfg, msg):
         smtp_server.starttls()
         smtp_server.login(email_cfg['username'], email_cfg['password'])
 
-        smtp_server.sendmail(email_cfg['username'], recipient, msg)
+        smtp_server.send_message(msg)
         logging.info("Email sent successfully to: %s", recipient)
     except smtplib.SMTPResponseException:
         errcode = getattr(smtp_ex, 'smtp_code')
@@ -71,14 +94,17 @@ def send_single_email(recipient, email_cfg, msg):
             smtp_server.quit()
 
 
-def send_all_emails(email_cfg_path, msg):
+def send_all_emails(email_cfg_path, subject, body):
     """Sends an e-mail message to one or more e-mails.
 
     Args:
         email_cfg_path (str): Path to e-mail configuration for sending emails.
-        msg (str): An message formatted to be sent as an e-mail (non-MIME).
+        subject (str): The subject of the message.
+        body (str): The body (main content) of the e-mail to be sent.
     """
     email_cfg = _extract_email_info(email_cfg_path)
 
     for recipient in email_cfg['recipients']:
+        msg = _construct_email_msg(
+            subject, body, email_cfg['username'], recipient)
         send_single_email(recipient, email_cfg, msg)

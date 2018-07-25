@@ -23,7 +23,7 @@ from libs.utilities import keyfile_to_map
 class Mocktrageur(Autotrageur):
     """Mock concrete class. ABC's cannot be instantiated."""
 
-    def _alert(self, exception):
+    def _alert(self, subject, exception):
         pass
 
     def _poll_opportunity(self):
@@ -310,7 +310,7 @@ class TestRunAutotrageur:
             mocker.patch.object(autotrageur, 'dry_run', create=True)
             with pytest.raises(exc_type):
                 autotrageur.run_autotrageur(self.FAKE_ARGS)
-            autotrageur._alert.assert_not_called()
+            autotrageur._alert.assert_called_once()
         else:
             # Save original function before mocking out `run_autotrageur`
             autotrageur.original_run_autotrageur = autotrageur.run_autotrageur
