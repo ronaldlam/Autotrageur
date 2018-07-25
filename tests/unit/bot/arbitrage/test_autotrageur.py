@@ -1,15 +1,12 @@
 import getpass
 
 import ccxt
-import libs.db.maria_db_handler as db_handler
 import pytest
 import schedule
 import yaml
-from libs.security.encryption import decrypt
-from libs.utilities import keyfile_to_map
-from libs.utils.ccxt_utils import RetryableError
 
 import bot.arbitrage.autotrageur
+import libs.db.maria_db_handler as db_handler
 from bot.arbitrage.autotrageur import AuthenticationError, Autotrageur
 from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
@@ -19,6 +16,9 @@ from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          EXCHANGE2_PAIR, EXCHANGE2_TEST,
                                          SLIPPAGE)
 from bot.trader.dry_run import DryRun, DryRunExchange
+from libs.security.encryption import decrypt
+from libs.utilities import keyfile_to_map
+from libs.utils.ccxt_utils import RetryableError
 
 
 class Mocktrageur(Autotrageur):
