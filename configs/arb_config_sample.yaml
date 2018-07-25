@@ -36,3 +36,7 @@ slippage: # Important for Gemini, eg. 3
 db_name:
 # (String) The database user.
 db_user:
+
+# ----------------TWILIO SETTINGS----------------------------------------------
+# Path for the twilio config file.
+twilio_cfg_path:

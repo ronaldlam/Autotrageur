@@ -1,0 +1,7 @@
+# Twilio Configuration.
+
+# Recipient phone numbers to be phoned when necessary.  E.g. +17781234567
+recipient_numbers:
+
+# The twilio phone number purchased to be used as a caller.  E.g. +17781234567
+sender_number:
