@@ -714,9 +714,7 @@ def test_send_email(mocker, no_patch_fcf_autotrageur):
     mocker.patch('bot.arbitrage.fcf_autotrageur.send_all_emails')
     no_patch_fcf_autotrageur._send_email(FAKE_SUBJECT, FAKE_MESSAGE)
     bot.arbitrage.fcf_autotrageur.send_all_emails.assert_called_once_with(
-        no_patch_fcf_autotrageur.config[EMAIL_CFG_PATH],
-        'Subject: {}\n{}'.format(FAKE_SUBJECT, FAKE_MESSAGE)
-    )
+        no_patch_fcf_autotrageur.config[EMAIL_CFG_PATH], FAKE_SUBJECT, FAKE_MESSAGE)
 
 
 def test_setup(mocker, no_patch_fcf_autotrageur):
