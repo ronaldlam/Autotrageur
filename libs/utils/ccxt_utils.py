@@ -18,7 +18,7 @@ class RetryableError(Exception):
 
 
 class RetryCounter():
-    """An asymmetric for current number of availabe retries.
+    """An asymmetric counter for current number of available retries.
 
     Increments are called on successful polls, and will increment the
     internal counter to 10. Decrements are issued on errors, and will

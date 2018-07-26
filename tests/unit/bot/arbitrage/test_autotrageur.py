@@ -343,13 +343,6 @@ class TestRunAutotrageur:
         assert autotrageur._poll_opportunity.call_count == 2
         assert autotrageur._execute_trade.call_count == 1
 
-        autotrageur._setup.assert_called_once_with()
-        autotrageur._load_configs.assert_called_with(self.FAKE_ARGS)
-        assert autotrageur._clean_up.call_count == 2
-        assert autotrageur._wait.call_count == 1
-        assert autotrageur._poll_opportunity.call_count == 2
-        assert autotrageur._execute_trade.call_count == 1
-
     @pytest.mark.parametrize("decrement_returns", [
         [True, True, False], [True, True, True]])
     def test_run_autotrageur_retry_exception(self, mocker, autotrageur,
@@ -365,6 +358,8 @@ class TestRunAutotrageur:
         retry_counter_instance.decrement.side_effect = decrement_returns
 
         if decrement_returns[2]:
+            # With a third successful retry, the SystemExit side effect
+            # on the 5th _poll_opportunity will be triggered.
             with pytest.raises(SystemExit):
                 autotrageur.run_autotrageur(self.FAKE_ARGS)
 
