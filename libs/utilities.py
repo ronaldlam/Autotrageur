@@ -48,9 +48,9 @@ def keyfile_to_map(keyfile):
 
     if FIXED_KEYFILE_LABELS != labels:
         raise IncorrectFormatException(
-            "Keyfile column headers must be %s, received %s.",
+            "Keyfile column headers must be {}, received {}.".format(
             FIXED_KEYFILE_LABELS,
-            labels)
+            labels))
 
     # Checks if the last character of the file was parsed a newline character
     # '\n' and truncates the list of rows by 1 if present.

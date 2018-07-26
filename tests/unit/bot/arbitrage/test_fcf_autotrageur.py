@@ -1,6 +1,7 @@
 # pylint: disable=E1101
 import copy
 import time
+import traceback
 import uuid
 from decimal import Decimal, InvalidOperation
 
@@ -27,6 +28,8 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      TRADES_PRIM_KEY_TRADE_OPP_ID,
                                      TRADES_TABLE)
 from bot.common.enums import Momentum
+from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
+                                               SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import OrderbookException
 from libs.db.maria_db_handler import InsertRowObject
 from libs.email_client.simple_email_client import send_all_emails
@@ -711,9 +714,7 @@ def test_send_email(mocker, no_patch_fcf_autotrageur):
     mocker.patch('bot.arbitrage.fcf_autotrageur.send_all_emails')
     no_patch_fcf_autotrageur._send_email(FAKE_SUBJECT, FAKE_MESSAGE)
     bot.arbitrage.fcf_autotrageur.send_all_emails.assert_called_once_with(
-        no_patch_fcf_autotrageur.config[EMAIL_CFG_PATH],
-        'Subject: {}\n{}'.format(FAKE_SUBJECT, FAKE_MESSAGE)
-    )
+        no_patch_fcf_autotrageur.config[EMAIL_CFG_PATH], FAKE_SUBJECT, FAKE_MESSAGE)
 
 
 def test_setup(mocker, no_patch_fcf_autotrageur):
@@ -740,10 +741,11 @@ def test_setup(mocker, no_patch_fcf_autotrageur):
     assert isinstance(no_patch_fcf_autotrageur.checkpoint, FCFCheckpoint)
 
 
-def test_alert(mocker, no_patch_fcf_autotrageur):
+@pytest.mark.parametrize('subject', [SUBJECT_DRY_RUN_FAILURE, SUBJECT_LIVE_FAILURE])
+def test_alert(mocker, subject, no_patch_fcf_autotrageur):
     send_email = mocker.patch.object(no_patch_fcf_autotrageur, '_send_email')
     exception = mocker.Mock()
 
-    no_patch_fcf_autotrageur._alert(exception)
+    no_patch_fcf_autotrageur._alert(subject, exception)
 
-    send_email.assert_called_once_with("LIVE EXECUTION FAILURE", repr(exception))
+    send_email.assert_called_once_with(subject, traceback.format_exc())

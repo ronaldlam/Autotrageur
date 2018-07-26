@@ -18,12 +18,13 @@ from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
 from bot.trader.dry_run import DryRun, DryRunExchange
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map
+from libs.utils.ccxt_utils import RetryableError
 
 
 class Mocktrageur(Autotrageur):
     """Mock concrete class. ABC's cannot be instantiated."""
 
-    def _alert(self, exception):
+    def _alert(self, subject, exception):
         pass
 
     def _poll_opportunity(self):
@@ -248,6 +249,8 @@ class TestRunAutotrageur:
         mocker.patch.object(autotrageur, '_poll_opportunity', side_effect=[
             True, True, False, True, False
         ])
+        mock_counter = mocker.patch('bot.arbitrage.autotrageur.RetryCounter')
+        retry_counter_instance = mock_counter.return_value
 
         with pytest.raises(SystemExit):
             autotrageur.run_autotrageur(self.FAKE_ARGS, requires_configs)
@@ -258,6 +261,7 @@ class TestRunAutotrageur:
         assert autotrageur._wait.call_count == 5
         assert autotrageur._poll_opportunity.call_count == 5
         assert autotrageur._execute_trade.call_count == 3
+        assert retry_counter_instance.increment.call_count == 5
 
         if requires_configs:
             autotrageur._load_configs.assert_called_with(self.FAKE_ARGS)
@@ -271,6 +275,8 @@ class TestRunAutotrageur:
             True, True, False, KeyboardInterrupt, False
         ])
         mocker.patch.dict(autotrageur.config, { DRYRUN: dryrun })
+        mock_counter = mocker.patch('bot.arbitrage.autotrageur.RetryCounter')
+        retry_counter_instance = mock_counter.return_value
 
         if dryrun:
             mocker.patch.object(autotrageur, 'dry_run', create=True)
@@ -287,6 +293,7 @@ class TestRunAutotrageur:
         assert autotrageur._wait.call_count == 3
         assert autotrageur._poll_opportunity.call_count == 4
         assert autotrageur._execute_trade.call_count == 2
+        assert retry_counter_instance.increment.call_count == 3
 
         if dryrun:
             autotrageur.dry_run.log_all.assert_called_once_with()
@@ -310,7 +317,7 @@ class TestRunAutotrageur:
             mocker.patch.object(autotrageur, 'dry_run', create=True)
             with pytest.raises(exc_type):
                 autotrageur.run_autotrageur(self.FAKE_ARGS)
-            autotrageur._alert.assert_not_called()
+            autotrageur._alert.assert_called_once()
         else:
             # Save original function before mocking out `run_autotrageur`
             autotrageur.original_run_autotrageur = autotrageur.run_autotrageur
@@ -335,3 +342,39 @@ class TestRunAutotrageur:
         assert autotrageur._wait.call_count == 1
         assert autotrageur._poll_opportunity.call_count == 2
         assert autotrageur._execute_trade.call_count == 1
+
+    @pytest.mark.parametrize("decrement_returns", [
+        [True, True, False], [True, True, True]])
+    def test_run_autotrageur_retry_exception(self, mocker, autotrageur,
+                                             decrement_returns):
+        self._setup_mocks(mocker, autotrageur)
+        mocker.patch.object(autotrageur, '_load_configs')
+        mocker.patch.object(autotrageur, '_poll_opportunity', side_effect=[
+            True, RetryableError, RetryableError, RetryableError, SystemExit
+        ])
+        mocker.patch.dict(autotrageur.config, {DRYRUN: True})
+        mock_counter = mocker.patch('bot.arbitrage.autotrageur.RetryCounter')
+        retry_counter_instance = mock_counter.return_value
+        retry_counter_instance.decrement.side_effect = decrement_returns
+
+        if decrement_returns[2]:
+            # With a third successful retry, the SystemExit side effect
+            # on the 5th _poll_opportunity will be triggered.
+            with pytest.raises(SystemExit):
+                autotrageur.run_autotrageur(self.FAKE_ARGS)
+
+            assert autotrageur._poll_opportunity.call_count == 5
+            assert autotrageur._clean_up.call_count == 5
+            assert autotrageur._wait.call_count == 4
+        else:
+            with pytest.raises(RetryableError):
+                autotrageur.run_autotrageur(self.FAKE_ARGS)
+
+            assert autotrageur._poll_opportunity.call_count == 4
+            assert autotrageur._clean_up.call_count == 4
+            assert autotrageur._wait.call_count == 3
+
+        autotrageur._setup.assert_called_once_with()
+        autotrageur._load_configs.assert_called_with(self.FAKE_ARGS)
+        assert autotrageur._execute_trade.call_count == 1
+        assert retry_counter_instance.increment.call_count == 1

@@ -1,6 +1,6 @@
 """Configuration file constants."""
 
-# Email constants.
+# Email config file path.
 EMAIL_CFG_PATH = 'email_cfg_path'
 
 # Trade configuration constants.
