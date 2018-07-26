@@ -79,7 +79,11 @@ class Autotrageur(ABC):
             self.config[DB_NAME])
 
     def __load_env_vars(self):
-        """Ensures that the necessary environment variables are loaded."""
+        """Ensures that the necessary environment variables are loaded.
+
+        Returns:
+            bool: True if the necessary environment variables have been loaded
+                successfully.  Else, False."""
         env_path = Path('.env')
         env_vars_loaded = (
             env_path.exists() and load_dotenv(dotenv_path=env_path))

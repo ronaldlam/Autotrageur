@@ -7,10 +7,12 @@ from twilio.rest import Client
 
 TWILIO_ACTIVE_STATE = 'active'
 
+
 class TwilioInactiveAccountError(Exception):
     """Thrown when a Twilio Account is not 'active'.  It can be 'suspended' or
     'closed'."""
     pass
+
 
 def _form_messages_url_query(messages):
     """Forms the url-safe query string for a string of 'Messages'.
@@ -55,6 +57,7 @@ def phone(messages, to_phone_numbers, from_phone_number):
             url='http://twimlets.com/message?' + escaped_messages,
             to=phone_number,
             from_=from_phone_number)
+
 
 def test_connection():
     account_sid = os.getenv('ACCOUNT_SID')
