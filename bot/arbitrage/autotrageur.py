@@ -74,6 +74,7 @@ class Autotrageur(ABC):
             self.config[DB_USER],
             db_password,
             self.config[DB_NAME])
+        schedule.every(7).hours.do(db_handler.ping_db)
 
     def __load_keyfile(self, arguments):
         """Load the keyfile given in the arguments.

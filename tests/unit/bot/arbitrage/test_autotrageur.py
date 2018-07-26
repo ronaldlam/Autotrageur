@@ -126,6 +126,7 @@ def test_load_db(mocker, autotrageur):
         DB_USER: 'test_user',
         DB_NAME: 'test_db'
     })
+    mocker.spy(schedule, 'every')
 
     autotrageur._Autotrageur__load_db()
 
@@ -134,6 +135,10 @@ def test_load_db(mocker, autotrageur):
         autotrageur.config[DB_USER],
         MOCK_DB_PASSWORD,
         autotrageur.config[DB_NAME])
+    schedule.every.assert_called_once_with(7)           # pylint: disable=E1101
+    assert len(schedule.jobs) == 1
+    schedule.clear()
+
 
 @pytest.mark.parametrize("ex1_test", [True, False])
 @pytest.mark.parametrize("ex2_test", [True, False])
