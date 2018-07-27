@@ -12,7 +12,9 @@ import libs.db.maria_db_handler as db_handler
 import libs.twilio.twilio_client as twilio_client
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, SPREAD_MIN,
-                                         START_TIMESTAMP, VOL_MIN)
+                                         START_TIMESTAMP,
+                                         TWILIO_RECIPIENT_NUMBERS,
+                                         TWILIO_SENDER_NUMBER, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
@@ -366,10 +368,10 @@ class FCFAutotrageur(Autotrageur):
             exception (Exception): The exception to alert about.
         """
         self._send_email(subject, traceback.format_exc())
-        twilio_client.phone(
+        self.twilio_client.phone(
             [subject, traceback.format_exc()],
-            self.twilio_config['recipient_numbers'],
-            self.twilio_config['sender_number'])
+            self.twilio_config[TWILIO_RECIPIENT_NUMBERS],
+            self.twilio_config[TWILIO_SENDER_NUMBER])
 
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next

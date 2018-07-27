@@ -27,6 +27,7 @@ from bot.trader.ccxt_trader import CCXTTrader
 from bot.trader.dry_run import DryRun, DryRunExchange
 from libs.fiat_symbols import FIAT_SYMBOLS
 from libs.security.encryption import decrypt
+from libs.twilio.twilio_client import TwilioClient
 from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
 
 # Program argument constants.
@@ -139,7 +140,12 @@ class Autotrageur(ABC):
         with open(twilio_cfg_path, 'r') as ymlfile:
             self.twilio_config = yaml.safe_load(ymlfile)
 
-        twilio_client.test_connection()
+        self.twilio_client = TwilioClient(
+            os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'))
+
+        # Make sure there is a valid connection as notifications are a critical
+        # service to the bot.
+        self.twilio_client.test_connection()
 
     def _load_configs(self, arguments):
         """Load the configurations of the Autotrageur run.
@@ -240,12 +246,6 @@ class Autotrageur(ABC):
             self.trader1.connect_test_api()
         if self.config[EXCHANGE2_TEST]:
             self.trader2.connect_test_api()
-        import traceback
-        try:
-            raise Exception('TEST EXCEPTION MESSAGE')
-        except Exception as e:
-            self._alert('Live execution failure!', e)
-            raise
 
         # Load the available markets for the exchange.
         self.trader1.load_markets()

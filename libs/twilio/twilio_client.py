@@ -5,7 +5,10 @@ import urllib.parse
 from twilio.rest import Client
 
 
+TWIMLETS_MESSAGE_ENDPOINT = 'http://twimlets.com/message?'
 TWILIO_ACTIVE_STATE = 'active'
+TWILIO_SUSPENDED_STATE = 'suspended'
+TWILIO_CLOSED_STATE = 'closed'
 
 
 class TwilioInactiveAccountError(Exception):
@@ -35,36 +38,60 @@ def _form_messages_url_query(messages):
     return messages_query_str
 
 
-def phone(messages, to_phone_numbers, from_phone_number):
-    """Phone recipients to deliver one or more messages.
+class TwilioClient:
+    def __init__(self, account_sid, auth_token):
+        """Constructor.
 
-    Calls every phone number from `to_phone_numbers` using a
-    `from_phone_number` purchased from Twilio.
+        Initializes the twilio client with provided `account_sid` and
+        `auth_token`.
 
-    Args:
-        messages (list[str]): A list of strings containing either a message to
-            <Say> or a url for server hosting an audio file to <Play>.
-        to_phone_numbers (list[str]): A list of recipient phone numbers.
-        from_phone_number (str): A phone number purchased from Twilio to be
-            used as the caller number.
-    """
-    escaped_messages = _form_messages_url_query(messages)
-    client = Client(os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'))
+        Args:
+            account_sid (str): The TWILIO_ACCOUNT_SID associated with the
+                Twilio account.
+            auth_token (str): The TWILIO_AUTH_TOKEN associated with the
+                Twilio account.
+        """
+        self.client = Client(account_sid, auth_token)
 
-    for phone_number in to_phone_numbers:
-        logging.debug('Phoning: {}'.format(phone_number))
-        client.calls.create(
-            url='http://twimlets.com/message?' + escaped_messages,
-            to=phone_number,
-            from_=from_phone_number)
+    def test_connection(self):
+        """Tests the TwilioClient's connection to Twilio APIs.
 
+        Requests for the account's information to see if status is 'active' to
+        verify that the account can be reached, and is alive.
 
-def test_connection():
-    account_sid = os.getenv('ACCOUNT_SID')
-    auth_token = os.getenv('AUTH_TOKEN')
-    client = Client(account_sid, auth_token)
-    account = client.api.accounts(account_sid).fetch()
+        Raises:
+            TwilioInactiveAccountError: Thrown if the twilio api can be reached but
+                the account status is not 'active'.
+        """
 
-    if account.status != TWILIO_ACTIVE_STATE:
-        raise TwilioInactiveAccountError('The Twilio account is not active, it'
-            ' is: {}'.format(account.status))
+        # Disable the http logging for this one call, to avoid interfering with
+        # cmd overlap with an input prompt.
+        logging.getLogger("twilio.http_client").setLevel(logging.WARNING)
+        account = self.client.api.accounts(self.client.account_sid).fetch()
+        logging.getLogger("twilio.http_client").setLevel(logging.INFO)
+
+        if account.status != TWILIO_ACTIVE_STATE:
+            raise TwilioInactiveAccountError('The Twilio account is not active'
+                ', it is: {}'.format(account.status))
+
+    def phone(self, messages, to_phone_numbers, from_phone_number):
+        """Phone recipients to deliver one or more messages.
+
+        Calls every phone number from `to_phone_numbers` using a
+        `from_phone_number` purchased from Twilio.
+
+        Args:
+            messages (list[str]): A list of strings containing either a message to
+                <Say> or a url for server hosting an audio file to <Play>.
+            to_phone_numbers (list[str]): A list of recipient phone numbers.
+            from_phone_number (str): A phone number purchased from Twilio to be
+                used as the caller number.
+        """
+        escaped_messages = _form_messages_url_query(messages)
+
+        for phone_number in to_phone_numbers:
+            logging.debug('Phoning: {}'.format(phone_number))
+            self.client.calls.create(
+                url=TWIMLETS_MESSAGE_ENDPOINT + escaped_messages,
+                to=phone_number,
+                from_=from_phone_number)

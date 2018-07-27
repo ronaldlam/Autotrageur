@@ -18,7 +18,9 @@ from bot.arbitrage.fcf_autotrageur import (FCFAutotrageur, FCFCheckpoint,
                                            arbseeker)
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, SPREAD_MIN,
-                                         START_TIMESTAMP, VOL_MIN)
+                                         START_TIMESTAMP,
+                                         TWILIO_RECIPIENT_NUMBERS,
+                                         TWILIO_SENDER_NUMBER, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
@@ -745,9 +747,24 @@ def test_setup(mocker, no_patch_fcf_autotrageur):
 
 @pytest.mark.parametrize('subject', [SUBJECT_DRY_RUN_FAILURE, SUBJECT_LIVE_FAILURE])
 def test_alert(mocker, subject, no_patch_fcf_autotrageur):
+    FAKE_RECIPIENT_NUMBERS = ['+12345678', '9101121314']
+    FAKE_SENDER_NUMBER = '+15349875'
+    mocker.patch.object(no_patch_fcf_autotrageur, 'twilio_config', {
+        TWILIO_RECIPIENT_NUMBERS: FAKE_RECIPIENT_NUMBERS,
+        TWILIO_SENDER_NUMBER: FAKE_SENDER_NUMBER
+    }, create=True)
     send_email = mocker.patch.object(no_patch_fcf_autotrageur, '_send_email')
     exception = mocker.Mock()
+
+    fake_twilio_client = mocker.Mock()
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'twilio_client', fake_twilio_client, create=True)
+    mocker.patch.object(fake_twilio_client, 'phone')
 
     no_patch_fcf_autotrageur._alert(subject, exception)
 
     send_email.assert_called_once_with(subject, traceback.format_exc())
+    fake_twilio_client.phone.assert_called_once_with(
+        [subject, traceback.format_exc()],
+        FAKE_RECIPIENT_NUMBERS,
+        FAKE_SENDER_NUMBER)
