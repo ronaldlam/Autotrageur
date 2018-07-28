@@ -21,7 +21,16 @@ CREATE TABLE IF NOT EXISTS fcf_autotrageur_config (
     vol_min DECIMAL(27, 8) UNSIGNED NOT NULL,
     slippage DECIMAL(18, 8) NOT NULL,
     start_timestamp INT(11) UNSIGNED NOT NULL,
-    PRIMARY KEY (id));
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS forex_rate (
+    id VARCHAR(36) NOT NULL,
+    quote VARCHAR(10) NOT NULL,
+    rate DECIMAL(27, 8) NOT NULL,
+    local_timestamp INT(11) UNSIGNED NOT NULL,
+    PRIMARY KEY (id)
+);
 
 CREATE TABLE IF NOT EXISTS trade_opportunity (
     id VARCHAR(36) NOT NULL,
@@ -31,7 +40,18 @@ CREATE TABLE IF NOT EXISTS trade_opportunity (
     e1_sell DECIMAL(27, 8) NOT NULL,
     e2_buy DECIMAL(27, 8) NOT NULL,
     e2_sell DECIMAL(27, 8) NOT NULL,
-    PRIMARY KEY (id));
+    e1_forex_rate_id VARCHAR(36),
+    e2_forex_rate_id VARCHAR(36),
+    PRIMARY KEY (id),
+    CONSTRAINT `fk_e1_forex_rate_id`
+        FOREIGN KEY (e1_forex_rate_id) REFERENCES forex_rate (id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    CONSTRAINT `fk_e2_forex_rate_id`
+        FOREIGN KEY (e2_forex_rate_id) REFERENCES forex_rate (id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS trades (
     trade_opportunity_id VARCHAR(36) NOT NULL,
