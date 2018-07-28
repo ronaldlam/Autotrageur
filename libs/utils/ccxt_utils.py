@@ -1,13 +1,57 @@
 import logging
 import time
 
-from ccxt import NetworkError
-
+from ccxt import ExchangeError, NetworkError
 
 MAX_RETRIES = 3
 WAIT_SECONDS = 1
 DEFAULT_ARG_LIST = [()]
 DEFAULT_KWARG_LIST = [{}]
+
+
+class RetryableError(Exception):
+    """ccxt.ExchangeError wrapper for retryable exceptions.
+
+    This is to be handled at the autotrageur level.
+    """
+    pass
+
+
+class RetryCounter():
+    """An asymmetric counter for current number of available retries.
+
+    Increments are called on successful polls, and will increment the
+    internal counter to 10. Decrements are issued on errors, and will
+    subtract 3 from the internal counter. If the internal counter goes
+    below zero, the retries are counted as used up and the the bot will
+    be stopped.
+
+    Note that constants are picked arbitrarily, and mechanism is roughly
+    modelled after Kraken's rate limiting:
+    https://support.kraken.com/hc/en-us/articles/206548367-What-is-the-API-call-rate-limit-
+    """
+    COUNTER_MAX = 10
+
+    def __init__(self):
+        """Constructor."""
+        self._counter = self.COUNTER_MAX
+
+    def increment(self):
+        """Increment internal counter by one if less than ten, no op
+        otherwise.
+        """
+        if self._counter < self.COUNTER_MAX:
+            self._counter += 1
+
+    def decrement(self):
+        """Decrement internal counter by three and check if it goes
+        below 0.
+
+        Returns:
+            bool: Whether the internal counter is 'greater or equal to' 0.
+        """
+        self._counter -= 3
+        return self._counter >= 0
 
 
 def wrap_ccxt_retry(funclist, arglist=DEFAULT_ARG_LIST,
@@ -54,6 +98,9 @@ def wrap_ccxt_retry(funclist, arglist=DEFAULT_ARG_LIST,
             logging.error(network_err, exc_info=True)
             time.sleep(WAIT_SECONDS)
             saved_exc = network_err
+        except ExchangeError as exchange_err:
+            logging.error(exchange_err, exc_info=True)
+            raise RetryableError(ExchangeError)
 
     if saved_exc:
         raise saved_exc

@@ -24,6 +24,7 @@ from bot.trader.dry_run import DryRun, DryRunExchange
 from libs.fiat_symbols import FIAT_SYMBOLS
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
+from libs.utils.ccxt_utils import RetryableError, RetryCounter
 
 # Program argument constants.
 CONFIGFILE = "CONFIGFILE"
@@ -73,6 +74,7 @@ class Autotrageur(ABC):
             self.config[DB_USER],
             db_password,
             self.config[DB_NAME])
+        schedule.every(7).hours.do(db_handler.ping_db)
 
     def __load_keyfile(self, arguments):
         """Load the keyfile given in the arguments.
@@ -283,20 +285,29 @@ class Autotrageur(ABC):
             self._load_configs(arguments)
 
         self._setup()
+        retry_counter = RetryCounter()
 
         try:
             while True:
-                schedule.run_pending()
-                self._clean_up()
-                fancy_log("Start Poll")
-                if self._poll_opportunity():
-                    fancy_log("End Poll")
-                    fancy_log("Start Trade")
-                    self._execute_trade()
-                    fancy_log("End Trade")
-                else:
-                    fancy_log("End Poll")
-                self._wait()
+                try:
+                    schedule.run_pending()
+                    self._clean_up()
+                    fancy_log("Start Poll")
+                    if self._poll_opportunity():
+                        fancy_log("End Poll")
+                        fancy_log("Start Trade")
+                        self._execute_trade()
+                        fancy_log("End Trade")
+                    else:
+                        fancy_log("End Poll")
+                    retry_counter.increment()
+                    self._wait()
+                except RetryableError as e:
+                    logging.error(e, exc_info=True)
+                    if retry_counter.decrement():
+                        self._wait()
+                    else:
+                        raise
         except KeyboardInterrupt:
             if self.config[DRYRUN]:
                 logging.critical("Keyboard Interrupt")
@@ -306,7 +317,7 @@ class Autotrageur(ABC):
             else:
                 raise
         except Exception as e:
-            if not self.dry_run:
+            if not self.config[DRYRUN]:
                 logging.critical("Falling back to dry run, error encountered:")
                 logging.critical(e)
                 self._alert(SUBJECT_LIVE_FAILURE, e)

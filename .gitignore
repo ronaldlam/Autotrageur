@@ -68,6 +68,7 @@ encrypted-*.txt
 # Local test files
 arb_config.yaml
 email_info.yaml
+*_local.yaml
 .pytest_cache/
 scratch.py
 scratch/
