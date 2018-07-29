@@ -6,6 +6,7 @@ import uuid
 from decimal import Decimal
 
 import ccxt
+import schedule
 
 import bot.arbitrage.arbseeker as arbseeker
 import libs.db.maria_db_handler as db_handler
@@ -15,6 +16,7 @@ from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
+                                     FOREX_RATE_PRIM_KEY_ID, FOREX_RATE_TABLE,
                                      TRADE_OPPORTUNITY_PRIM_KEY_ID,
                                      TRADE_OPPORTUNITY_TABLE,
                                      TRADES_PRIM_KEY_SIDE,
@@ -25,9 +27,15 @@ from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import OrderbookException
 from libs.db.maria_db_handler import InsertRowObject
 from libs.email_client.simple_email_client import send_all_emails
+from libs.fiat_symbols import FIAT_SYMBOLS
 from libs.utilities import num_to_decimal
 
 from .autotrageur import Autotrageur
+
+
+class AuthenticationError(Exception):
+    """Incorrect credentials or exchange unavailable."""
+    pass
 
 
 class IncompleteArbitrageError(Exception):
@@ -245,6 +253,34 @@ class FCFAutotrageur(Autotrageur):
         db_handler.insert_row(config_row_obj)
         db_handler.commit_all()
 
+    def __persist_forex(self, trader):
+        """Persists the current forex data.
+
+        Args:
+            trader (CCXTTrader): The CCXTTrader to use.
+        """
+        trader.forex_id = str(uuid.uuid4())
+        row_data = {
+            'id': trader.forex_id,
+            'quote': trader.quote,
+            'rate': trader.forex_ratio,
+            'local_timestamp': int(time.time())
+        }
+        forex_row_obj = InsertRowObject(
+            FOREX_RATE_TABLE,
+            row_data,
+            (FOREX_RATE_PRIM_KEY_ID,))
+        db_handler.insert_row(forex_row_obj)
+        db_handler.commit_all()
+
+    def __update_forex(self, trader):
+        """Update the internally stored forex ratio and store in db.
+
+        Args:
+            trader (CCXTTrader): The CCXTTrader to use.
+        """
+        trader.set_forex_ratio()
+        self.__persist_forex(trader)
 
     def __persist_trade_data(self, buy_response, sell_response):
         """Persists data regarding the current trade into the database.
@@ -504,6 +540,28 @@ class FCFAutotrageur(Autotrageur):
             AuthenticationError: If not dryrun and authentication fails.
         """
         super()._setup()
+
+        # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
+        # to USD fiat.
+        for trader in (self.trader1, self.trader2):
+            if ((trader.quote in FIAT_SYMBOLS)
+                    and (trader.quote != 'USD')
+                    and (trader.quote != 'USDT')):
+                logging.info("Set fiat conversion to USD as necessary for: {}"
+                             " with quote: {}".format(trader.exchange_name,
+                                                      trader.quote))
+                trader.conversion_needed = True
+                self.__update_forex(trader)
+                # TODO: Adjust interval once real-time forex implemented.
+                schedule.every().minute.do(self.__update_forex, trader)
+        try:
+            # Dry run uses balances set in the configuration files.
+            self.trader1.update_wallet_balances(is_dry_run=self.config[DRYRUN])
+            self.trader2.update_wallet_balances(is_dry_run=self.config[DRYRUN])
+        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
+            logging.error(auth_error)
+            raise AuthenticationError(auth_error)
+
         self.__persist_configs()
         self.has_started = False
         self.spread_min = num_to_decimal(self.config[SPREAD_MIN])

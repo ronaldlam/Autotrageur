@@ -5,14 +5,17 @@ import traceback
 import uuid
 from decimal import Decimal, InvalidOperation
 
+import ccxt
 import pytest
+import schedule
 from ccxt import ExchangeError, NetworkError
 
 import bot.arbitrage.arbseeker as arbseeker
 import bot.arbitrage.fcf_autotrageur
 import libs.db.maria_db_handler as db_handler
 from bot.arbitrage.arbseeker import SpreadOpportunity
-from bot.arbitrage.fcf_autotrageur import (FCFAutotrageur, FCFCheckpoint,
+from bot.arbitrage.fcf_autotrageur import (AuthenticationError, FCFAutotrageur,
+                                           FCFCheckpoint,
                                            IncompleteArbitrageError,
                                            InsufficientCryptoBalance,
                                            arbseeker)
@@ -222,7 +225,7 @@ def test_is_trade_opportunity(
         mocker, fcf_autotrageur, e1_spread, e2_spread, momentum, target_index):
     # Setup fcf_autotrageur
     spread_opp = SpreadOpportunity(
-        FAKE_CONFIG_UUID, e1_spread, e2_spread, None, None, None, None)
+        FAKE_CONFIG_UUID, e1_spread, e2_spread, None, None, None, None, None, None)
     mocker.patch.object(fcf_autotrageur, 'momentum', momentum, create=True)
     mocker.patch.object(fcf_autotrageur, 'target_index', target_index, create=True)
     # Chosen for the roughly round numbers.
@@ -325,7 +328,7 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
 
     mocker.patch.object(no_patch_fcf_autotrageur, 'trade_metadata', {
         'spread_opp': SpreadOpportunity(FAKE_SPREAD_OPP_ID, None, None, None,
-                                        None, None, None)
+                                        None, None, None, None, None)
     }, create=True)
     mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
         ID: FAKE_CONFIG_UUID
@@ -717,28 +720,81 @@ def test_send_email(mocker, no_patch_fcf_autotrageur):
         no_patch_fcf_autotrageur.config[EMAIL_CFG_PATH], FAKE_SUBJECT, FAKE_MESSAGE)
 
 
-def test_setup(mocker, no_patch_fcf_autotrageur):
+@pytest.mark.parametrize("client_quote_usd", [True, False])
+@pytest.mark.parametrize("balance_check_success", [True, False])
+@pytest.mark.parametrize("dryrun", [True, False])
+def test_setup(mocker, no_patch_fcf_autotrageur, client_quote_usd,
+               balance_check_success, dryrun):
     import builtins
     s = mocker.patch.object(builtins, 'super')
     mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
         SPREAD_MIN: 2,
         VOL_MIN: 1000,
         H_TO_E1_MAX: 3,
-        H_TO_E2_MAX: 50
+        H_TO_E2_MAX: 50,
+        DRYRUN: dryrun
     }, create=True)
     mock_persist_configs = mocker.patch.object(
-        no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_configs',
-        create=True)
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_configs')
+    mock_update_forex = mocker.patch.object(
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__update_forex')
+    trader1 = mocker.patch.object(no_patch_fcf_autotrageur, 'trader1',
+                                  create=True)
+    trader2 = mocker.patch.object(no_patch_fcf_autotrageur, 'trader2',
+                                  create=True)
 
-    no_patch_fcf_autotrageur._setup()
+    if client_quote_usd:
+        trader1.quote = 'USD'
+        trader2.quote = 'USD'
+    else:
+        # Set a fiat quote pair that is not USD to trigger conversion calls.
+        trader1.quote = 'KRW'
+        trader2.quote = 'KRW'
+
+    mocker.spy(schedule, 'every')
+
+    # If wallet balance fetch fails, expect either AuthenticationError or
+    # ExchangeNotAvailable to be thrown.
+    if balance_check_success is False and dryrun is False:
+        trader1.update_wallet_balances.side_effect = ccxt.AuthenticationError()
+        with pytest.raises(AuthenticationError):
+            no_patch_fcf_autotrageur._setup()
+    else:
+        no_patch_fcf_autotrageur._setup()
+        mock_persist_configs.assert_called_once_with()
+        assert no_patch_fcf_autotrageur.spread_min == Decimal('2')
+        assert no_patch_fcf_autotrageur.vol_min == Decimal('1000')
+        assert no_patch_fcf_autotrageur.h_to_e1_max == Decimal('3')
+        assert no_patch_fcf_autotrageur.h_to_e2_max == Decimal('50')
+        assert isinstance(no_patch_fcf_autotrageur.checkpoint, FCFCheckpoint)
 
     s.assert_called_once()
-    mock_persist_configs.assert_called_once_with()
-    assert no_patch_fcf_autotrageur.spread_min == Decimal('2')
-    assert no_patch_fcf_autotrageur.vol_min == Decimal('1000')
-    assert no_patch_fcf_autotrageur.h_to_e1_max == Decimal('3')
-    assert no_patch_fcf_autotrageur.h_to_e2_max == Decimal('50')
-    assert isinstance(no_patch_fcf_autotrageur.checkpoint, FCFCheckpoint)
+
+    if client_quote_usd:
+        # `conversion_needed` not set in the patched trader instance.
+        assert(schedule.every.call_count == 0)          # pylint: disable=E1101
+        assert len(schedule.jobs) == 0
+        assert(mock_update_forex.call_count == 0)
+    else:
+        assert trader1.conversion_needed is True
+        assert trader2.conversion_needed is True
+        assert(schedule.every.call_count == 2)          # pylint: disable=E1101
+        assert len(schedule.jobs) == 2
+        assert(mock_update_forex.call_count == 2)
+
+    schedule.clear()
+
+    if balance_check_success is False and dryrun is False:
+        # Expect called once and encountered exception.
+        trader1.update_wallet_balances.assert_called_once_with(
+            is_dry_run=dryrun)
+    else:
+        assert(trader1.update_wallet_balances.call_count == 1)
+        assert(trader2.update_wallet_balances.call_count == 1)
+        trader1.update_wallet_balances.assert_called_once_with(
+            is_dry_run=dryrun)
+        trader2.update_wallet_balances.assert_called_once_with(
+            is_dry_run=dryrun)
 
 
 @pytest.mark.parametrize('subject', [SUBJECT_DRY_RUN_FAILURE, SUBJECT_LIVE_FAILURE])

@@ -7,7 +7,8 @@ import yaml
 
 import bot.arbitrage.autotrageur
 import libs.db.maria_db_handler as db_handler
-from bot.arbitrage.autotrageur import AuthenticationError, Autotrageur
+from bot.arbitrage.autotrageur import Autotrageur
+from bot.arbitrage.fcf_autotrageur import AuthenticationError
 from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
                                          DRYRUN_E2_BASE, DRYRUN_E2_QUOTE,
@@ -142,18 +143,8 @@ def test_load_db(mocker, autotrageur):
 
 @pytest.mark.parametrize("ex1_test", [True, False])
 @pytest.mark.parametrize("ex2_test", [True, False])
-@pytest.mark.parametrize("client_quote_usd", [True, False])
-@pytest.mark.parametrize(
-    "balance_check_success, dryrun", [
-        (True, True),
-        (True, False),
-        (False, True),
-        (False, False)
-    ]
-)
-def test_setup(
-        mocker, autotrageur, ex1_test, ex2_test, client_quote_usd,
-        balance_check_success, dryrun):
+@pytest.mark.parametrize("dryrun", [True, False])
+def test_setup(mocker, autotrageur, ex1_test, ex2_test, dryrun):
     fake_slippage = 0.25
     fake_pair = 'fake/pair'
     placeholder = 'fake'
@@ -176,23 +167,8 @@ def test_setup(
         DRYRUN_E2_QUOTE: 20000
     }
 
-    if client_quote_usd:
-        instance.quote = 'USD'
-    else:
-        # Set a fiat quote pair that is not USD to trigger conversion calls.
-        instance.quote = 'KRW'
-
     mocker.patch.dict(autotrageur.config, configuration)
-    mocker.spy(schedule, 'every')
-
-    # If wallet balance fetch fails, expect either AuthenticationError or
-    # ExchangeNotAvailable to be thrown.
-    if balance_check_success is False and dryrun is False:
-        instance.update_wallet_balances.side_effect = ccxt.AuthenticationError()
-        with pytest.raises(AuthenticationError):
-            autotrageur._setup()
-    else:
-        autotrageur._setup()
+    autotrageur._setup()
 
     # Dry run verification.
     if dryrun:
@@ -210,27 +186,6 @@ def test_setup(
         assert(instance.connect_test_api.call_count == 0)
 
     assert(instance.load_markets.call_count == 2)
-
-    if client_quote_usd:
-        # `conversion_needed` not set in the patched trader instance.
-        assert(schedule.every.call_count == 0)          # pylint: disable=E1101
-        assert len(schedule.jobs) == 0
-        assert(instance.set_forex_ratio.call_count == 0)
-    else:
-        assert instance.conversion_needed is True
-        assert(schedule.every.call_count == 2)          # pylint: disable=E1101
-        assert len(schedule.jobs) == 2
-        assert(instance.set_forex_ratio.call_count == 2)
-
-    schedule.clear()
-
-    if balance_check_success is False and dryrun is False:
-        # Expect called once and encountered exception.
-        instance.update_wallet_balances.assert_called_once_with(
-            is_dry_run=dryrun)
-    else:
-        assert(instance.update_wallet_balances.call_count == 2)
-        instance.update_wallet_balances.assert_called_with(is_dry_run=dryrun)
 
 
 class TestRunAutotrageur:
