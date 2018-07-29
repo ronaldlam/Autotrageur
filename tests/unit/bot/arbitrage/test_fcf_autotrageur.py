@@ -25,6 +25,7 @@ from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
+                                     FOREX_RATE_PRIM_KEY_ID, FOREX_RATE_TABLE,
                                      TRADE_OPPORTUNITY_PRIM_KEY_ID,
                                      TRADE_OPPORTUNITY_TABLE,
                                      TRADES_PRIM_KEY_SIDE,
@@ -312,6 +313,40 @@ def test_persist_configs(mocker, no_patch_fcf_autotrageur):
             FAKE_CONFIG_ROW,
             (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID, )))
     db_handler.commit_all.assert_called_once_with()
+
+
+def test_persist_forex(mocker, no_patch_fcf_autotrageur):
+    mocker.patch.object(time, 'time', return_value=FAKE_CURR_TIME)
+    mocker.patch.object(uuid, 'uuid4', return_value=FAKE_CONFIG_UUID)
+    mocker.patch.object(db_handler, 'insert_row')
+    mocker.patch.object(db_handler, 'commit_all')
+    mock_trader = mocker.Mock()
+    mock_trader.quote = 'SOME_QUOTE'
+    mock_trader.forex_ratio = Decimal('195766')
+
+    no_patch_fcf_autotrageur._FCFAutotrageur__persist_forex(mock_trader)
+
+    ROW_DATA = {
+        'id': str(FAKE_CONFIG_UUID),
+        'quote': mock_trader.quote,
+        'rate': mock_trader.forex_ratio,
+        'local_timestamp': int(FAKE_CURR_TIME)
+    }
+    forex_row_obj = InsertRowObject(
+        FOREX_RATE_TABLE, ROW_DATA, (FOREX_RATE_PRIM_KEY_ID,))
+    db_handler.insert_row.assert_called_once_with(forex_row_obj)
+    db_handler.commit_all.assert_called_once_with()
+
+
+def test_update_forex(mocker, no_patch_fcf_autotrageur):
+    persist_forex = mocker.patch.object(
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_forex')
+    mock_trader = mocker.Mock()
+
+    no_patch_fcf_autotrageur._FCFAutotrageur__update_forex(mock_trader)
+
+    mock_trader.set_forex_ratio.assert_called_once_with()
+    persist_forex.assert_called_once_with(mock_trader)
 
 
 @pytest.mark.parametrize('buy_response', [
