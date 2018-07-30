@@ -20,5 +20,4 @@ ALTER TABLE trade_opportunity
     ADD CONSTRAINT `fk_e2_forex_rate_id`
         FOREIGN KEY IF NOT EXISTS (e2_forex_rate_id) REFERENCES forex_rate (id)
             ON DELETE RESTRICT
-            ON UPDATE CASCADE
-;
+            ON UPDATE CASCADE;

@@ -256,6 +256,9 @@ class FCFAutotrageur(Autotrageur):
     def __persist_forex(self, trader):
         """Persists the current forex data.
 
+        NOTE: The trader's forex_id is updated here and is cached until
+        the next update.
+
         Args:
             trader (CCXTTrader): The CCXTTrader to use.
         """
