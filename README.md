@@ -44,6 +44,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 ### Setup configuration
+Environment variables:
+- rename `.env.sample` to `.env` and include any necessary environment variables.
 Modify:
 - `configs/arb_config.yaml`
 - `configs/email_info.yaml`

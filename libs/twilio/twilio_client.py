@@ -1,14 +1,32 @@
 import logging
 import os
+import time
 import urllib.parse
 
 from twilio.rest import Client
 
+import libs.logging.autotrageur_logging as bot_logging
 
 TWIMLETS_MESSAGE_ENDPOINT = 'http://twimlets.com/message?'
+TWILIO_HTTP_CLIENT = 'twilio.http_client'
 TWILIO_ACTIVE_STATE = 'active'
 TWILIO_SUSPENDED_STATE = 'suspended'
 TWILIO_CLOSED_STATE = 'closed'
+
+
+class TwilioLogContext:
+    def __init__(self, parent_context, stream_info_to_warning=False):
+        self.parent_context = parent_context
+        self.stream_info_to_warning = stream_info_to_warning
+
+    def __enter__(self):
+        if self.stream_info_to_warning is True:
+            self.old_stream_level = self.parent_context.stream_handler.level
+            self.parent_context.stream_handler.level = logging.WARNING
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if self.stream_info_to_warning is True:
+            self.parent_context.stream_handler.level = logging.INFO
 
 
 class TwilioInactiveAccountError(Exception):
@@ -39,7 +57,7 @@ def _form_messages_url_query(messages):
 
 
 class TwilioClient:
-    def __init__(self, account_sid, auth_token):
+    def __init__(self, account_sid, auth_token, log_context):
         """Constructor.
 
         Initializes the twilio client with provided `account_sid` and
@@ -51,6 +69,18 @@ class TwilioClient:
             auth_token (str): The TWILIO_AUTH_TOKEN associated with the
                 Twilio account.
         """
+        # root_logger = logging.getLogger()
+        # twilio_logger = logging.getLogger(TWILIO_HTTP_CLIENT)
+        # twilio_logger.setLevel(logging.DEBUG)
+        # requests_logger = logging.getLogger('requests')
+        # requests_logger.setLevel(logging.DEBUG)
+        # requests_logger.handlers = []
+        # requests_logger.addHandler(root_logger.handlers[0])
+        # twilio_logger.handlers = []
+        # twilio_logger.addHandler(logging_listener.handlers[1])
+        # twilio_logger.addFilter(TwilioLogFilter())
+        # twilio_logger.propagate = False
+        self.log_context = log_context
         self.client = Client(account_sid, auth_token)
 
     def test_connection(self):
@@ -66,9 +96,13 @@ class TwilioClient:
 
         # Disable the http logging for this one call, to avoid interfering with
         # cmd overlap with an input prompt.
-        logging.getLogger("twilio.http_client").setLevel(logging.WARNING)
-        account = self.client.api.accounts(self.client.account_sid).fetch()
-        logging.getLogger("twilio.http_client").setLevel(logging.INFO)
+        # logging.getLogger(TWILIO_HTTP_CLIENT).setLevel(logging.WARNING)
+        # bot_logging.stream_handler.setLevel(logging.WARNING)
+        with TwilioLogContext(self.log_context, stream_info_to_warning=True):
+            account = self.client.api.accounts(self.client.account_sid).fetch()
+            time.sleep(0.1)
+        # bot_logging.stream_handler.setLevel(logging.INFO)
+        # logging.getLogger(TWILIO_HTTP_CLIENT).setLevel(logging.INFO)
 
         if account.status != TWILIO_ACTIVE_STATE:
             raise TwilioInactiveAccountError('The Twilio account is not active'
@@ -87,11 +121,11 @@ class TwilioClient:
             from_phone_number (str): A phone number purchased from Twilio to be
                 used as the caller number.
         """
-        escaped_messages = _form_messages_url_query(messages)
+        # escaped_messages = _form_messages_url_query(messages)
 
-        for phone_number in to_phone_numbers:
-            logging.debug('Phoning: {}'.format(phone_number))
-            self.client.calls.create(
-                url=TWIMLETS_MESSAGE_ENDPOINT + escaped_messages,
-                to=phone_number,
-                from_=from_phone_number)
+        # for phone_number in to_phone_numbers:
+        #     logging.debug('Phoning: {}'.format(phone_number))
+            # self.client.calls.create(
+            #     url=TWIMLETS_MESSAGE_ENDPOINT + escaped_messages,
+            #     to=phone_number,
+            #     from_=from_phone_number)

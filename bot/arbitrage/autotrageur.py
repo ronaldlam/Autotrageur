@@ -141,7 +141,7 @@ class Autotrageur(ABC):
             self.twilio_config = yaml.safe_load(ymlfile)
 
         self.twilio_client = TwilioClient(
-            os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'))
+            os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'), self.log_context)
 
         # Make sure there is a valid connection as notifications are a critical
         # service to the bot.
@@ -246,6 +246,12 @@ class Autotrageur(ABC):
             self.trader1.connect_test_api()
         if self.config[EXCHANGE2_TEST]:
             self.trader2.connect_test_api()
+
+        try:
+            raise Exception('TEST EXCEPTION MESSAGE')
+        except Exception as e:
+            self._alert('Live execution failure!', e)
+            raise
 
         # Load the available markets for the exchange.
         self.trader1.load_markets()
