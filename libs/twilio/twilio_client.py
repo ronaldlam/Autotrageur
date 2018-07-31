@@ -119,7 +119,7 @@ class TwilioClient:
             raise TwilioInactiveAccountError('The Twilio account is not active'
                 ', it is: {}'.format(account.status))
 
-    def phone(self, messages, to_phone_numbers, from_phone_number):
+    def phone(self, messages, to_phone_numbers, from_phone_number, dryrun=False):
         """Phone recipients to deliver one or more messages.
 
         Calls every phone number from `to_phone_numbers` using a
@@ -131,7 +131,16 @@ class TwilioClient:
             to_phone_numbers (list[str]): A list of recipient phone numbers.
             from_phone_number (str): A phone number purchased from Twilio to be
                 used as the caller number.
+            dryrun (bool): If True, does not dial any of the recipients and
+                merely logs to output.  Defaults to False.
         """
+        if dryrun:
+            logging.debug("**Dry run - twilio_client::phone triggered from "
+                "number: {} to numbers: {}".format(
+                    from_phone_number,
+                    to_phone_numbers))
+            return
+
         escaped_messages = _form_messages_url_query(messages)
 
         for phone_number in to_phone_numbers:

@@ -225,12 +225,6 @@ class Autotrageur(ABC):
         if self.config[EXCHANGE2_TEST]:
             self.trader2.connect_test_api()
 
-        # try:
-        #     raise Exception('TEST EXCEPTION MESSAGE')
-        # except Exception as e:
-        #     self._alert('Live execution failure!', e)
-        #     raise
-
         # Load the available markets for the exchange.
         self.trader1.load_markets()
         self.trader2.load_markets()

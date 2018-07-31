@@ -395,7 +395,8 @@ class FCFAutotrageur(Autotrageur):
         self.twilio_client.phone(
             [subject, traceback.format_exc()],
             self.twilio_config[TWILIO_RECIPIENT_NUMBERS],
-            self.twilio_config[TWILIO_SENDER_NUMBER])
+            self.twilio_config[TWILIO_SENDER_NUMBER],
+            dryrun=self.config[DRYRUN])
 
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
