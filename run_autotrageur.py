@@ -16,7 +16,7 @@ Description:
 from docopt import docopt
 
 from bot.arbitrage.fcf_autotrageur import FCFAutotrageur
-from libs.logging import autotrageur_logging as bot_logging
+from libs.logging import bot_logging as bot_logging
 from libs.utilities import set_autotrageur_decimal_context
 
 if __name__ == "__main__":
@@ -27,12 +27,12 @@ if __name__ == "__main__":
         # keep precision regardless at 28 digits until either external calls
         # or output are required.
         set_autotrageur_decimal_context()
-        autotrageur = FCFAutotrageur()
-        autotrageur.log_context = bot_logging.setup_background_logging()
+        bg_logger = bot_logging.setup_background_logger()
+        autotrageur = FCFAutotrageur(bg_logger)
 
         # Start listening for logs and run the bot.
-        autotrageur.log_context.listener.start()
+        autotrageur.logger.queue_listener.start()
         autotrageur.run_autotrageur(arguments)
     finally:
         # Must be called before exit for logs to flush.
-        autotrageur.log_context.listener.stop()
+        autotrageur.logger.queue_listener.stop()

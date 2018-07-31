@@ -11,7 +11,6 @@ import yaml
 from dotenv import load_dotenv
 
 import libs.db.maria_db_handler as db_handler
-import libs.twilio.twilio_client as twilio_client
 from bot.common.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
@@ -19,15 +18,13 @@ from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          ENV_VAR_NAMES, EXCHANGE1,
                                          EXCHANGE1_PAIR, EXCHANGE1_TEST,
                                          EXCHANGE2, EXCHANGE2_PAIR,
-                                         EXCHANGE2_TEST, SLIPPAGE,
-                                         TWILIO_CFG_PATH)
+                                         EXCHANGE2_TEST, SLIPPAGE)
 from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import CCXTTrader
 from bot.trader.dry_run import DryRun, DryRunExchange
 from libs.fiat_symbols import FIAT_SYMBOLS
 from libs.security.encryption import decrypt
-from libs.twilio.twilio_client import TwilioClient
 from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
 
 # Program argument constants.
@@ -130,22 +127,6 @@ class Autotrageur(ABC):
                 logging.info("**Dry run: continuing with program")
                 return None
 
-    def __load_twilio(self, twilio_cfg_path):
-        """Loads the Twilio configuration file and tests the connection to
-        Twilio APIs.
-
-        Args:
-            twilio_cfg_path (str): Path to the Twilio configuration file.
-        """
-        with open(twilio_cfg_path, 'r') as ymlfile:
-            self.twilio_config = yaml.safe_load(ymlfile)
-
-        self.twilio_client = TwilioClient(
-            os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'), self.log_context)
-
-        # Make sure there is a valid connection as notifications are a critical
-        # service to the bot.
-        self.twilio_client.test_connection()
 
     def _load_configs(self, arguments):
         """Load the configurations of the Autotrageur run.
@@ -164,9 +145,6 @@ class Autotrageur(ABC):
 
         # Load arb configuration.
         self.__load_config_file(arguments[CONFIGFILE])
-
-        # Load the twilio config file, and test the twilio credentials.
-        self.__load_twilio(self.config[TWILIO_CFG_PATH])
 
         # Initialize and connect to the database.
         self.__load_db()
@@ -247,11 +225,11 @@ class Autotrageur(ABC):
         if self.config[EXCHANGE2_TEST]:
             self.trader2.connect_test_api()
 
-        try:
-            raise Exception('TEST EXCEPTION MESSAGE')
-        except Exception as e:
-            self._alert('Live execution failure!', e)
-            raise
+        # try:
+        #     raise Exception('TEST EXCEPTION MESSAGE')
+        # except Exception as e:
+        #     self._alert('Live execution failure!', e)
+        #     raise
 
         # Load the available markets for the exchange.
         self.trader1.load_markets()

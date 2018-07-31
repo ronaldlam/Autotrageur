@@ -4,7 +4,7 @@ import logging.handlers
 
 import run_autotrageur
 
-def test_setup_background_logging(mocker):
+def test_setup_background_logger(mocker):
     # Needs to be cached. Seems to break pytest when patched without resetting.
     original_stream_handler = logging.StreamHandler
 
@@ -24,7 +24,7 @@ def test_setup_background_logging(mocker):
     q = mocker.patch.object(run_autotrageur, 'Queue')
     root_logger = mocker.patch.object(logging, 'getLogger')
 
-    run_autotrageur.setup_background_logging()
+    run_autotrageur.setup_background_logger()
 
     stream_handler.return_value.setLevel.assert_called_once_with(logging.INFO)
     stream_handler.return_value.setFormatter.assert_called_once_with(stream_format)
