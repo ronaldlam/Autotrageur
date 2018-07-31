@@ -72,6 +72,7 @@ class TestCCXTTraderInit:
         assert trader.usd_target_amount == num_to_decimal(0.0)
         assert trader.conversion_needed is False
         assert trader.forex_ratio is None
+        assert trader.forex_id is None
 
         if dry_run:
             assert trader.executor is fake_dryrun_executor

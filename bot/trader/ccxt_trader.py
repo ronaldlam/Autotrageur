@@ -92,6 +92,7 @@ class CCXTTrader():
         self.usd_target_amount = ZERO
         self.conversion_needed = False
         self.forex_ratio = None
+        self.forex_id = None
 
     def __calc_vol_by_book(self, orders, quote_target_amount):
         """Calculates the asset volume with which to execute a trade.

@@ -25,7 +25,8 @@ PriceEntry = namedtuple(
 # Structure containing spread and price info for an arbitrage opportunity.
 SpreadOpportunity = namedtuple(
     'SpreadOpportunity',
-    ['id', 'e1_spread', 'e2_spread', 'e1_buy', 'e2_buy', 'e1_sell', 'e2_sell'])
+    ['id', 'e1_spread', 'e2_spread', 'e1_buy', 'e2_buy', 'e1_sell', 'e2_sell',
+        'e1_forex_rate_id', 'e2_forex_rate_id'])
 
 
 def get_spreads_by_ob(trader1, trader2):
@@ -92,7 +93,7 @@ def get_spreads_by_ob(trader1, trader2):
     return SpreadOpportunity(
         str(uuid.uuid4()), e1_spread, e2_spread, prices[E1_BUY].quote_price,
         prices[E2_BUY].quote_price, prices[E1_SELL].quote_price,
-        prices[E2_SELL].quote_price)
+        prices[E2_SELL].quote_price, trader1.forex_id, trader2.forex_id)
 
 
 def execute_buy(trader, price):
