@@ -1,4 +1,5 @@
 import logging
+import os
 import pprint
 import time
 import traceback
@@ -7,12 +8,16 @@ from decimal import Decimal
 
 import ccxt
 import schedule
+import yaml
 
 import bot.arbitrage.arbseeker as arbseeker
 import libs.db.maria_db_handler as db_handler
+import libs.twilio.twilio_client as twilio_client
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, SPREAD_MIN,
-                                         START_TIMESTAMP, VOL_MIN)
+                                         START_TIMESTAMP, TWILIO_CFG_PATH,
+                                         TWILIO_RECIPIENT_NUMBERS,
+                                         TWILIO_SENDER_NUMBER, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
@@ -24,6 +29,7 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      TRADES_TABLE)
 from bot.common.decimal_constants import ONE
 from bot.common.enums import Momentum
+from libs.twilio.twilio_client import TwilioClient
 from bot.trader.ccxt_trader import OrderbookException
 from libs.db.maria_db_handler import InsertRowObject
 from libs.email_client.simple_email_client import send_all_emails
@@ -108,6 +114,10 @@ class FCFAutotrageur(Autotrageur):
     specified target high; vice versa if the calculated spread is less
     than the specified target low.
     """
+    def __init__(self, logger):
+        """Constructor."""
+        self.logger = logger
+
     def __advance_target_index(self, spread, targets):
         """Increment the target index to minimum target greater than
         spread.
@@ -236,6 +246,23 @@ class FCFAutotrageur(Autotrageur):
                 return True
 
         return False
+
+    def __load_twilio(self, twilio_cfg_path):
+        """Loads the Twilio configuration file and tests the connection to
+        Twilio APIs.
+
+        Args:
+            twilio_cfg_path (str): Path to the Twilio configuration file.
+        """
+        with open(twilio_cfg_path, 'r') as ymlfile:
+            self.twilio_config = yaml.safe_load(ymlfile)
+
+        self.twilio_client = TwilioClient(
+            os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'), self.logger)
+
+        # Make sure there is a valid connection as notifications are a critical
+        # service to the bot.
+        self.twilio_client.test_connection()
 
     def __persist_configs(self):
         """Persists the configuration for this `fcf_autotrageur` run."""
@@ -404,6 +431,11 @@ class FCFAutotrageur(Autotrageur):
             exception (Exception): The exception to alert about.
         """
         self._send_email(subject, traceback.format_exc())
+        self.twilio_client.phone(
+            [subject, traceback.format_exc()],
+            self.twilio_config[TWILIO_RECIPIENT_NUMBERS],
+            self.twilio_config[TWILIO_SENDER_NUMBER],
+            dryrun=self.config[DRYRUN])
 
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
@@ -484,6 +516,23 @@ class FCFAutotrageur(Autotrageur):
                             pprint.pformat(sell_response)))
             finally:
                 self.__persist_trade_data(buy_response, sell_response)
+
+    # @Override
+    def _load_configs(self, arguments):
+        """Load the configurations of the Autotrageur run.
+
+        Args:
+            arguments (dict): Map of the arguments passed to the program.
+
+        Raises:
+            IOError: If the encrypted keyfile does not open, and not in
+                dryrun mode.
+        """
+        super()._load_configs(arguments)
+
+        # Load the twilio config file, and test the twilio credentials.
+        self.__load_twilio(self.config[TWILIO_CFG_PATH])
+
 
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.

@@ -1,7 +1,15 @@
 """Configuration file constants."""
 
+# Environment variable names.
+ENV_VAR_NAMES = ['ACCOUNT_SID', 'AUTH_TOKEN']
+
 # Email config file path.
 EMAIL_CFG_PATH = 'email_cfg_path'
+
+# Twilio config constants.
+TWILIO_CFG_PATH = 'twilio_cfg_path'
+TWILIO_RECIPIENT_NUMBERS = 'recipient_numbers'
+TWILIO_SENDER_NUMBER = 'sender_number'
 
 # Trade configuration constants.
 DB_NAME = 'db_name'

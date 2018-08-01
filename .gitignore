@@ -77,3 +77,6 @@ scratch/
 *.log
 *.log.*
 *.zip
+
+# environment variables
+.env

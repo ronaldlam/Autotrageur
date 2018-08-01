@@ -1,22 +1,24 @@
 import getpass
 import logging
-import sys
+import os
 import time
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 import ccxt
 import schedule
 import yaml
+from dotenv import load_dotenv
 
 import libs.db.maria_db_handler as db_handler
 from bot.common.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
                                          DRYRUN_E2_BASE, DRYRUN_E2_QUOTE,
-                                         EXCHANGE1, EXCHANGE1_PAIR,
-                                         EXCHANGE1_TEST, EXCHANGE2,
-                                         EXCHANGE2_PAIR, EXCHANGE2_TEST,
-                                         SLIPPAGE)
+                                         ENV_VAR_NAMES, EXCHANGE1,
+                                         EXCHANGE1_PAIR, EXCHANGE1_TEST,
+                                         EXCHANGE2, EXCHANGE2_PAIR,
+                                         EXCHANGE2_TEST, SLIPPAGE)
 from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import CCXTTrader
@@ -70,6 +72,23 @@ class Autotrageur(ABC):
             self.config[DB_NAME])
         schedule.every(7).hours.do(db_handler.ping_db)
 
+    def __load_env_vars(self):
+        """Ensures that the necessary environment variables are loaded.
+
+        Returns:
+            bool: True if the necessary environment variables have been loaded
+                successfully.  Else, False."""
+        env_path = Path('.env')
+        env_vars_loaded = (
+            env_path.exists() and load_dotenv(dotenv_path=env_path))
+
+        # Check if the necessary variables are loaded.
+        if env_vars_loaded:
+            for env_var_name in ENV_VAR_NAMES:
+                if not os.getenv(env_var_name):
+                    env_vars_loaded = False
+        return env_vars_loaded
+
     def __load_keyfile(self, arguments):
         """Load the keyfile given in the arguments.
 
@@ -104,6 +123,7 @@ class Autotrageur(ABC):
                 logging.info("**Dry run: continuing with program")
                 return None
 
+
     def _load_configs(self, arguments):
         """Load the configurations of the Autotrageur run.
 
@@ -114,6 +134,11 @@ class Autotrageur(ABC):
             IOError: If the encrypted keyfile does not open, and not in
                 dryrun mode.
         """
+        # Load environment variables.
+        if not self.__load_env_vars():
+            raise EnvironmentError('Failed to load all of the necessary'
+                                   ' environment variables.')
+
         # Load arb configuration.
         self.__load_config_file(arguments[CONFIGFILE])
 
@@ -193,8 +218,6 @@ class Autotrageur(ABC):
             self.trader2.connect_test_api()
 
         # Load the available markets for the exchange.
-        # TODO: Wrap load_markets() and wallet_balances() in a retry loop for
-        # Network errors.
         self.trader1.load_markets()
         self.trader2.load_markets()
 

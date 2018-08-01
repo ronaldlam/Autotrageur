@@ -36,3 +36,7 @@ slippage: 3 # Important for Gemini, eg. 3
 db_name: fcf_trade_history
 # (String) The database user.
 db_user: root
+
+# ----------------TWILIO SETTINGS----------------------------------------------
+# Path for the twilio config file.
+twilio_cfg_path: configs/twilio/twilio.yaml
