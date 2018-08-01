@@ -16,6 +16,13 @@ python -m pytest tests/unit/libs/test_utilities.py
 python -m pytest tests/unit/libs/test_utilities.py::test_not_keys_exists
 ```
 
+## Updating dependencies
+We have at least one nested dependency that is platform specific. Instead of `pip freeze` to list dependencies, use `pipdeptree -f | grep -P '^[\w0-9\-=.]+'` to get only top level dependencies. To save:
+```
+pipdeptree -f | grep -P '^[\w0-9\-=.]+' > requirements.txt
+```
+See [pipdeptree docs](https://github.com/naiquevin/pipdeptree#using-pipdeptree-to-write-requirementstxt-file) for more details.
+
 ## Run Bandit
 Security focused static code analysis tool. Optionally run with `-v` for list of files checked.
 ```
