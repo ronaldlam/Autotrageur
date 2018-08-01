@@ -605,7 +605,7 @@ class FCFAutotrageur(Autotrageur):
                 trader.conversion_needed = True
                 self.__update_forex(trader)
                 # TODO: Adjust interval once real-time forex implemented.
-                schedule.every().minute.do(self.__update_forex, trader)
+                schedule.every().hour.do(self.__update_forex, trader)
         try:
             # Dry run uses balances set in the configuration files.
             self.trader1.update_wallet_balances(is_dry_run=self.config[DRYRUN])
