@@ -10,7 +10,7 @@ class AutotrageurBackgroundLogger:
 
     Utilizes the Builder pattern to add each component of the Background
     Logger."""
-    def setStreamHandler(self, stream_format):
+    def set_stream_handler(self, stream_format):
         """Sets the stream handler of the background loggger.
 
         Outputs any INFO level logs, and levels and above, to a specified file.
@@ -27,7 +27,7 @@ class AutotrageurBackgroundLogger:
         self.stream_handler.setFormatter(stream_format)
         return self
 
-    def setFileHandler(self, logfile_name, file_format):
+    def set_file_handler(self, logfile_name, file_format):
         """Sets the file handler of the background logger.
 
         Outputs any DEBUG level logs, and levels above, to a specified file.
@@ -49,7 +49,7 @@ class AutotrageurBackgroundLogger:
         self.file_handler.setFormatter(file_format)
         return self
 
-    def setQueueHandler(self, queue):
+    def set_queue_handler(self, queue):
         """Sets the queue handler of the background logger.
 
         Uses a queue and is necessary for background logging on a separate
@@ -61,10 +61,11 @@ class AutotrageurBackgroundLogger:
         Returns:
             AutotrageurBackgroundLogger: The Logger with the set QueueHandler.
         """
+        self.queue = queue
         self.queue_handler = logging.handlers.QueueHandler(queue)
         return self
 
-    def setQueueListener(self, queue):
+    def set_queue_listener(self, queue):
         """Sets the queue listener of the background logger.
 
         Uses a queue and is necessary for background logging on a separate
@@ -81,7 +82,21 @@ class AutotrageurBackgroundLogger:
             respect_handler_level=True)
         return self
 
-    def setLogger(self):
+    def build(self):
+        """Final step in building the background logger.
+
+        Sets the queue listener and logger object.
+
+        Returns:
+            AutotrageurBackgroundLogger: The completely built background
+                logger.
+        """
+
+        # Set the QueueListener.
+        self.queue_listener = logging.handlers.QueueListener(
+            self.queue, self.stream_handler, self.file_handler,
+            respect_handler_level=True)
+
         root_logger = logging.getLogger()
         # This must be set so that the logger does not filter prematurely.
         root_logger.setLevel(logging.DEBUG)
@@ -91,11 +106,11 @@ class AutotrageurBackgroundLogger:
 
 
 def setup_background_logger():
-    """Initialize logging in background thread.
+    """Sets up the background logger object for the bot.
 
     Returns:
-        logging.handlers.QueueListener: The background thread listener
-            that passes the log records to its handlers.
+        AutotrageurBackgroundLogger: The background logger used as the parent
+            logger for the bot.
     """
     name = str(datetime.now()).replace(' ', '_').replace('.', '_').replace(':', '_')
     directory_name = 'logs/{}'.format(name)
@@ -116,10 +131,9 @@ def setup_background_logger():
 
     autotrageur_logger = (
         AutotrageurBackgroundLogger()
-            .setStreamHandler(stream_format)
-            .setFileHandler(logfile_name, file_format)
-            .setQueueHandler(queue)
-            .setQueueListener(queue)
-            .setLogger())
+            .set_stream_handler(stream_format)
+            .set_file_handler(logfile_name, file_format)
+            .set_queue_handler(queue)
+            .build())
 
     return autotrageur_logger

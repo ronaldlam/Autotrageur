@@ -8,7 +8,6 @@ from twilio.rest import Client
 import libs.logging.bot_logging as bot_logging
 
 TWIMLETS_MESSAGE_ENDPOINT = 'http://twimlets.com/message?'
-TWILIO_HTTP_CLIENT = 'twilio.http_client'
 TWILIO_ACTIVE_STATE = 'active'
 TWILIO_SUSPENDED_STATE = 'suspended'
 TWILIO_CLOSED_STATE = 'closed'
@@ -36,7 +35,7 @@ class TwilioLogContext:
         """Upon use with a `with` keyword, will swap any parent logging state
         with the new, desired logging state.
         """
-        if self.stream_info_to_warning is True:
+        if self.stream_info_to_warning:
             self.old_stream_level = self.parent_logger.stream_handler.level
             self.parent_logger.stream_handler.level = logging.WARNING
 
@@ -52,7 +51,7 @@ class TwilioLogContext:
             exc_traceback (traceback): The Exception traceback if an exception
                 is thrown within the 'with' code block.
         """
-        if self.stream_info_to_warning is True:
+        if self.stream_info_to_warning:
             self.parent_logger.stream_handler.level = logging.INFO
 
 
@@ -84,7 +83,7 @@ def _form_messages_url_query(messages):
 
 
 class TwilioClient:
-    def __init__(self, account_sid, auth_token, log_context):
+    def __init__(self, account_sid, auth_token, parent_logger):
         """Constructor.
 
         Initializes the twilio client with provided `account_sid` and
@@ -95,8 +94,9 @@ class TwilioClient:
                 Twilio account.
             auth_token (str): The TWILIO_AUTH_TOKEN associated with the
                 Twilio account.
+            parent_logger (AutotrageurBackgroundLogger): The
         """
-        self.log_context = log_context
+        self.parent_logger = parent_logger
         self.client = Client(account_sid, auth_token)
 
     def test_connection(self):
@@ -109,10 +109,10 @@ class TwilioClient:
             TwilioInactiveAccountError: Thrown if the twilio api can be reached but
                 the account status is not 'active'.
         """
-        with TwilioLogContext(self.log_context, stream_info_to_warning=True):
+        with TwilioLogContext(self.parent_logger, stream_info_to_warning=True):
             account = self.client.api.accounts(self.client.account_sid).fetch()
-            # Necessary to prevent api response from logging before leaving
-            # Context scope and interfering with input prompts.
+            # Necessary to prevent api response from logging after leaving
+            # context scope and interfering with input prompts.
             time.sleep(0.1)
 
         if account.status != TWILIO_ACTIVE_STATE:
