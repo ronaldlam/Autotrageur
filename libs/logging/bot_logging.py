@@ -65,23 +65,6 @@ class AutotrageurBackgroundLogger:
         self.queue_handler = logging.handlers.QueueHandler(queue)
         return self
 
-    def set_queue_listener(self, queue):
-        """Sets the queue listener of the background logger.
-
-        Uses a queue and is necessary for background logging on a separate
-        thread.
-
-        Args:
-            queue (Queue): The queue associated with the QueueHandler.
-
-        Returns:
-            AutotrageurBackgroundLogger: The Logger with the set QueueHandler.
-        """
-        self.queue_listener = logging.handlers.QueueListener(
-            queue, self.stream_handler, self.file_handler,
-            respect_handler_level=True)
-        return self
-
     def build(self):
         """Final step in building the background logger.
 
