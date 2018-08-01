@@ -126,6 +126,12 @@ def test_insert_row(mocker, insert_obj, exp_columns, exp_row_data, exp_params):
     mock_cursor.close.assert_called_once_with()
 
 
+def test_ping_db(mocker):
+    db = mocker.patch.object(db_handler, 'db')
+    db_handler.ping_db()
+    db.ping.assert_called_once_with()
+
+
 @pytest.mark.parametrize('db_started', [ True, False ])
 def test_start_db(mocker, db_started):
     FAKE_USER = 'fake_user'

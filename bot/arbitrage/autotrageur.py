@@ -23,9 +23,9 @@ from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import CCXTTrader
 from bot.trader.dry_run import DryRun, DryRunExchange
-from libs.fiat_symbols import FIAT_SYMBOLS
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
+from libs.utils.ccxt_utils import RetryableError, RetryCounter
 
 # Program argument constants.
 CONFIGFILE = "CONFIGFILE"
@@ -39,11 +39,6 @@ STARS = "*"*20
 def fancy_log(title):
     """Log title surrounded by stars."""
     logging.info(START_END_FORMAT.format(STARS, title, STARS))
-
-
-class AuthenticationError(Exception):
-    """Incorrect credentials or exchange unavailable."""
-    pass
 
 
 class Autotrageur(ABC):
@@ -75,6 +70,7 @@ class Autotrageur(ABC):
             self.config[DB_USER],
             db_password,
             self.config[DB_NAME])
+        schedule.every(7).hours.do(db_handler.ping_db)
 
     def __load_env_vars(self):
         """Ensures that the necessary environment variables are loaded.
@@ -175,11 +171,7 @@ class Autotrageur(ABC):
                 exchange_key_map[self.config[EXCHANGE2]][PASSWORD])
 
     def _setup(self):
-        """Sets up the algorithm to use.
-
-        Raises:
-            AuthenticationError: If not dryrun and authentication fails.
-        """
+        """Sets up the algorithm to use."""
         # Extract the pairs and compare them to see if conversion needed to
         # USD.
         e1_base, e1_quote = self.config[EXCHANGE1_PAIR].upper().split("/")
@@ -228,28 +220,6 @@ class Autotrageur(ABC):
         # Load the available markets for the exchange.
         self.trader1.load_markets()
         self.trader2.load_markets()
-
-        # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
-        # to USD fiat.
-        for trader in list((self.trader1, self.trader2)):
-            if ((trader.quote in FIAT_SYMBOLS)
-                and (trader.quote != 'USD')
-                and (trader.quote != 'USDT')):
-                logging.info("Set fiat conversion to USD as necessary for: {}"
-                    " with quote: {}".format(trader.exchange_name,
-                                             trader.quote))
-                trader.conversion_needed = True
-                trader.set_forex_ratio()
-                # TODO: Adjust interval once real-time forex implemented.
-                schedule.every().hour.do(trader.set_forex_ratio)
-
-        try:
-            # Dry run uses balances set in the configuration files.
-            self.trader1.update_wallet_balances(is_dry_run=self.config[DRYRUN])
-            self.trader2.update_wallet_balances(is_dry_run=self.config[DRYRUN])
-        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
-            logging.error(auth_error)
-            raise AuthenticationError(auth_error)
 
     @abstractmethod
     def _alert(self, subject, exception):
@@ -306,20 +276,29 @@ class Autotrageur(ABC):
             self._load_configs(arguments)
 
         self._setup()
+        retry_counter = RetryCounter()
 
         try:
             while True:
-                schedule.run_pending()
-                self._clean_up()
-                fancy_log("Start Poll")
-                if self._poll_opportunity():
-                    fancy_log("End Poll")
-                    fancy_log("Start Trade")
-                    self._execute_trade()
-                    fancy_log("End Trade")
-                else:
-                    fancy_log("End Poll")
-                self._wait()
+                try:
+                    schedule.run_pending()
+                    self._clean_up()
+                    fancy_log("Start Poll")
+                    if self._poll_opportunity():
+                        fancy_log("End Poll")
+                        fancy_log("Start Trade")
+                        self._execute_trade()
+                        fancy_log("End Trade")
+                    else:
+                        fancy_log("End Poll")
+                    retry_counter.increment()
+                    self._wait()
+                except RetryableError as e:
+                    logging.error(e, exc_info=True)
+                    if retry_counter.decrement():
+                        self._wait()
+                    else:
+                        raise
         except KeyboardInterrupt:
             if self.config[DRYRUN]:
                 logging.critical("Keyboard Interrupt")
@@ -329,7 +308,7 @@ class Autotrageur(ABC):
             else:
                 raise
         except Exception as e:
-            if not self.dry_run:
+            if not self.config[DRYRUN]:
                 logging.critical("Falling back to dry run, error encountered:")
                 logging.critical(e)
                 self._alert(SUBJECT_LIVE_FAILURE, e)

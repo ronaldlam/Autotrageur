@@ -2,10 +2,10 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
-from ccxt import NetworkError, ExchangeError
-
+from ccxt import ExchangeError, NetworkError
 from libs.utils.ccxt_utils import (DEFAULT_ARG_LIST, DEFAULT_KWARG_LIST,
-                                   WAIT_SECONDS, wrap_ccxt_retry)
+                                   WAIT_SECONDS, RetryableError, RetryCounter,
+                                   wrap_ccxt_retry)
 
 MOCK_FUNC1 = MagicMock()
 MOCK_FUNC1_RETURN = 'MOCK_FUNC1'
@@ -22,7 +22,7 @@ TRIPLE_KWARG = [
 {
      'one': 'ONE',
      '1': '1',
-     '1': 1
+     'won': 1
 },
 {
      'two': 'TWO',
@@ -49,6 +49,11 @@ def reset_mocks():
     MOCK_FUNC1.reset_mock()
     MOCK_FUNC2.reset_mock()
     MOCK_FUNC3.reset_mock()
+
+
+@pytest.fixture(scope='module')
+def retry_counter():
+    return RetryCounter()
 
 
 class TestWrapCcxtRetry():
@@ -103,12 +108,39 @@ class TestWrapCcxtRetry():
             mock_time_sleep.assert_not_called()
             assert MOCK_FUNC1.call_count == 1
 
-    @pytest.mark.parametrize("exc_type", [
-        Exception,
-        ExchangeError,
-        KeyError
+    @pytest.mark.parametrize("exc_type, raised_type", [
+        (Exception, Exception),
+        (ExchangeError, RetryableError),
+        (KeyError, KeyError),
     ])
-    def test_wrap_ccxt_retry_exception(self, mocker, exc_type):
+    def test_wrap_ccxt_retry_exception(self, mocker, exc_type, raised_type):
         MOCK_FUNC1.side_effect = exc_type
-        with pytest.raises(exc_type):
+        with pytest.raises(raised_type):
             wrap_ccxt_retry([MOCK_FUNC1], arglist=ONE_ARG, kwarglist=ONE_KWARG)
+
+
+class TestRetryCounter:
+    COUNTER_MAX = 10
+
+    def test_init(self):
+        counter = RetryCounter()
+        assert counter._counter == self.COUNTER_MAX
+
+    @pytest.mark.parametrize(
+        'internal_counter, expected_result',
+        [(0, 1), (3, 4), (10, 10)])
+    def test_increment(self, mocker, retry_counter, internal_counter,
+                       expected_result):
+        mocker.patch.object(retry_counter, '_counter', internal_counter)
+        retry_counter.increment()
+        assert retry_counter._counter == expected_result
+
+    @pytest.mark.parametrize(
+        'internal_counter, expected_counter, expected_return',
+        [(0, -3, False), (3, 0, True), (10, 7, True)])
+    def test_decrement(self, mocker, retry_counter, internal_counter,
+                       expected_counter, expected_return):
+        mocker.patch.object(retry_counter, '_counter', internal_counter)
+        result = retry_counter.decrement()
+        assert retry_counter._counter == expected_counter
+        assert result == expected_return

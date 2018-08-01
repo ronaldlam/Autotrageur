@@ -14,15 +14,17 @@ class InvalidRowFormatError(Exception):
     pass
 
 
-"""Encapsulates the data needed to insert a row into the database.
+# See https://stackoverflow.com/questions/1606436/adding-docstrings-to-namedtuples
+class InsertRowObject(namedtuple(
+        'InsertRowObject', ['table_name', 'row', 'prim_key_columns'])):
+    """Encapsulates the data needed to insert a row into the database.
 
-The metadata and data required to perform a row insertion include:
-    - a table name
-    - a row of data represented as a dict type.
-    - primary key columns represented as a tuple of strings.
-"""
-InsertRowObject = namedtuple(
-    'InsertRowObject', ['table_name', 'row', 'prim_key_columns'])
+    The metadata and data required to perform a row insertion include:
+        - a table name
+        - a row of data represented as a dict type.
+        - primary key columns represented as a tuple of strings.
+    """
+    __slots__ = ()
 
 
 def _form_insert_query(table_name, columns, row_data_params, prim_keys):
@@ -159,6 +161,12 @@ def insert_row(insert_obj):
             insert_obj.prim_key_columns),
         row_data)
     cursor.close()
+
+
+def ping_db():
+    """Ping the database to keep connection alive."""
+    global db
+    db.ping()
 
 
 def start_db(db_user, db_password, db_name):
