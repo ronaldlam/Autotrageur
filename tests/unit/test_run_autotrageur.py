@@ -1,43 +1,24 @@
 import pytest
-import logging
-import logging.handlers
 
 import run_autotrageur
 
-def test_setup_background_logger(mocker):
-    # Needs to be cached. Seems to break pytest when patched without resetting.
-    original_stream_handler = logging.StreamHandler
+def test_main(mocker):
+    bg_logger = mocker.Mock()
+    autotrageur = mocker.Mock()
+    arguments = mocker.Mock()
+    mock_decimal_context = mocker.patch(
+        'run_autotrageur.set_autotrageur_decimal_context')
+    mock_setup_background_logger = mocker.patch(
+        'libs.logging.bot_logging.setup_background_logger',
+        return_value=bg_logger)
+    mock_FCFAutotrageur = mocker.patch(
+        'run_autotrageur.FCFAutotrageur', return_value=autotrageur)
+    run_autotrageur.main(arguments)
 
-    # Object mocks.
-    stream_format = mocker.Mock()
-    file_format = mocker.Mock()
-    listener = mocker.Mock()
-
-    # Function/constructor mocks.
-    mocker.patch.object(logging, 'Formatter',
-                        side_effect=[stream_format, file_format])
-    stream_handler = mocker.patch.object(logging, 'StreamHandler')
-    file_handler = mocker.patch.object(logging.handlers, 'TimedRotatingFileHandler')
-    queue_handler = mocker.patch.object(logging.handlers, 'QueueHandler')
-    queue_listener = mocker.patch.object(logging.handlers, 'QueueListener',
-                                         return_value=listener)
-    q = mocker.patch.object(run_autotrageur, 'Queue')
-    root_logger = mocker.patch.object(logging, 'getLogger')
-
-    run_autotrageur.setup_background_logger()
-
-    stream_handler.return_value.setLevel.assert_called_once_with(logging.INFO)
-    stream_handler.return_value.setFormatter.assert_called_once_with(stream_format)
-    file_handler.return_value.setLevel.assert_called_once_with(logging.DEBUG)
-    file_handler.return_value.setFormatter.assert_called_once_with(file_format)
-    q.assert_called_once_with(-1)
-    queue_handler.assert_called_once_with(q.return_value)
-    queue_listener.assert_called_once_with(
-        q.return_value, stream_handler.return_value,
-        file_handler.return_value, respect_handler_level=True)
-    root_logger.return_value.setLevel.assert_called_once_with(logging.DEBUG)
-    root_logger.return_value.addHandler.assert_called_once_with(queue_handler.return_value)
-
-    # Reset StreamHandler
-    logging.StreamHandler = original_stream_handler
+    mock_decimal_context.assert_called_with()
+    mock_setup_background_logger.assert_called_with()
+    mock_FCFAutotrageur.assert_called_with(bg_logger)
+    autotrageur.logger.queue_listener.start.assert_called_with()
+    autotrageur.run_autotrageur.assert_called_with(arguments)
+    autotrageur.logger.queue_listener.stop.assert_called_with()
 
