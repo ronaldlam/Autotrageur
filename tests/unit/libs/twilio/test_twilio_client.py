@@ -14,8 +14,7 @@ FAKE_ACCOUNT_SID = 'fake_account_sid'
 FAKE_AUTH_TOKEN = 'fake_auth_token'
 
 # Mock the Client object from the Twilio API Library.
-MOCK_CLIENT = MagicMock()
-twilio_client.Client = MOCK_CLIENT
+twilio_client.Client = MagicMock()
 
 # Mock out the parent logger.
 MOCK_PARENT_LOGGER = MagicMock()
