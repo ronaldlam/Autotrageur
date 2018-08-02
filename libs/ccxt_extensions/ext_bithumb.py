@@ -147,17 +147,25 @@ class ext_bithumb(ccxt.bithumb):
             """Wraps a unified ccxt function.
 
             Returns:
-                object: The return value of func.  Can be of arbitrary type or
-                    None.
+                object: The return value of func.  Can be of arbitrary
+                    type or None.
             """
             try:
                 ret = func(*args, **kwargs)
             except Exception as exc:
                 t = Translator()
                 decoded = exc.args[0].encode('utf-8').decode('unicode_escape')
-                translation = t.translate(decoded)
-                raise type(exc)(translation.text).with_traceback(
-                    sys.exc_info()[2])
+
+                try:
+                    translation = t.translate(decoded)
+                except Exception as translate_exception:
+                    # Error during translation, re-raise original exception.
+                    logging.error(translate_exception, exc_info=True)
+                    logging.info("Translate error, re-raising original.")
+                    raise exc
+                else:
+                    raise type(exc)(translation.text).with_traceback(
+                        sys.exc_info()[2])
             else:
                 if ret:
                     return ret
