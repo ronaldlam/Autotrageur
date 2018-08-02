@@ -1,13 +1,17 @@
 # pylint: disable=E1101
+import builtins
 import copy
+import os
 import time
 import traceback
 import uuid
 from decimal import Decimal, InvalidOperation
+from unittest.mock import Mock
 
 import ccxt
 import pytest
 import schedule
+import yaml
 from ccxt import ExchangeError, NetworkError
 
 import bot.arbitrage.arbseeker as arbseeker
@@ -21,7 +25,7 @@ from bot.arbitrage.fcf_autotrageur import (AuthenticationError, FCFAutotrageur,
                                            arbseeker)
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, SPREAD_MIN,
-                                         START_TIMESTAMP,
+                                         START_TIMESTAMP, TWILIO_CFG_PATH,
                                          TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
@@ -38,7 +42,6 @@ from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import OrderbookException
 from libs.db.maria_db_handler import InsertRowObject
-from libs.email_client.simple_email_client import send_all_emails
 from libs.utilities import num_to_decimal
 
 xfail = pytest.mark.xfail
@@ -83,12 +86,14 @@ FAKE_CONFIG_ROW = { 'fake': 'config_row' }
 
 @pytest.fixture(scope='module')
 def no_patch_fcf_autotrageur():
-    return FCFAutotrageur()
+    fake_logger = Mock()
+    return FCFAutotrageur(fake_logger)
 
 
 @pytest.fixture()
 def fcf_autotrageur(mocker, fake_ccxt_trader):
-    f = FCFAutotrageur()
+    fake_logger = Mock()
+    f = FCFAutotrageur(fake_logger)
     f.config = {
         'email_cfg_path': 'fake/path/to/config.yaml',
         'spread_target_low': 1.0,
@@ -291,6 +296,26 @@ def test_is_trade_opportunity(
             return
 
     assert result is False
+
+
+def test_load_twilio(mocker, no_patch_fcf_autotrageur):
+    FAKE_TWILIO_CFG_PATH = 'fake/twilio/cfg/path'
+    fake_open = mocker.patch('builtins.open', mocker.mock_open())
+    fake_yaml_safe_load = mocker.patch.object(yaml, 'safe_load')
+    fake_twilio_client = mocker.Mock()
+    fake_twilio_client_constructor = mocker.patch.object(
+        bot.arbitrage.fcf_autotrageur, 'TwilioClient', return_value=fake_twilio_client)
+    fake_test_connection = mocker.patch.object(fake_twilio_client, 'test_connection')
+    mocker.patch('os.getenv', return_value='some_env_var')
+
+    no_patch_fcf_autotrageur._FCFAutotrageur__load_twilio(FAKE_TWILIO_CFG_PATH)
+
+    fake_open.assert_called_once_with(FAKE_TWILIO_CFG_PATH, 'r')
+    fake_yaml_safe_load.assert_called_once()
+    fake_twilio_client_constructor.assert_called_once_with(
+        os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'),
+        no_patch_fcf_autotrageur.logger)
+    fake_test_connection.assert_called_once_with()
 
 
 def test_persist_configs(mocker, no_patch_fcf_autotrageur):
@@ -744,6 +769,19 @@ def test_clean_up(fcf_autotrageur):
     assert fcf_autotrageur.trade_metadata is None
 
 
+def test_load_configs(mocker, no_patch_fcf_autotrageur):
+    s = mocker.patch.object(builtins, 'super')
+    args = mocker.Mock()
+    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
+        TWILIO_CFG_PATH: 'path/to/config'
+    }, create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur, '_FCFAutotrageur__load_twilio')
+    no_patch_fcf_autotrageur._load_configs(args)
+
+    no_patch_fcf_autotrageur._FCFAutotrageur__load_twilio.assert_called_once_with(
+        no_patch_fcf_autotrageur.config[TWILIO_CFG_PATH])
+
+
 def test_send_email(mocker, no_patch_fcf_autotrageur):
     FAKE_SUBJECT = 'A FAKE SUBJECT'
     FAKE_MESSAGE = 'A FAKE MESSAGE'
@@ -762,7 +800,6 @@ def test_send_email(mocker, no_patch_fcf_autotrageur):
 @pytest.mark.parametrize("dryrun", [True, False])
 def test_setup(mocker, no_patch_fcf_autotrageur, client_quote_usd,
                balance_check_success, dryrun):
-    import builtins
     s = mocker.patch.object(builtins, 'super')
     mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
         SPREAD_MIN: 2,
@@ -836,8 +873,12 @@ def test_setup(mocker, no_patch_fcf_autotrageur, client_quote_usd,
 
 @pytest.mark.parametrize('subject', [SUBJECT_DRY_RUN_FAILURE, SUBJECT_LIVE_FAILURE])
 def test_alert(mocker, subject, no_patch_fcf_autotrageur):
+    FAKE_DRY_RUN = 'fake_dry_run_setting'
     FAKE_RECIPIENT_NUMBERS = ['+12345678', '9101121314']
     FAKE_SENDER_NUMBER = '+15349875'
+    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
+        DRYRUN: FAKE_DRY_RUN
+    }, create=True)
     mocker.patch.object(no_patch_fcf_autotrageur, 'twilio_config', {
         TWILIO_RECIPIENT_NUMBERS: FAKE_RECIPIENT_NUMBERS,
         TWILIO_SENDER_NUMBER: FAKE_SENDER_NUMBER
@@ -856,4 +897,5 @@ def test_alert(mocker, subject, no_patch_fcf_autotrageur):
     fake_twilio_client.phone.assert_called_once_with(
         [subject, traceback.format_exc()],
         FAKE_RECIPIENT_NUMBERS,
-        FAKE_SENDER_NUMBER)
+        FAKE_SENDER_NUMBER,
+        dryrun=FAKE_DRY_RUN)

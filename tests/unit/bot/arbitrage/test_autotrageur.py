@@ -1,5 +1,4 @@
 import getpass
-import os
 from pathlib import Path
 
 import ccxt
@@ -99,7 +98,6 @@ def test_load_configs(mocker, autotrageur, keyfile_loaded):
     mocker.patch.object(autotrageur, '_Autotrageur__load_db')
     mocker.patch.object(autotrageur, '_Autotrageur__load_env_vars')
     mocker.patch.object(autotrageur, '_Autotrageur__load_keyfile')
-    mocker.patch.object(autotrageur, '_Autotrageur__load_twilio')
     mocker.patch.dict(autotrageur.config, {
         EXCHANGE1: 'e1',
         EXCHANGE2: 'e2',
@@ -115,8 +113,6 @@ def test_load_configs(mocker, autotrageur, keyfile_loaded):
     autotrageur._Autotrageur__load_db.assert_called_once_with()
     autotrageur._Autotrageur__load_keyfile.assert_called_once_with(args)
     autotrageur._Autotrageur__load_env_vars.assert_called_once_with()
-    autotrageur._Autotrageur__load_twilio.assert_called_once_with(
-        autotrageur.config[TWILIO_CFG_PATH])
     assert("nonce" in autotrageur.exchange1_configs)
     assert("nonce" in autotrageur.exchange2_configs)
 
@@ -169,26 +165,6 @@ def test_load_env_vars(mocker, autotrageur, env_path_exists, env_path_loaded,
 
     result = autotrageur._Autotrageur__load_env_vars()
     assert result is (env_path_exists and env_path_loaded and env_var_loaded)
-
-
-def test_load_twilio(mocker, autotrageur):
-    FAKE_TWILIO_CFG_PATH = 'fake/twilio/cfg/path'
-    fake_open = mocker.patch('builtins.open', mocker.mock_open())
-    fake_yaml_safe_load = mocker.patch.object(yaml, 'safe_load')
-    fake_twilio_client = mocker.Mock()
-    fake_twilio_client_constructor = mocker.patch.object(
-        bot.arbitrage.autotrageur, 'TwilioClient', return_value=fake_twilio_client)
-    fake_test_connection = mocker.patch.object(fake_twilio_client, 'test_connection')
-    mocker.patch('os.getenv', return_value='some_env_var')
-
-    autotrageur._Autotrageur__load_twilio(FAKE_TWILIO_CFG_PATH)
-
-    fake_open.assert_called_once_with(FAKE_TWILIO_CFG_PATH, 'r')
-    fake_yaml_safe_load.assert_called_once()
-    fake_twilio_client_constructor.assert_called_once_with(
-        os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'))
-    fake_test_connection.assert_called_once_with()
-
 
 
 @pytest.mark.parametrize("ex1_test", [True, False])
