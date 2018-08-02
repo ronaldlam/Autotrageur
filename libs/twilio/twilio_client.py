@@ -17,6 +17,9 @@ class TwilioLogContext:
     """A context object for temporarily swapping a parent logger's state.
     Usage should be with the 'with' keyword:
         Ex. `with TwilioLogContext(logger, stream_info_to_warning=True):`
+
+    Idea from official logging cookbook:
+    https://docs.python.org/3/howto/logging-cookbook.html#using-a-context-manager-for-selective-logging
     """
     def __init__(self, parent_logger, stream_info_to_warning=False):
         """Constructor.
@@ -52,7 +55,8 @@ class TwilioLogContext:
                 is thrown within the 'with' code block.
         """
         if self.stream_info_to_warning:
-            self.parent_logger.stream_handler.level = logging.INFO
+            self.parent_logger.stream_handler.level = self.old_stream_level
+            self.old_stream_level = None
 
 
 class TwilioInactiveAccountError(Exception):

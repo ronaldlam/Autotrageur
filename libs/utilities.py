@@ -32,6 +32,36 @@ class IncorrectFormatException(Exception):
     pass
 
 
+class AnyStringStartingWith(str):
+    """String comparator class to compare if a inherited string starts with a
+    sequence of characters.
+
+    Overrides the equals (__eq__) rich comparison method to compare the
+    inherited string with the consumed sequence of characters, which is stored
+    in the constructor.
+    """
+    def __init__(self, compare_sequence):
+        """Constructor.
+
+        Args:
+            compare_sequence (str): A sequence of characters which to be used
+                in comparison with the starting of the inherited string.
+        """
+        self.compare_sequence = compare_sequence
+
+    def __eq__(self, compared_str):
+        """Override __eq__.
+
+        Args:
+            compared_str (str): The string to be compared.
+
+        Returns:
+            bool: True if the compared string begins with `compare_sequence`.
+                Else, False.
+        """
+        return compared_str.startswith(self.compare_sequence)
+
+
 def keyfile_to_map(keyfile):
     """Convert key file data into map.
 

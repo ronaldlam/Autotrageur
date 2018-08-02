@@ -16,12 +16,24 @@ Description:
 from docopt import docopt
 
 from bot.arbitrage.fcf_autotrageur import FCFAutotrageur
-from libs.logging import bot_logging as bot_logging
+from libs.logging import bot_logging
 from libs.utilities import set_autotrageur_decimal_context
 
-if __name__ == "__main__":
-    arguments = docopt(__doc__, version="Autotrageur 0.1")
 
+def main(arguments):
+    """Main function after `run_autotrageur` called as entry script.
+
+    Setup:
+    Sets the decimal context to deal with decimal precision and arithmetic in
+    the bot.  Also sets up the background logger for logging on a separate
+    thread using a queue.
+
+    Run:
+    Calls the `run_autotrageur` function to start bot's run.
+
+    Args:
+        arguments (args): The command-line arguments parsed by docopt.
+    """
     try:
         # This sets the global decimal context for the program. We aim to
         # keep precision regardless at 28 digits until either external calls
@@ -36,3 +48,7 @@ if __name__ == "__main__":
     finally:
         # Must be called before exit for logs to flush.
         autotrageur.logger.queue_listener.stop()
+
+if __name__ == "__main__":
+    arguments = docopt(__doc__, version="Autotrageur 0.1")
+    main(arguments)
