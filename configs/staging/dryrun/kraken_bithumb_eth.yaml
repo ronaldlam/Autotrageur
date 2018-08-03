@@ -2,7 +2,7 @@
 
 # Dry Run functionality.
 dryrun: true # If True, will log trades instead of executing them.
-dryrun_e1_base: 0
+dryrun_e1_base: 20
 dryrun_e1_quote: 20000
 dryrun_e2_base: 50
 dryrun_e2_quote: 0
