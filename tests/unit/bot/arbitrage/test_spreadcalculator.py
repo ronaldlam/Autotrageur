@@ -136,5 +136,5 @@ class TestCalcSpread:
 
     @pytest.mark.parametrize('buy_price, sell_price, buy_fee, sell_fee', price_fees_exceptions_params)
     def test_calc_fixed_spread_exceptions(self, buy_price, sell_price, buy_fee, sell_fee):
-        with pytest.raises(TypeError, reason='mixed float and decimal arithmetic'):
+        with pytest.raises(TypeError, message='mixed float and decimal arithmetic'):
             spreadcalculator.calc_fixed_spread(buy_price, sell_price, buy_fee, sell_fee, False)
