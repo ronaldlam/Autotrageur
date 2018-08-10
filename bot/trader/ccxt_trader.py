@@ -381,6 +381,46 @@ class CCXTTrader():
         """
         return self.fetcher.fetch_taker_fees()
 
+    def get_quote_from_usd(self, usd_amount):
+        """Get converted quote amount from USD amount.
+
+        Args:
+            usd_amount (Decimal): The USD amount to convert.
+
+        Raises:
+            NoForexQuoteException: If forex_ratio is needed and not set.
+
+        Returns:
+            Decimal: The quote amount.
+        """
+        if self.conversion_needed:
+            if self.forex_ratio is None:
+                raise NoForexQuoteException(
+                    "Forex ratio not set. Conversion not available.")
+            return usd_amount * self.forex_ratio
+        else:
+            return usd_amount
+
+    def get_usd_from_quote(self, quote_amount):
+        """Get converted USD amount from quote amount.
+
+        Args:
+            quote_amount (Decimal): The quote amount to convert.
+
+        Raises:
+            NoForexQuoteException: If forex_ratio is needed and not set.
+
+        Returns:
+            Decimal: The USD amount.
+        """
+        if self.conversion_needed:
+            if self.forex_ratio is None:
+                raise NoForexQuoteException(
+                    "Forex ratio not set. Conversion not available.")
+            return quote_amount / self.forex_ratio
+        else:
+            return quote_amount
+
     def load_markets(self):
         """Load the markets of the exchange.
 

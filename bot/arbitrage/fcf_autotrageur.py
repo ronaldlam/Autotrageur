@@ -380,7 +380,10 @@ class FCFAutotrageur(Autotrageur):
             trade_vol = targets[self.target_index][1]
 
         # NOTE: Trader's `quote_target_amount` is updated here.
-        buy_trader.set_target_amounts(min(trade_vol, buy_trader.usd_bal))
+        target_quote_amount = min(
+            buy_trader.get_quote_from_usd(trade_vol),
+            buy_trader.quote_bal)
+        buy_trader.set_target_amounts(target_quote_amount, is_usd=False)
 
         if buy_trader is self.trader1:
             buy_price = spread_opp.e1_buy
