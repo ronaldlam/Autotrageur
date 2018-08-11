@@ -181,7 +181,8 @@ class FCFAutotrageur(Autotrageur):
             self.e1_targets,
             spread_opp)
         self.e2_targets = self.__calc_targets(
-            spread_opp.e2_spread, self.h_to_e2_max, self.trader1.usd_bal)
+            spread_opp.e2_spread, self.h_to_e2_max,
+            self.trader1.get_usd_balance())
 
     def __evaluate_to_e2_trade(self, momentum_change, spread_opp):
         """Changes state information to prepare for the trades from e1
@@ -199,7 +200,8 @@ class FCFAutotrageur(Autotrageur):
             self.e2_targets,
             spread_opp)
         self.e1_targets = self.__calc_targets(
-            spread_opp.e1_spread, self.h_to_e1_max, self.trader2.usd_bal)
+            spread_opp.e1_spread, self.h_to_e1_max,
+            self.trader2.get_usd_balance())
 
     def __is_trade_opportunity(self, spread_opp):
         """Evaluate spread numbers against targets and set up state for
@@ -379,7 +381,9 @@ class FCFAutotrageur(Autotrageur):
         else:
             trade_vol = targets[self.target_index][1]
 
-        # NOTE: Trader's `quote_target_amount` is updated here.
+        # NOTE: Trader's `quote_target_amount` is updated here.  We need to use
+        # the quote balance in case of intra-day forex fluctuations which
+        # would result in an inaccurate USD balance.
         target_quote_amount = min(
             buy_trader.get_quote_from_usd(trade_vol),
             buy_trader.quote_bal)
@@ -400,11 +404,16 @@ class FCFAutotrageur(Autotrageur):
             'sell_trader': sell_trader
         }
 
-        if (buy_trader.quote_target_amount / self.trade_metadata['buy_price']
-                > sell_trader.base_bal):
+        required_base = (
+            buy_trader.quote_target_amount / self.trade_metadata['buy_price'])
+        if (required_base > sell_trader.base_bal):
+            exc_msg = ("Insufficient crypto balance on: {}.\n"
+                       "Required base: {}\n"
+                       "Actual base: {}")
             raise InsufficientCryptoBalance(
-                "Insufficient crypto balance on: {}".format(
-                    sell_trader.exchange_name))
+                exc_msg.format(
+                    sell_trader.exchange_name, required_base,
+                    sell_trader.base_bal))
 
         self.last_target_index = self.target_index
         self.target_index += 1
@@ -544,8 +553,10 @@ class FCFAutotrageur(Autotrageur):
             bool: Whether there is an opportunity.
         """
         # Set trader target amounts based on strategy.
-        self.trader1.set_target_amounts(max(self.vol_min, self.trader1.usd_bal))
-        self.trader2.set_target_amounts(max(self.vol_min, self.trader2.usd_bal))
+        self.trader1.set_target_amounts(
+            max(self.vol_min, self.trader1.get_usd_balance()))
+        self.trader2.set_target_amounts(
+            max(self.vol_min, self.trader2.get_usd_balance()))
 
         try:
             spread_opp = arbseeker.get_spreads_by_ob(
@@ -560,9 +571,9 @@ class FCFAutotrageur(Autotrageur):
             self.momentum = Momentum.NEUTRAL
 
             self.e1_targets = self.__calc_targets(spread_opp.e1_spread,
-                self.h_to_e1_max, self.trader2.usd_bal)
+                self.h_to_e1_max, self.trader2.get_usd_balance())
             self.e2_targets = self.__calc_targets(spread_opp.e2_spread,
-                self.h_to_e2_max, self.trader1.usd_bal)
+                self.h_to_e2_max, self.trader1.get_usd_balance())
 
             self.target_index = 0
             self.last_target_index = 0

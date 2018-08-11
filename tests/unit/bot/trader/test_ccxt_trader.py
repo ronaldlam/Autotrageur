@@ -729,24 +729,22 @@ class TestSetTargetAmount:
             fake_ccxt_trader.set_target_amounts(self.fake_target_amount, False)
 
 
-@pytest.mark.parametrize('live_balances, dryrun_balances, conversion_needed, is_dry_run, result_usd_bal', [
-    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), True, True, Decimal('2')),
-    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), True, False, Decimal('1')),
-    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), False, True, Decimal('2000')),
-    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), False, False, Decimal('1000')),
+@pytest.mark.parametrize('live_balances, dryrun_balances, is_dry_run', [
+    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), True),
+    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), False),
+    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), True),
+    ((Decimal('1'), Decimal('1000')), (Decimal('2'), Decimal('2000')), False),
 ])
-def test_update_wallet_balances(mocker, fake_ccxt_trader, symbols, live_balances, dryrun_balances, conversion_needed, is_dry_run, result_usd_bal):
+def test_update_wallet_balances(mocker, fake_ccxt_trader, symbols, live_balances, dryrun_balances, is_dry_run):
     mocker.patch.object(fake_ccxt_trader.fetcher, 'fetch_free_balances', return_value=live_balances)
     executor = mocker.patch.object(fake_ccxt_trader, 'executor')
     dry_run_exchange = mocker.patch.object(executor, 'dry_run_exchange')
     mocker.patch.object(dry_run_exchange, 'base_balance', dryrun_balances[0])
     mocker.patch.object(dry_run_exchange, 'quote_balance', dryrun_balances[1])
-    mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
     mocker.patch.object(fake_ccxt_trader, 'forex_ratio', FAKE_FOREX_RATIO)
 
     fake_ccxt_trader.update_wallet_balances(is_dry_run=is_dry_run)
 
-    assert fake_ccxt_trader.usd_bal == result_usd_bal
     if is_dry_run:
         assert fake_ccxt_trader.base_bal == dryrun_balances[0]
         assert fake_ccxt_trader.quote_bal == dryrun_balances[1]

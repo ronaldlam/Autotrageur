@@ -184,7 +184,7 @@ def test_evaluate_to_e1_trade(mocker, fcf_autotrageur, momentum_change):
         fcf_autotrageur.e1_targets, spread_opp)
     fcf_autotrageur._FCFAutotrageur__calc_targets.assert_called_with(
         spread_opp.e2_spread, fcf_autotrageur.h_to_e2_max,
-        fcf_autotrageur.trader1.usd_bal)
+        fcf_autotrageur.trader1.get_usd_balance())
     assert fcf_autotrageur.e2_targets == mock_targets
 
 
@@ -212,7 +212,7 @@ def test_evaluate_to_e2_trade(mocker, fcf_autotrageur, momentum_change):
         fcf_autotrageur.e2_targets, spread_opp)
     fcf_autotrageur._FCFAutotrageur__calc_targets.assert_called_with(
         spread_opp.e1_spread, fcf_autotrageur.h_to_e1_max,
-        fcf_autotrageur.trader2.usd_bal)
+        fcf_autotrageur.trader2.get_usd_balance())
     assert fcf_autotrageur.e1_targets == mock_targets
 
 
@@ -492,7 +492,7 @@ def test_prepare_trade(mocker, fcf_autotrageur, is_momentum_change, to_e1,
         buy_trader = fcf_autotrageur.trader1
         sell_trader = fcf_autotrageur.trader2
 
-    buy_trader.usd_bal = buy_quote_balance
+    buy_trader.quote_bal = buy_quote_balance
     sell_trader.base_bal = sell_base_balance
 
     if result is None:
@@ -694,18 +694,13 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
     mocker.patch.object(
         no_patch_fcf_autotrageur, 'trader2', trader2, create=True)
     mocker.patch.object(
-        no_patch_fcf_autotrageur.trader1, 'usd_bal', e1_quote_balance,
-        create=True)
+        no_patch_fcf_autotrageur.trader1, 'get_usd_balance', return_value=e1_quote_balance)
     mocker.patch.object(
-        no_patch_fcf_autotrageur.trader2, 'usd_bal', e2_quote_balance,
-        create=True)
+        no_patch_fcf_autotrageur.trader2, 'get_usd_balance', return_value=e2_quote_balance)
     mocker.patch.object(
         no_patch_fcf_autotrageur.trader1, 'set_target_amounts')
     mocker.patch.object(
         no_patch_fcf_autotrageur.trader2, 'set_target_amounts')
-    mocker.patch.object(
-        no_patch_fcf_autotrageur.trader2, 'usd_bal', e2_quote_balance,
-        create=True)
     mocker.patch.object(
         no_patch_fcf_autotrageur, 'vol_min', vol_min, create=True)
     mocker.patch.object(
