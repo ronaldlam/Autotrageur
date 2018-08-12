@@ -660,6 +660,9 @@ def test_get_taker_fee(mocker, fake_ccxt_trader):
     (Decimal('100'), True, Decimal('10'), Decimal('1000')),
     (Decimal('100'), False, Decimal('10'), Decimal('100')),
     (Decimal('100'), False, None, Decimal('100')),
+    (Decimal('100.5'), True, Decimal('10'), Decimal('1005')),
+    (Decimal('100.5'), False, Decimal('10'), Decimal('100.5')),
+    (Decimal('100.5'), False, None, Decimal('100.5')),
 ])
 def test_get_quote_from_usd(mocker, fake_ccxt_trader, usd_amount, conversion_needed, forex_ratio, expected_result):
     mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
@@ -684,6 +687,10 @@ def test_get_quote_from_usd_error(mocker, fake_ccxt_trader):
     (True, Decimal('1000'), Decimal('10'), Decimal('100')),
     (False, Decimal('1234567'), Decimal('10'), Decimal('1234567')),
     (False, Decimal('1234567'), None, Decimal('1234567')),
+    (True, Decimal('100.5'), Decimal('10'), Decimal('10.05')),
+    (True, Decimal('1000.5'), Decimal('10'), Decimal('100.05')),
+    (False, Decimal('1234.567'), Decimal('10'), Decimal('1234.567')),
+    (False, Decimal('1234.567'), None, Decimal('1234.567')),
 ])
 def test_get_usd_balance(mocker, fake_ccxt_trader, conversion_needed, quote_bal, forex_ratio, expected_result):
     mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
@@ -715,6 +722,9 @@ def test_get_usd_balance_error(mocker, fake_ccxt_trader, conversion_needed, quot
     (Decimal('100'), True, Decimal('10'), Decimal('10')),
     (Decimal('100'), False, Decimal('10'), Decimal('100')),
     (Decimal('100'), False, None, Decimal('100')),
+    (Decimal('100.5'), True, Decimal('10'), Decimal('10.05')),
+    (Decimal('100.5'), False, Decimal('10'), Decimal('100.5')),
+    (Decimal('100.5'), False, None, Decimal('100.5')),
 ])
 def test_get_usd_from_quote(mocker, fake_ccxt_trader, quote_amount, conversion_needed, forex_ratio, expected_result):
     mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
