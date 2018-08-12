@@ -413,11 +413,12 @@ class CCXTTrader():
         If the quote balance is in a different fiat other than USD (e.g. KRW),
         we will have to use a forex ratio to convert the dollar amount to USD.
 
-        NOTE: The `quote_bal` and `forex_ratio` will need to be set in order
-        for the function to work as expected.
+        NOTE: The `quote_bal` and `forex_ratio` will need to be set
+        appropriately in order for the function to work as expected.
 
         Raises:
             NoForexQuoteException: If forex_ratio is needed and not set.
+            NoQuoteBalanceException: If quote_bal is not set.
 
         Returns:
             Decimal: The balance in terms of USD.
