@@ -128,7 +128,9 @@ class FCFAutotrageur(Autotrageur):
         """
         while (self.target_index + 1 < len(targets) and
                 spread >= targets[self.target_index + 1][0]):
+            logging.debug('#### target_index before: {}'.format(self.target_index))
             self.target_index += 1
+            logging.debug('#### target_index after: {}'.format(self.target_index))
 
     def __calc_targets(self, spread, h_max, from_balance):
         """Calculate the target spreads and cash positions.
@@ -180,9 +182,6 @@ class FCFAutotrageur(Autotrageur):
             self.trader1,
             self.e1_targets,
             spread_opp)
-        self.e2_targets = self.__calc_targets(
-            spread_opp.e2_spread, self.h_to_e2_max,
-            self.trader1.get_usd_balance())
 
     def __evaluate_to_e2_trade(self, momentum_change, spread_opp):
         """Changes state information to prepare for the trades from e1
@@ -199,9 +198,6 @@ class FCFAutotrageur(Autotrageur):
             self.trader2,
             self.e2_targets,
             spread_opp)
-        self.e1_targets = self.__calc_targets(
-            spread_opp.e1_spread, self.h_to_e1_max,
-            self.trader2.get_usd_balance())
 
     def __is_trade_opportunity(self, spread_opp):
         """Evaluate spread numbers against targets and set up state for
@@ -229,16 +225,22 @@ class FCFAutotrageur(Autotrageur):
                     spread_opp.e2_spread >= self.e2_targets[self.target_index][0]):
                 self.__evaluate_to_e2_trade(False, spread_opp)
                 return True
-            # momentum change
+            # Momentum change from TO_E2 to TO_E1.
             elif spread_opp.e1_spread >= self.e1_targets[0][0]:
                 self.target_index = 0
+                logging.debug('#### Momentum changed from TO_E2 to TO_E1')
+                logging.debug('#### TO_E1 spread: {} > First TO_E1 target {}'.\
+                    format(spread_opp.e1_spread, self.e1_targets[0][0]))
                 self.__evaluate_to_e1_trade(True, spread_opp)
                 self.momentum = Momentum.TO_E1
                 return True
         elif self.momentum is Momentum.TO_E1:
-            # momentum change
+            # Momentum change from TO_E1 to TO_E2.
             if spread_opp.e2_spread >= self.e2_targets[0][0]:
                 self.target_index = 0
+                logging.debug('#### Momentum changed from TO_E1 to TO_E2')
+                logging.debug('#### TO_E2 spread: {} > First TO_E2 target {}'.\
+                    format(spread_opp.e2_spread, self.e2_targets[0][0]))
                 self.__evaluate_to_e2_trade(True, spread_opp)
                 self.momentum = Momentum.TO_E2
                 return True
@@ -417,6 +419,29 @@ class FCFAutotrageur(Autotrageur):
 
         self.last_target_index = self.target_index
         self.target_index += 1
+        logging.debug('#### target_index advanced by one, is now: {}'.format(
+            self.target_index))
+
+    def __update_trade_targets(self):
+        """Updates the trade targets based on the direction of the completed
+        trade.  E.g. If the trade was performed from e1 -> e2, then the
+        `e1_targets` should be updated, vice versa.
+
+        NOTE: Trade targets should only be updated if a trade was completely
+        successful (buy and sell trades completed).
+        """
+        if self.trade_metadata['buy_trader'] is self.trader2:
+            self.e2_targets = self.__calc_targets(
+                self.trade_metadata['spread_opp'].e2_spread, self.h_to_e2_max,
+                self.trader1.get_usd_balance())
+            logging.debug("#### New calculated e2_targets: {}".format(
+                list(enumerate(self.e2_targets))))
+        else:
+            self.e1_targets = self.__calc_targets(
+                self.trade_metadata['spread_opp'].e1_spread, self.h_to_e1_max,
+                self.trader2.get_usd_balance())
+            logging.debug("#### New calculated e1_targets: {}".format(
+                list(enumerate(self.e1_targets))))
 
     def __check_within_limits(self):
         """Check whether potential trade meets minimum volume limits.
@@ -472,6 +497,7 @@ class FCFAutotrageur(Autotrageur):
                 executed_amount)
             self.trader1.update_wallet_balances(is_dry_run=True)
             self.trader2.update_wallet_balances(is_dry_run=True)
+            self.__update_trade_targets()
             self.dry_run.log_balances()
             self.__persist_trade_data(buy_response, sell_response)
             logging.debug("**Dry run - end fake execution")
@@ -521,6 +547,10 @@ class FCFAutotrageur(Autotrageur):
                     # as expected.
                     self.trader1.update_wallet_balances()
                     self.trader2.update_wallet_balances()
+
+                    # Calculate the targets after the potential trade so that the wallet
+                    # balances are the most up to date for the target amounts.
+                    self.__update_trade_targets()
                     self._send_email(
                         "TRADE SUMMARY",
                         "Buy results:\n\n{}\n\nSell results:\n\n{}\n".format(
@@ -572,8 +602,10 @@ class FCFAutotrageur(Autotrageur):
 
             self.e1_targets = self.__calc_targets(spread_opp.e1_spread,
                 self.h_to_e1_max, self.trader2.get_usd_balance())
+            logging.debug('#### Initial e1_targets: {}'.format(self.e1_targets))
             self.e2_targets = self.__calc_targets(spread_opp.e2_spread,
                 self.h_to_e2_max, self.trader1.get_usd_balance())
+            logging.debug('#### Initial e2_targets: {}'.format(self.e2_targets))
 
             self.target_index = 0
             self.last_target_index = 0
@@ -582,7 +614,9 @@ class FCFAutotrageur(Autotrageur):
             # Save the autotrageur state before proceeding with algorithm.
             self.checkpoint.save(self)
             if self.__is_trade_opportunity(spread_opp):
+                logging.debug('#### Is a trade opportunity')
                 is_opportunity = self.__check_within_limits()
+                logging.debug('#### Is within exchange limits: {}'.format(is_opportunity))
 
         self.h_to_e1_max = max(self.h_to_e1_max, spread_opp.e1_spread)
         self.h_to_e2_max = max(self.h_to_e2_max, spread_opp.e2_spread)
