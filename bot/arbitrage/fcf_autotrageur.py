@@ -408,7 +408,7 @@ class FCFAutotrageur(Autotrageur):
 
         required_base = (
             buy_trader.quote_target_amount / self.trade_metadata['buy_price'])
-        if (required_base > sell_trader.base_bal):
+        if required_base > sell_trader.base_bal:
             exc_msg = ("Insufficient crypto balance on: {}.\n"
                        "Required base: {}\n"
                        "Actual base: {}")
