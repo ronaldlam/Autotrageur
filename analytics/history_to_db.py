@@ -2,33 +2,18 @@
 
 Updates database with historical prices of a trading pair.
 """
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-import logging
+from warnings import filterwarnings
 
 import MySQLdb
-from warnings import filterwarnings
 import yaml
 
-from libs.trade.fetcher.history_fetcher import (HistoryFetcher,
-    HistoryQueryParams)
 from libs.fiat_symbols import FIAT_SYMBOLS
 from libs.time_utils import TimeInterval, get_most_recent_rounded_timestamp
-
-# Constants
-CSV_COL_HEADERS = [
-        'time',
-        'close',
-        'high',
-        'low',
-        'open',
-        'volumefrom',
-        'volumeto',
-        'vwap',
-        'base',
-        'quote',
-        'exchange'
-]
+from libs.trade.fetcher.history_fetcher import (HistoryFetcher,
+                                                HistoryQueryParams)
 
 
 class IncompatibleTimeIntervalError(Exception):

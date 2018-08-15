@@ -1,5 +1,6 @@
 import logging
 import time
+import uuid
 
 import ccxt
 
@@ -328,3 +329,36 @@ class ext_kraken(ccxt.kraken):
         """
         return self._create_market_order(
             SELL_SIDE, symbol, float(asset_amount), params)
+
+    # @Override
+    def fetch_order_book(self, symbol, params={}):
+        # TODO: Placeholder as it is a simple call for the prototype, but may
+        # likely turn complicated should we customize further.
+        return super().fetch_order_book(symbol, params=params)
+
+    # @Override
+    def parse_order_book(self, orderbook, timestamp=None, bids_key='bids',
+                         asks_key='asks', price_key=0, amount_key=1):
+        # Each Kraken order comes as [PRICE, VOLUME, TIMESTAMP]
+        # https://www.kraken.com/help/api#get-order-book
+        # The timestamps seem to reflect the time at which the order was placed.
+        parsed_ob = []
+        for order in orderbook[bids_key]:
+            parsed_ob.append(
+                {
+                    'local_unix_ts': int(time.time()),
+                    'exchange_ts': order[2],
+                    'bid_ask': 'bid',
+                    'order_price': order[0],
+                    'order_volume': order[1]
+                })
+        for order in orderbook[asks_key]:
+            parsed_ob.append(
+                {
+                    'local_unix_ts': int(time.time()),
+                    'exchange_ts': order[2],
+                    'bid_ask': 'ask',
+                    'order_price': order[0],
+                    'order_volume': order[1]
+                })
+        return parsed_ob
