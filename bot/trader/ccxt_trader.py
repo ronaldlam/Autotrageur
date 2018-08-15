@@ -523,6 +523,11 @@ class CCXTTrader():
             self.usd_target_amount = target_amount
             self.quote_target_amount = target_amount
 
+        logging.debug('{} usd_target_amount updated to: {}'.format(
+            self.exchange_name, self.usd_target_amount))
+        logging.debug('{} quote_target_amount updated to: {}'.format(
+            self.exchange_name, self.quote_target_amount))
+
     def update_wallet_balances(self, is_dry_run=False):
         """Fetches and saves the wallet balances of the base and quote
         currencies on the exchange.
