@@ -11,7 +11,6 @@ import yaml
 from dotenv import load_dotenv
 
 import libs.db.maria_db_handler as db_handler
-from bot.common.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
                                          DRYRUN_E2_BASE, DRYRUN_E2_QUOTE,
@@ -23,6 +22,7 @@ from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import CCXTTrader
 from bot.trader.dry_run import DryRun, DryRunExchange
+from libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
 from libs.utils.ccxt_utils import RetryableError, RetryCounter

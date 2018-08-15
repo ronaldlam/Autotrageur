@@ -27,13 +27,13 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      TRADES_PRIM_KEY_SIDE,
                                      TRADES_PRIM_KEY_TRADE_OPP_ID,
                                      TRADES_TABLE)
-from bot.common.decimal_constants import ONE
 from bot.common.enums import Momentum
-from libs.twilio.twilio_client import TwilioClient
 from bot.trader.ccxt_trader import OrderbookException
+from libs.constants.decimal_constants import ONE
 from libs.db.maria_db_handler import InsertRowObject
 from libs.email_client.simple_email_client import send_all_emails
 from libs.fiat_symbols import FIAT_SYMBOLS
+from libs.twilio.twilio_client import TwilioClient
 from libs.utilities import num_to_decimal
 
 from .autotrageur import Autotrageur
