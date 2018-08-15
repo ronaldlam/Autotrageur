@@ -602,10 +602,12 @@ class FCFAutotrageur(Autotrageur):
 
             self.e1_targets = self.__calc_targets(spread_opp.e1_spread,
                 self.h_to_e1_max, self.trader2.get_usd_balance())
-            logging.debug('#### Initial e1_targets: {}'.format(self.e1_targets))
+            logging.debug('#### Initial e1_targets: {}'.format(
+                list(enumerate(self.e1_targets))))
             self.e2_targets = self.__calc_targets(spread_opp.e2_spread,
                 self.h_to_e2_max, self.trader1.get_usd_balance())
-            logging.debug('#### Initial e2_targets: {}'.format(self.e2_targets))
+            logging.debug('#### Initial e2_targets: {}'.format(
+                list(enumerate(self.e2_targets))))
 
             self.target_index = 0
             self.last_target_index = 0
