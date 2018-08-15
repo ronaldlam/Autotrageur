@@ -171,8 +171,6 @@ def test_evaluate_to_e1_trade(mocker, fcf_autotrageur, momentum_change):
     mocker.patch.object(
         fcf_autotrageur, '_FCFAutotrageur__advance_target_index')
     mocker.patch.object(fcf_autotrageur, '_FCFAutotrageur__prepare_trade')
-    mock_targets = mocker.Mock()
-    mocker.patch.object(fcf_autotrageur, '_FCFAutotrageur__calc_targets', return_value=mock_targets)
 
     fcf_autotrageur._FCFAutotrageur__evaluate_to_e1_trade(
         momentum_change, spread_opp)
@@ -182,10 +180,6 @@ def test_evaluate_to_e1_trade(mocker, fcf_autotrageur, momentum_change):
     fcf_autotrageur._FCFAutotrageur__prepare_trade.assert_called_with(
         momentum_change, fcf_autotrageur.trader2, fcf_autotrageur.trader1,
         fcf_autotrageur.e1_targets, spread_opp)
-    fcf_autotrageur._FCFAutotrageur__calc_targets.assert_called_with(
-        spread_opp.e2_spread, fcf_autotrageur.h_to_e2_max,
-        fcf_autotrageur.trader1.usd_bal)
-    assert fcf_autotrageur.e2_targets == mock_targets
 
 
 @pytest.mark.parametrize('momentum_change', [True, False])
@@ -198,9 +192,6 @@ def test_evaluate_to_e2_trade(mocker, fcf_autotrageur, momentum_change):
     mocker.patch.object(
         fcf_autotrageur, '_FCFAutotrageur__advance_target_index')
     mocker.patch.object(fcf_autotrageur, '_FCFAutotrageur__prepare_trade')
-    mock_targets = mocker.Mock()
-    mocker.patch.object(
-        fcf_autotrageur, '_FCFAutotrageur__calc_targets', return_value=mock_targets)
 
     fcf_autotrageur._FCFAutotrageur__evaluate_to_e2_trade(
         momentum_change, spread_opp)
@@ -210,10 +201,6 @@ def test_evaluate_to_e2_trade(mocker, fcf_autotrageur, momentum_change):
     fcf_autotrageur._FCFAutotrageur__prepare_trade.assert_called_with(
         momentum_change, fcf_autotrageur.trader1, fcf_autotrageur.trader2,
         fcf_autotrageur.e2_targets, spread_opp)
-    fcf_autotrageur._FCFAutotrageur__calc_targets.assert_called_with(
-        spread_opp.e1_spread, fcf_autotrageur.h_to_e1_max,
-        fcf_autotrageur.trader2.usd_bal)
-    assert fcf_autotrageur.e1_targets == mock_targets
 
 
 @pytest.mark.parametrize('e1_spread, e2_spread, momentum, target_index', [
@@ -492,7 +479,7 @@ def test_prepare_trade(mocker, fcf_autotrageur, is_momentum_change, to_e1,
         buy_trader = fcf_autotrageur.trader1
         sell_trader = fcf_autotrageur.trader2
 
-    buy_trader.usd_bal = buy_quote_balance
+    buy_trader.quote_bal = buy_quote_balance
     sell_trader.base_bal = sell_base_balance
 
     if result is None:
@@ -514,6 +501,48 @@ def test_prepare_trade(mocker, fcf_autotrageur, is_momentum_change, to_e1,
     assert fcf_autotrageur.last_target_index == result['last_target_index']
     assert buy_trader.quote_target_amount == result['quote_target_amount']
 
+
+@pytest.mark.parametrize('is_trader1_buy', [True, False])
+def test_update_trade_targets(mocker, no_patch_fcf_autotrageur, fake_ccxt_trader, is_trader1_buy):
+    trader1 = fake_ccxt_trader
+    trader2 = copy.deepcopy(fake_ccxt_trader)
+    mocker.patch.object(no_patch_fcf_autotrageur, 'trader1', trader1, create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur, 'trader2', trader2, create=True)
+    mock_targets = ['list', 'of', 'targets']
+    mock_spread_opp = mocker.Mock()
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__calc_targets', return_value=mock_targets)
+    if is_trader1_buy:
+        mocker.patch.object(no_patch_fcf_autotrageur, 'trade_metadata', {
+            'spread_opp': mock_spread_opp,
+            'buy_trader': no_patch_fcf_autotrageur.trader1,
+            'sell_trader': no_patch_fcf_autotrageur.trader2
+        }, create=True)
+    else:
+        mocker.patch.object(no_patch_fcf_autotrageur, 'trade_metadata', {
+            'spread_opp': mock_spread_opp,
+            'buy_trader': no_patch_fcf_autotrageur.trader2,
+            'sell_trader': no_patch_fcf_autotrageur.trader1
+        }, create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur, 'h_to_e1_max', create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur, 'h_to_e2_max', create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur.trader1, 'get_usd_balance')
+    mocker.patch.object(no_patch_fcf_autotrageur.trader2, 'get_usd_balance')
+
+    no_patch_fcf_autotrageur._FCFAutotrageur__update_trade_targets()
+
+    if is_trader1_buy:
+        no_patch_fcf_autotrageur._FCFAutotrageur__calc_targets.assert_called_with(
+            mock_spread_opp.e1_spread,
+            no_patch_fcf_autotrageur.h_to_e1_max,
+            no_patch_fcf_autotrageur.trader2.get_usd_balance())
+        assert no_patch_fcf_autotrageur.e1_targets == mock_targets
+    else:
+        no_patch_fcf_autotrageur._FCFAutotrageur__calc_targets.assert_called_with(
+            mock_spread_opp.e2_spread,
+            no_patch_fcf_autotrageur.h_to_e2_max,
+            no_patch_fcf_autotrageur.trader1.get_usd_balance())
+        assert no_patch_fcf_autotrageur.e2_targets == mock_targets
 
 @pytest.mark.parametrize(
     'min_base_buy, min_base_sell, buy_price, buy_quote_target, expected_result', [
@@ -588,6 +617,9 @@ class TestExecuteTrade:
     @pytest.mark.parametrize('dryrun', [True, False])
     def test_execute_trade(self, mocker, fake_ccxt_trader, no_patch_fcf_autotrageur, dryrun):
         self._setup_mocks(mocker, fake_ccxt_trader, no_patch_fcf_autotrageur, dryrun)
+        mock_update_trade_targets = mocker.patch.object(
+            no_patch_fcf_autotrageur, '_FCFAutotrageur__update_trade_targets')
+
         no_patch_fcf_autotrageur._execute_trade()
 
         arbseeker.execute_buy.assert_called_once_with(
@@ -608,6 +640,7 @@ class TestExecuteTrade:
             no_patch_fcf_autotrageur.trader1.update_wallet_balances.assert_called_once_with()
             no_patch_fcf_autotrageur.trader2.update_wallet_balances.assert_called_once_with()
             no_patch_fcf_autotrageur._send_email.assert_called_once()
+        mock_update_trade_targets.assert_called_once_with()
 
     @pytest.mark.parametrize('exc_type', [
         ExchangeError,
@@ -616,6 +649,8 @@ class TestExecuteTrade:
     def test_execute_trade_buy_exchange_err(self, mocker, fake_ccxt_trader,
                                             no_patch_fcf_autotrageur, exc_type):
         self._setup_mocks(mocker, fake_ccxt_trader, no_patch_fcf_autotrageur, False)
+        mock_update_trade_targets = mocker.patch.object(
+            no_patch_fcf_autotrageur, '_FCFAutotrageur__update_trade_targets')
         arbseeker.execute_buy.side_effect = exc_type
         no_patch_fcf_autotrageur._execute_trade()
 
@@ -629,6 +664,7 @@ class TestExecuteTrade:
         no_patch_fcf_autotrageur.trader1.update_wallet_balances.assert_not_called()
         no_patch_fcf_autotrageur.trader2.update_wallet_balances.assert_not_called()
         no_patch_fcf_autotrageur._send_email.assert_called_once()
+        mock_update_trade_targets.assert_not_called()
 
     @pytest.mark.parametrize('exc_type', [
         ExchangeError,
@@ -638,6 +674,8 @@ class TestExecuteTrade:
     def test_execute_trade_sell_error(self, mocker, fake_ccxt_trader,
                                       no_patch_fcf_autotrageur, exc_type):
         self._setup_mocks(mocker, fake_ccxt_trader, no_patch_fcf_autotrageur, False)
+        mock_update_trade_targets = mocker.patch.object(
+            no_patch_fcf_autotrageur, '_FCFAutotrageur__update_trade_targets')
 
         if exc_type is IncompleteArbitrageError:
             arbseeker.execute_sell.return_value = FAKE_UNIFIED_RESPONSE_DIFFERENT_AMOUNT
@@ -667,6 +705,7 @@ class TestExecuteTrade:
         no_patch_fcf_autotrageur._send_email.assert_called_once()
         no_patch_fcf_autotrageur.trader1.update_wallet_balances.assert_not_called()
         no_patch_fcf_autotrageur.trader2.update_wallet_balances.assert_not_called()
+        mock_update_trade_targets.assert_not_called()
 
 
 @pytest.mark.parametrize('vol_min', [Decimal('100'), Decimal('1000')])
@@ -694,18 +733,13 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
     mocker.patch.object(
         no_patch_fcf_autotrageur, 'trader2', trader2, create=True)
     mocker.patch.object(
-        no_patch_fcf_autotrageur.trader1, 'usd_bal', e1_quote_balance,
-        create=True)
+        no_patch_fcf_autotrageur.trader1, 'get_usd_balance', return_value=e1_quote_balance)
     mocker.patch.object(
-        no_patch_fcf_autotrageur.trader2, 'usd_bal', e2_quote_balance,
-        create=True)
+        no_patch_fcf_autotrageur.trader2, 'get_usd_balance', return_value=e2_quote_balance)
     mocker.patch.object(
         no_patch_fcf_autotrageur.trader1, 'set_target_amounts')
     mocker.patch.object(
         no_patch_fcf_autotrageur.trader2, 'set_target_amounts')
-    mocker.patch.object(
-        no_patch_fcf_autotrageur.trader2, 'usd_bal', e2_quote_balance,
-        create=True)
     mocker.patch.object(
         no_patch_fcf_autotrageur, 'vol_min', vol_min, create=True)
     mocker.patch.object(

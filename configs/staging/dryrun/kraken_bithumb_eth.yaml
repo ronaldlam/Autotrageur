@@ -2,10 +2,10 @@
 
 # Dry Run functionality.
 dryrun: true # If True, will log trades instead of executing them.
-dryrun_e1_base: 20
+dryrun_e1_base: 70
 dryrun_e1_quote: 20000
-dryrun_e2_base: 50
-dryrun_e2_quote: 0
+dryrun_e2_base: 70
+dryrun_e2_quote: 23000000
 
 # Email configuration, and email options.
 email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to send e-mails on arb opportunities.

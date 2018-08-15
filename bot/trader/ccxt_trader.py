@@ -34,6 +34,10 @@ class NoForexQuoteException(Exception):
     pass
 
 
+class NoQuoteBalanceException(Exception):
+    """Exception when there is no quote balance set."""
+    pass
+
 class CCXTTrader():
     """CCXT Trader for performing trades."""
 
@@ -93,6 +97,8 @@ class CCXTTrader():
         self.conversion_needed = False
         self.forex_ratio = None
         self.forex_id = None
+        self.base_bal = None
+        self.quote_bal = None
 
     def __calc_vol_by_book(self, orders, quote_target_amount):
         """Calculates the asset volume with which to execute a trade.
@@ -381,6 +387,74 @@ class CCXTTrader():
         """
         return self.fetcher.fetch_taker_fees()
 
+    def get_quote_from_usd(self, usd_amount):
+        """Get converted quote amount from USD amount.
+
+        Args:
+            usd_amount (Decimal): The USD amount to convert.
+
+        Raises:
+            NoForexQuoteException: If forex_ratio is needed and not set.
+
+        Returns:
+            Decimal: The quote amount.
+        """
+        if self.conversion_needed:
+            if self.forex_ratio is None:
+                raise NoForexQuoteException(
+                    "Forex ratio not set. Conversion not available.")
+            return usd_amount * self.forex_ratio
+        else:
+            return usd_amount
+
+    def get_usd_balance(self):
+        """Gets the balance in terms of US Dollars (USD).
+
+        If the quote balance is in a different fiat other than USD (e.g. KRW),
+        we will have to use a forex ratio to convert the dollar amount to USD.
+
+        NOTE: The `quote_bal` and `forex_ratio` will need to be set
+        appropriately in order for the function to work as expected.
+
+        Raises:
+            NoForexQuoteException: If forex_ratio is needed and not set.
+            NoQuoteBalanceException: If quote_bal is not set.
+
+        Returns:
+            Decimal: The balance in terms of USD.
+        """
+        if self.quote_bal is None:
+            raise NoQuoteBalanceException(
+                "Unable to retrieve USD balance as a quote balance has not "
+                "been set yet.")
+        if self.conversion_needed:
+            if self.forex_ratio is None:
+                raise NoForexQuoteException(
+                    "Forex ratio not set. Conversion not available.")
+            return self.quote_bal / self.forex_ratio
+        else:
+            return self.quote_bal
+
+    def get_usd_from_quote(self, quote_amount):
+        """Get converted USD amount from quote amount.
+
+        Args:
+            quote_amount (Decimal): The quote amount to convert.
+
+        Raises:
+            NoForexQuoteException: If forex_ratio is needed and not set.
+
+        Returns:
+            Decimal: The USD amount.
+        """
+        if self.conversion_needed:
+            if self.forex_ratio is None:
+                raise NoForexQuoteException(
+                    "Forex ratio not set. Conversion not available.")
+            return quote_amount / self.forex_ratio
+        else:
+            return quote_amount
+
     def load_markets(self):
         """Load the markets of the exchange.
 
@@ -449,6 +523,11 @@ class CCXTTrader():
             self.usd_target_amount = target_amount
             self.quote_target_amount = target_amount
 
+        logging.debug('{} usd_target_amount updated to: {}'.format(
+            self.exchange_name, self.usd_target_amount))
+        logging.debug('{} quote_target_amount updated to: {}'.format(
+            self.exchange_name, self.quote_target_amount))
+
     def update_wallet_balances(self, is_dry_run=False):
         """Fetches and saves the wallet balances of the base and quote
         currencies on the exchange.
@@ -466,13 +545,6 @@ class CCXTTrader():
             self.base_bal, self.quote_bal = self.fetcher.fetch_free_balances(
                 self.base, self.quote)
 
-        if self.conversion_needed:
-            self.usd_bal = self.quote_bal / self.forex_ratio
-        else:
-            self.usd_bal = self.quote_bal
-
         logging.debug("%s balances:", self.exchange_name)
         logging.debug("%s: %s", self.base, self.base_bal)
         logging.debug("%s: %s", self.quote, self.quote_bal)
-        if self.conversion_needed:
-            logging.debug("%s in USD: %s", self.quote, self.usd_bal)
