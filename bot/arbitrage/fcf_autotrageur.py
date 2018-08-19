@@ -277,10 +277,6 @@ class FCFAutotrageur(Autotrageur):
 
     def __persist_config(self):
         """Persists the configuration for this `fcf_autotrageur` run."""
-        # Add extra config entries for database persistence.
-        self.config[START_TIMESTAMP] = int(time.time())
-        self.config[ID] = str(uuid.uuid4())
-
         fcf_autotrageur_config_row = db_handler.build_row(
             FCF_AUTOTRAGEUR_CONFIG_COLUMNS, self.config)
         config_row_obj = InsertRowObject(
@@ -744,7 +740,12 @@ class FCFAutotrageur(Autotrageur):
             logging.error(auth_error)
             raise AuthenticationError(auth_error)
 
-        # Only persist the autotrageur config if is a brand new run.
+        # Only persist the autotrageur config if is a brand new run. Add brand
+        # new config ID only if a new run.
+        self.config[START_TIMESTAMP] = int(time.time())
         if resume_id is None:
+            self.config[ID] = str(uuid.uuid4())
             self.__persist_config()
+        else:
+            self.config[ID] = resume_id
         self.__setup_algorithm(resume_id)
