@@ -1,6 +1,8 @@
 import logging
 import os
+import pickle
 import pprint
+import sys
 import time
 import traceback
 import uuid
@@ -21,6 +23,7 @@ from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
+                                     FCF_STATE_PRIM_KEY_ID, FCF_STATE_TABLE,
                                      FOREX_RATE_PRIM_KEY_ID, FOREX_RATE_TABLE,
                                      TRADE_OPPORTUNITY_PRIM_KEY_ID,
                                      TRADE_OPPORTUNITY_TABLE,
@@ -29,11 +32,11 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      TRADES_TABLE)
 from bot.common.decimal_constants import ONE
 from bot.common.enums import Momentum
-from libs.twilio.twilio_client import TwilioClient
 from bot.trader.ccxt_trader import OrderbookException
 from libs.db.maria_db_handler import InsertRowObject
 from libs.email_client.simple_email_client import send_all_emails
 from libs.fiat_symbols import FIAT_SYMBOLS
+from libs.twilio.twilio_client import TwilioClient
 from libs.utilities import num_to_decimal
 
 from .autotrageur import Autotrageur
@@ -69,6 +72,10 @@ class FCFCheckpoint():
     def save(self, autotrageur):
         """Saves the current autotrageur state before another algorithm
         iteration.
+
+        The rationale for saving `h_to_e1_max` and `h_to_e2_max` is that the
+        historical maximums provided by the config file may have been surpassed
+        during the bot's run.
 
         Args:
             autotrageur (FCFAutotrageur): The current FCFAutotrageur.
@@ -268,7 +275,7 @@ class FCFAutotrageur(Autotrageur):
         # service to the bot.
         self.twilio_client.test_connection()
 
-    def __persist_configs(self):
+    def __persist_config(self):
         """Persists the configuration for this `fcf_autotrageur` run."""
         # Add extra config entries for database persistence.
         self.config[START_TIMESTAMP] = int(time.time())
@@ -422,6 +429,32 @@ class FCFAutotrageur(Autotrageur):
         logging.debug('#### target_index advanced by one, is now: {}'.format(
             self.target_index))
 
+    def __setup_algorithm(self, resume_id=None):
+        """Sets up the algorithm by either initializing or restoring the
+        algorithm's state.
+
+        Args:
+            resume_id (str): The configuration id which links to the
+                autotrageur's previous state.  Defaults to None, in the case
+                that this run is new.
+        """
+        self.checkpoint = FCFCheckpoint()
+        self.spread_min = num_to_decimal(self.config[SPREAD_MIN])
+        self.vol_min = num_to_decimal(self.config[VOL_MIN])
+        if resume_id:
+            logging.debug("#### resume_id: {}".format(resume_id))
+            raw_result = db_handler.parametrized_query(
+                "SELECT state FROM fcf_state where autotrageur_config_id = %s;",
+                resume_id)
+
+            # The raw result comes back as a list of tuples.  We expect only
+            # one result as the autotrageur_config_id is unique per run.
+            self._import_state(raw_result[0][0])
+        else:
+            self.has_started = False
+            self.h_to_e1_max = num_to_decimal(self.config[H_TO_E1_MAX])
+            self.h_to_e2_max = num_to_decimal(self.config[H_TO_E2_MAX])
+
     def __update_trade_targets(self):
         """Updates the trade targets based on the direction of the completed
         trade.  E.g. If the trade was performed from e1 -> e2, then the
@@ -560,6 +593,41 @@ class FCFAutotrageur(Autotrageur):
                 self.__persist_trade_data(buy_response, sell_response)
 
     # @Override
+    def _export_state(self):
+        """Exports the state of the autotrageur. Normally exported to a file or
+        a database."""
+        logging.debug("#### Exporting bot's current state")
+        fcf_state_map = {
+            'id': str(uuid.uuid4()),
+            'autotrageur_config_id': self.config[ID],
+            'state': pickle.dumps(vars(self.checkpoint))
+        }
+        fcf_state_row_obj = InsertRowObject(
+            FCF_STATE_TABLE,
+            fcf_state_map,
+            (FCF_STATE_PRIM_KEY_ID,))
+        db_handler.insert_row(fcf_state_row_obj)
+        db_handler.commit_all()
+
+    # @Override
+    def _import_state(self, previous_state):
+        """Imports the state of a previous autotrageur run. Normally imported
+        from a file or a database.
+
+        Args:
+            previous_state (bytes): The previous state of the autotrageur run.
+                Expressed as bytes, typically pickled into a database.
+        """
+        logging.debug("#### Importing bot's previous state")
+
+        pickled_autotrageur = previous_state
+        previous_state = pickle.loads(pickled_autotrageur)
+
+        # TODO: Use a state object as delegate instead of manually assigning attr?
+        self.checkpoint.__dict__.update(previous_state)
+        self.checkpoint.restore(self)
+
+    # @Override
     def _load_configs(self, arguments):
         """Load the configurations of the Autotrageur run.
 
@@ -635,8 +703,20 @@ class FCFAutotrageur(Autotrageur):
         send_all_emails(self.config[EMAIL_CFG_PATH], subject, msg)
 
     # @Override
-    def _setup(self):
-        """Sets up the algorithm to use.
+    def _setup(self, resume_id=None):
+        """Initializes the autotrageur bot for use.
+
+        Sets up the algorithm by either initializing or restoring the
+        algorithm's state.
+
+        Other responsibilities include:
+        - Initializing forex services and state for the bot.
+        - Persisting configurations and forex ratio in the database.
+
+        Args:
+            resume_id (str): The configuration id which links to the
+                autotrageur's previous state.  Defaults to None, in the case
+                that this run is new.
 
         Raises:
             AuthenticationError: If not dryrun and authentication fails.
@@ -664,10 +744,7 @@ class FCFAutotrageur(Autotrageur):
             logging.error(auth_error)
             raise AuthenticationError(auth_error)
 
-        self.__persist_configs()
-        self.has_started = False
-        self.spread_min = num_to_decimal(self.config[SPREAD_MIN])
-        self.vol_min = num_to_decimal(self.config[VOL_MIN])
-        self.h_to_e1_max = num_to_decimal(self.config[H_TO_E1_MAX])
-        self.h_to_e2_max = num_to_decimal(self.config[H_TO_E2_MAX])
-        self.checkpoint = FCFCheckpoint()
+        # Only persist the autotrageur config if is a brand new run.
+        if resume_id is None:
+            self.__persist_config()
+        self.__setup_algorithm(resume_id)

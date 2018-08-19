@@ -84,3 +84,13 @@ CREATE TABLE IF NOT EXISTS trades (
         ON UPDATE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS fcf_state (
+    id VARCHAR(36) NOT NULL,
+    autotrageur_config_id VARCHAR(36) NOT NULL,
+    state BLOB NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT `fk_config_id`
+        FOREIGN KEY (autotrageur_config_id) REFERENCES fcf_autotrageur_config (id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);

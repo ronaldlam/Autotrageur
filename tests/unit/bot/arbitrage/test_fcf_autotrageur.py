@@ -313,7 +313,7 @@ def test_persist_configs(mocker, no_patch_fcf_autotrageur):
     mocker.patch.object(db_handler, 'insert_row')
     mocker.patch.object(db_handler, 'commit_all')
 
-    no_patch_fcf_autotrageur._FCFAutotrageur__persist_configs()
+    no_patch_fcf_autotrageur._FCFAutotrageur__persist_config()
 
     time.time.assert_called_once_with()
     uuid.uuid4.assert_called_once_with()
@@ -843,7 +843,7 @@ def test_setup(mocker, no_patch_fcf_autotrageur, client_quote_usd,
         DRYRUN: dryrun
     }, create=True)
     mock_persist_configs = mocker.patch.object(
-        no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_configs')
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_config')
     mock_update_forex = mocker.patch.object(
         no_patch_fcf_autotrageur, '_FCFAutotrageur__update_forex')
     trader1 = mocker.patch.object(no_patch_fcf_autotrageur, 'trader1',

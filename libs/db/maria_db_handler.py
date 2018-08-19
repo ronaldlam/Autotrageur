@@ -60,7 +60,7 @@ def _insert_into_with_values(table_name, columns, row_data_params):
         table_name (str): Name of the table to insert into.
         columns (tuple(str)): Column names represented as a tuple of strings.
         row_data_params (str): A param substitution string composed of repeating
-            sequences of '%s' for data insertion.  E.g. '%s, %s, %s"
+            sequences of '%s' for data insertion.  E.g. '%s, %s, %s'
 
     Returns:
         str: A basic 'INSERT INTO ... VALUES(...)' query string.
@@ -167,6 +167,28 @@ def ping_db():
     """Ping the database to keep connection alive."""
     global db
     db.ping()
+
+
+def parametrized_query(param_query_string, param):
+    """Performs a parametrized query.
+
+    NOTE: Ensure that the query string is parameterized with '%s'
+    placeholders to avoid potential SQL injection.
+
+    Args:
+        param_query_string (str): The query string with parameters.
+        param (tuple(str)): The parameters to be substituted into the query
+            string.  Must be in the form of a tuple.  One parameter will look
+            like '(PARAM_ONE,)'.
+
+    Returns:
+        list[(tuple)]: A list of rows as tuples.
+    """
+    cursor = db.cursor()
+    print("param_query_string: {}".format(param_query_string))
+    print("param: {}".format(param))
+    cursor.execute(param_query_string, (param,))
+    return cursor.fetchall()
 
 
 def start_db(db_user, db_password, db_name):
