@@ -759,6 +759,8 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
     is_within_limits = mocker.patch.object(no_patch_fcf_autotrageur,
                                            '_FCFAutotrageur__check_within_limits',
                                            return_value=is_in_limits)
+    check_crypto_balances = mocker.patch.object(no_patch_fcf_autotrageur,
+                                                '_FCFAutotrageur__check_crypto_balances')
     mocker.patch.object(
         arbseeker, 'get_spreads_by_ob', return_value=spread_opp)
     if exc_type:
@@ -796,6 +798,7 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
             assert is_opportunity_result == (is_opportunity and is_in_limits)
         assert no_patch_fcf_autotrageur.h_to_e1_max == max(h_to_e1_max, e1_spread)
         assert no_patch_fcf_autotrageur.h_to_e2_max == max(h_to_e2_max, e2_spread)
+        check_crypto_balances.assert_called_with(spread_opp)
 
 
 def test_clean_up(fcf_autotrageur):
