@@ -29,26 +29,14 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      TRADES_TABLE)
 from bot.common.decimal_constants import ONE
 from bot.common.enums import Momentum
-from libs.twilio.twilio_client import TwilioClient
 from bot.trader.ccxt_trader import OrderbookException
 from libs.db.maria_db_handler import InsertRowObject
 from libs.email_client.simple_email_client import send_all_emails
 from libs.fiat_symbols import FIAT_SYMBOLS
+from libs.twilio.twilio_client import TwilioClient
 from libs.utilities import num_to_decimal
 
 from .autotrageur import Autotrageur
-
-
-CRYPTO_BELOW_THRESHOLD_MESSAGE = (
-    "Sell side crypto balance on {exchange} below {ratio} x required threshold. "
-    "Consider additional deposits or locking up capital.\n"
-    "Required base: {req_base} {base}\n"
-    "Actual base: {act_base} {base}\n"
-)
-CRYPTO_BELOW_THRESHOLD_SCHEDULE_TAG = 'CRYPTO_BELOW_THRESHOLD'
-
-# Ratio required of crypto balance before balance polling and notification.
-SELL_SIDE_CRYPTO_BALANCE_BUFFER = Decimal('1.05')
 
 
 class AuthenticationError(Exception):
@@ -59,6 +47,104 @@ class AuthenticationError(Exception):
 class IncompleteArbitrageError(Exception):
     """Error indicating an uneven buy/sell base amount."""
     pass
+
+
+class InsufficientCryptoBalance(Exception):
+    """Thrown when there is not enough crypto balance to fulfill the matching
+    sell order."""
+    pass
+
+
+class FCFBalanceChecker():
+    """Sell side crypto balance checker."""
+
+    CRYPTO_BELOW_THRESHOLD_MESSAGE = (
+        "Sell side crypto balance on {exchange} below {ratio} x required threshold. "
+        "Consider additional deposits or locking up capital.\n"
+        "Required base: {req_base} {base}\n"
+        "Actual base: {act_base} {base}\n"
+    )
+    CRYPTO_BELOW_THRESHOLD_SCHEDULE_TAG = 'CRYPTO_BELOW_THRESHOLD'
+
+    # Ratio required of crypto balance before balance polling and notification.
+    SELL_SIDE_CRYPTO_BALANCE_BUFFER = Decimal('1.05')
+
+    def __init__(self, trader1, trader2, is_dry_run, notification_func):
+        """Constructor."""
+        self.trader1 = trader1
+        self.trader2 = trader2
+        self.is_dry_run = is_dry_run
+        self.notification_func = notification_func
+        self.crypto_balance_low = False
+
+    def __create_low_balance_msg(
+            self, buy_price, buy_volume, sell_balance, sell_exchange, base):
+        """Create error message if the sell exchange has a low crypto balance.
+
+        Args:
+            buy_price (Decimal): The buy price in quote currency.
+            buy_volume (Decimal): The buy volume.
+            sell_balance (Decimal): The sell exchange base balance.
+            sell_exchange (str): The sell exchange.
+            base (str): The base asset.
+
+        Returns:
+            str: Error message if the sell exchange has a crypto balance
+                below the notification threshold, None otherwise.
+        """
+        required_base = buy_volume / buy_price
+        if required_base * self.SELL_SIDE_CRYPTO_BALANCE_BUFFER > sell_balance:
+            return self.CRYPTO_BELOW_THRESHOLD_MESSAGE.format(
+                ratio=self.SELL_SIDE_CRYPTO_BALANCE_BUFFER,
+                exchange=sell_exchange,
+                req_base=required_base,
+                act_base=sell_balance,
+                base=base)
+        else:
+            return None
+
+    def __send_balance_warning(self):
+        """Send and log low crypto balance warnings."""
+        logging.warning(self.low_balance_message)
+        self.notification_func(
+            "SELL SIDE BALANCE BELOW THRESHOLD", self.low_balance_message)
+
+    def check_crypto_balances(self, spread_opp):
+        """Check whether balances are below threshold and notify
+        operator if so.
+
+        Args:
+            spread_opp (SpreadOpportunity): The current spread
+                opportunity.
+        """
+        e1_message = self.__create_low_balance_msg(
+            spread_opp.e2_buy, self.trader2.quote_bal, self.trader1.base_bal,
+            self.trader1.exchange_name, self.trader1.base)
+        e2_message = self.__create_low_balance_msg(
+            spread_opp.e1_buy, self.trader1.quote_bal, self.trader2.base_bal,
+            self.trader2.exchange_name, self.trader2.base)
+
+        self.low_balance_message = ''
+
+        if e1_message is not None:
+            self.low_balance_message += e1_message
+        if e2_message is not None:
+            self.low_balance_message += e2_message
+
+        if self.low_balance_message != '':
+            if not self.crypto_balance_low:
+                self.crypto_balance_low = True
+                # Schedule warning notification and execute immediately.
+                schedule.every(1).hour.do(self.__send_balance_warning).tag(
+                    self.CRYPTO_BELOW_THRESHOLD_SCHEDULE_TAG)
+                schedule.jobs[-1].run()
+            else:
+                logging.warning(self.low_balance_message)
+            self.trader1.update_wallet_balances(is_dry_run=self.is_dry_run)
+            self.trader2.update_wallet_balances(is_dry_run=self.is_dry_run)
+        else:
+            schedule.clear(tag=self.CRYPTO_BELOW_THRESHOLD_SCHEDULE_TAG)
+            self.crypto_balance_low = False
 
 
 class FCFCheckpoint():
@@ -109,11 +195,6 @@ class FCFCheckpoint():
         autotrageur.h_to_e1_max = self.h_to_e1_max
         autotrageur.h_to_e2_max = self.h_to_e2_max
 
-
-class InsufficientCryptoBalance(Exception):
-    """Thrown when there is not enough crypto balance to fulfill the matching
-    sell order."""
-    pass
 
 class FCFAutotrageur(Autotrageur):
     """The fiat-crypto-fiat Autotrageur.
@@ -459,74 +540,6 @@ class FCFAutotrageur(Autotrageur):
             logging.debug("#### New calculated e1_targets: {}".format(
                 list(enumerate(self.e1_targets))))
 
-    def __has_low_crypto_balance(
-            self, buy_price, buy_volume, sell_balance, sell_exchange, base):
-        """Determine whether the sell exchange has a low crypto balance.
-
-        Args:
-            buy_price (Decimal): The buy price in quote currency.
-            buy_volume (Decimal): The buy volume.
-            sell_balance (Decimal): The sell exchange base balance.
-            sell_exchange (str): The sell exchange.
-            base (str): The base asset.
-
-        Returns:
-            str: Error message if the sell exchange has a crypto balance
-                below the notification threshold, None otherwise.
-        """
-        required_base = buy_volume / buy_price
-        if required_base * SELL_SIDE_CRYPTO_BALANCE_BUFFER > sell_balance:
-            return CRYPTO_BELOW_THRESHOLD_MESSAGE.format(
-                ratio=SELL_SIDE_CRYPTO_BALANCE_BUFFER,
-                exchange=sell_exchange,
-                req_base=required_base,
-                act_base=sell_balance,
-                base=base)
-        else:
-            return None
-
-    def __send_balance_warning(self):
-        """Send and log low crypto balance warnings."""
-        logging.warning(self.low_balance_message)
-        self._send_email("SELL SIDE BALANCE BELOW THRESHOLD", self.low_balance_message)
-
-    def __check_crypto_balances(self, spread_opp):
-        """Check whether balances are below threshold and notify
-        operator if so.
-
-        Args:
-            spread_opp (SpreadOpportunity): The current spread
-                opportunity.
-        """
-        e1_message = self.__has_low_crypto_balance(
-            spread_opp.e2_buy, self.trader2.quote_bal, self.trader1.base_bal,
-            self.trader1.exchange_name, self.trader1.base)
-        e2_message = self.__has_low_crypto_balance(
-            spread_opp.e1_buy, self.trader1.quote_bal, self.trader2.base_bal,
-            self.trader2.exchange_name, self.trader2.base)
-
-        self.low_balance_message = ''
-
-        if e1_message is not None:
-            self.low_balance_message += e1_message
-        if e2_message is not None:
-            self.low_balance_message += e2_message
-
-        if self.low_balance_message != '':
-            if not self.crypto_balance_low:
-                self.crypto_balance_low = True
-                # Schedule warning notification and execute immediately.
-                schedule.every(1).hour.do(self.__send_balance_warning).tag(
-                    CRYPTO_BELOW_THRESHOLD_SCHEDULE_TAG)
-                schedule.jobs[-1].run()
-            else:
-                logging.warning(self.low_balance_message)
-            self.trader1.update_wallet_balances(is_dry_run=self.config[DRYRUN])
-            self.trader2.update_wallet_balances(is_dry_run=self.config[DRYRUN])
-        else:
-            schedule.clear(tag=CRYPTO_BELOW_THRESHOLD_SCHEDULE_TAG)
-            self.crypto_balance_low = False
-
     def __check_within_limits(self):
         """Check whether potential trade meets minimum volume limits.
 
@@ -679,7 +692,7 @@ class FCFAutotrageur(Autotrageur):
             logging.error(exc, exc_info=True)
             return False
 
-        self.__check_crypto_balances(spread_opp)
+        self.balance_checker.check_crypto_balances(spread_opp)
 
         is_opportunity = False
 
@@ -751,7 +764,8 @@ class FCFAutotrageur(Autotrageur):
             raise AuthenticationError(auth_error)
 
         self.__persist_configs()
-        self.crypto_balance_low = False
+        self.balance_checker = FCFBalanceChecker(
+            self.trader1, self.trader2, self.config[DRYRUN], self._send_email)
         self.has_started = False
         self.spread_min = num_to_decimal(self.config[SPREAD_MIN])
         self.vol_min = num_to_decimal(self.config[VOL_MIN])
