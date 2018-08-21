@@ -169,7 +169,7 @@ def ping_db():
     db.ping()
 
 
-def parametrized_query(param_query_string, param):
+def execute_parametrized_query(param_query_string, param):
     """Performs a parametrized query.
 
     NOTE: Ensure that the query string is parameterized with '%s'
@@ -185,8 +185,6 @@ def parametrized_query(param_query_string, param):
         list[(tuple)]: A list of rows as tuples.
     """
     cursor = db.cursor()
-    print("param_query_string: {}".format(param_query_string))
-    print("param: {}".format(param))
     cursor.execute(param_query_string, (param,))
     return cursor.fetchall()
 

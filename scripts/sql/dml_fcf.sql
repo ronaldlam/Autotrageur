@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS fcf_autotrageur_config (
     vol_min DECIMAL(27, 8) UNSIGNED NOT NULL,
     slippage DECIMAL(18, 8) NOT NULL,
     start_timestamp INT(11) UNSIGNED NOT NULL,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id, start_timestamp)
 );
 
 CREATE TABLE IF NOT EXISTS forex_rate (
@@ -87,9 +87,14 @@ CREATE TABLE IF NOT EXISTS trades (
 CREATE TABLE IF NOT EXISTS fcf_state (
     id VARCHAR(36) NOT NULL,
     autotrageur_config_id VARCHAR(36) NOT NULL,
+    autotrageur_config_start_timestamp INT(11) UNSIGNED NOT NULL,
     state BLOB NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT `fk_config_id`
+        FOREIGN KEY (autotrageur_config_id) REFERENCES fcf_autotrageur_config (id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    CONSTRAINT `fk_config_start_timestamp`
         FOREIGN KEY (autotrageur_config_id) REFERENCES fcf_autotrageur_config (id)
         ON DELETE CASCADE
         ON UPDATE CASCADE

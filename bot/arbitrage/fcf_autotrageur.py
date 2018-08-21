@@ -22,6 +22,7 @@ from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          TWILIO_SENDER_NUMBER, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
+                                     FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
                                      FCF_STATE_PRIM_KEY_ID, FCF_STATE_TABLE,
                                      FOREX_RATE_PRIM_KEY_ID, FOREX_RATE_TABLE,
@@ -52,14 +53,31 @@ class IncompleteArbitrageError(Exception):
     pass
 
 
+class IncorrectStateObjectTypeError(Exception):
+    """Raised when an incorrect object type is being used as the bot's
+    state.  For fcf_autotrageur, FCFCheckpoint is the required object type.
+    """
+
+
 class FCFCheckpoint():
     """Contains the current algorithm state.
 
     Encapsulates values pertaining to the algorithm.  Useful for rollback
     situations.
     """
-    def __init__(self):
-        """Constructor."""
+    def __init__(self, config_id):
+        """Constructor.
+
+        Initializes variables and sets the configuration ID used for the bot
+        run.  Note that if the bot is started as a resumed run, the
+        configuration ID is eventually overwritten with a previously created
+        ID.
+
+        Args:
+            config_id (str): The unique configuration ID created for this bot
+                run.
+        """
+        self.config_id = config_id
         self.has_started = False
         self.momentum = None
         self.e1_targets = None
@@ -95,6 +113,7 @@ class FCFCheckpoint():
         Args:
             autotrageur (FCFAutotrageur): The current FCFAutotrageur.
         """
+        autotrageur.config[ID] = self.config_id
         autotrageur.has_started = self.has_started
         autotrageur.momentum = self.momentum
         autotrageur.e1_targets = self.e1_targets
@@ -282,7 +301,8 @@ class FCFAutotrageur(Autotrageur):
         config_row_obj = InsertRowObject(
             FCF_AUTOTRAGEUR_CONFIG_TABLE,
             fcf_autotrageur_config_row,
-            (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID, ))
+            (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
+            FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS))
 
         db_handler.insert_row(config_row_obj)
         db_handler.commit_all()
@@ -434,22 +454,31 @@ class FCFAutotrageur(Autotrageur):
                 autotrageur's previous state.  Defaults to None, in the case
                 that this run is new.
         """
-        self.checkpoint = FCFCheckpoint()
         self.spread_min = num_to_decimal(self.config[SPREAD_MIN])
         self.vol_min = num_to_decimal(self.config[VOL_MIN])
+
         if resume_id:
             logging.debug("#### resume_id: {}".format(resume_id))
-            raw_result = db_handler.parametrized_query(
-                "SELECT state FROM fcf_state where autotrageur_config_id = %s;",
+            raw_result = db_handler.execute_parametrized_query(
+                "SELECT state FROM fcf_state where id = %s;",
                 resume_id)
 
             # The raw result comes back as a list of tuples.  We expect only
-            # one result as the autotrageur_config_id is unique per run.
+            # one result as the `autotrageur_resume_id` is unique per
+            # export.
             self._import_state(raw_result[0][0])
         else:
             self.has_started = False
             self.h_to_e1_max = num_to_decimal(self.config[H_TO_E1_MAX])
             self.h_to_e2_max = num_to_decimal(self.config[H_TO_E2_MAX])
+
+        try:
+            # Dry run uses balances set in the configuration files.
+            self.trader1.update_wallet_balances(is_dry_run=self.config[DRYRUN])
+            self.trader2.update_wallet_balances(is_dry_run=self.config[DRYRUN])
+        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
+            logging.error(auth_error)
+            raise AuthenticationError(auth_error)
 
     def __update_trade_targets(self):
         """Updates the trade targets based on the direction of the completed
@@ -590,14 +619,19 @@ class FCFAutotrageur(Autotrageur):
 
     # @Override
     def _export_state(self):
-        """Exports the state of the autotrageur. Normally exported to a file or
-        a database."""
+        """Exports the state of the autotrageur to a database."""
         logging.debug("#### Exporting bot's current state")
+
+        # The generated ID can be used as the `resume_id` to resume the bot
+        # from the saved state.
         fcf_state_map = {
             'id': str(uuid.uuid4()),
             'autotrageur_config_id': self.config[ID],
-            'state': pickle.dumps(vars(self.checkpoint))
+            'autotrageur_config_start_timestamp': self.config[START_TIMESTAMP],
+            'state': pickle.dumps(self.checkpoint)
         }
+        logging.debug("#### The exported checkpoint object __dict__ is: {}"
+            .format(self.checkpoint.__dict__))
         fcf_state_row_obj = InsertRowObject(
             FCF_STATE_TABLE,
             fcf_state_map,
@@ -607,8 +641,7 @@ class FCFAutotrageur(Autotrageur):
 
     # @Override
     def _import_state(self, previous_state):
-        """Imports the state of a previous autotrageur run. Normally imported
-        from a file or a database.
+        """Imports the state of a previous autotrageur run.
 
         Args:
             previous_state (bytes): The previous state of the autotrageur run.
@@ -619,8 +652,13 @@ class FCFAutotrageur(Autotrageur):
         pickled_autotrageur = previous_state
         previous_state = pickle.loads(pickled_autotrageur)
 
-        # TODO: Use a state object as delegate instead of manually assigning attr?
-        self.checkpoint.__dict__.update(previous_state)
+        if not isinstance(previous_state, FCFCheckpoint):
+            raise IncorrectStateObjectTypeError(
+                "FCFCheckpoint is the required type.  {} type was given."
+                .format(type(previous_state)))
+        self.checkpoint = previous_state
+        logging.debug("#### The restored checkpoint object __dict__ is now: {}"
+            .format(self.checkpoint.__dict__))
         self.checkpoint.restore(self)
 
     # @Override
@@ -710,15 +748,28 @@ class FCFAutotrageur(Autotrageur):
         - Persisting configurations and forex ratio in the database.
 
         Args:
-            resume_id (str): The configuration id which links to the
-                autotrageur's previous state.  Defaults to None, in the case
-                that this run is new.
+            resume_id (str): The unique id which links to the autotrageur's
+                previous state.  Defaults to None, in the case that this run is
+                new.
 
         Raises:
             AuthenticationError: If not dryrun and authentication fails.
         """
         super()._setup()
 
+        # Set the configuration start_timestamp and id.  This is used as the
+        # compound primary key for the current bot run.
+        self.config[START_TIMESTAMP] = int(time.time())
+        self.config[ID] = str(uuid.uuid4())
+
+        # Create a checkpoint object to keep track of bot's current state.
+        self.checkpoint = FCFCheckpoint(self.config[ID])
+
+        # Set up the algorithm.
+        self.__setup_algorithm(resume_id)
+        self.__persist_config()
+
+        # Set up forex service.
         # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
         # to USD fiat.
         for trader in (self.trader1, self.trader2):
@@ -732,20 +783,4 @@ class FCFAutotrageur(Autotrageur):
                 self.__update_forex(trader)
                 # TODO: Adjust interval once real-time forex implemented.
                 schedule.every().hour.do(self.__update_forex, trader)
-        try:
-            # Dry run uses balances set in the configuration files.
-            self.trader1.update_wallet_balances(is_dry_run=self.config[DRYRUN])
-            self.trader2.update_wallet_balances(is_dry_run=self.config[DRYRUN])
-        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
-            logging.error(auth_error)
-            raise AuthenticationError(auth_error)
 
-        # Only persist the autotrageur config if is a brand new run. Add brand
-        # new config ID only if a new run.
-        self.config[START_TIMESTAMP] = int(time.time())
-        if resume_id is None:
-            self.config[ID] = str(uuid.uuid4())
-            self.__persist_config()
-        else:
-            self.config[ID] = resume_id
-        self.__setup_algorithm(resume_id)

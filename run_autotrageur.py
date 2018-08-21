@@ -3,11 +3,11 @@
 Executes trades based on simple arbitrage strategy
 
 Usage:
-    run_autotrageur.py KEYFILE CONFIGFILE [--pi_mode] [--resume_id=FCF_CONFIG_ID]
+    run_autotrageur.py KEYFILE CONFIGFILE [--pi_mode] [--resume_id=FCF_STATE_ID]
 
 Options:
     --pi_mode                           Whether this is to be used with the raspberry pi or on a full desktop.
-    --resume_id=FCF_CONFIG_ID           If provided, this bot run is continued from a previous run with FCF_CONFIG_ID.
+    --resume_id=FCF_STATE_ID            If provided, this bot run is continued from a previous run with FCF_STATE_ID.
 
 Description:
     KEYFILE                             The encrypted Keyfile containing relevant api keys.

@@ -323,21 +323,22 @@ class Autotrageur(ABC):
                     else:
                         raise
         except KeyboardInterrupt:
+            self._export_state()
+
             if self.config[DRYRUN]:
                 logging.critical("Keyboard Interrupt")
                 fancy_log("Summary")
-                self._export_state()
                 self.dry_run.log_all()
                 fancy_log("End")
             else:
-                self._export_state()
                 raise
         except Exception as e:
+            self._export_state()
+
             if not self.config[DRYRUN]:
                 logging.critical("Falling back to dry run, error encountered:")
                 logging.critical(e)
                 self._alert(SUBJECT_LIVE_FAILURE, e)
-                self._export_state()
                 self.config[DRYRUN] = True
                 self.run_autotrageur(arguments, False)
             else:
