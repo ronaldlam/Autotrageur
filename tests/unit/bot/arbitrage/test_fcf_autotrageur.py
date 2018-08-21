@@ -725,6 +725,9 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
                           h_to_e2_max, is_opportunity, is_in_limits):
     trader1 = mocker.Mock()
     trader2 = mocker.Mock()
+    balance_checker = mocker.Mock()
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'balance_checker', balance_checker, create=True)
     mocker.patch.object(
         no_patch_fcf_autotrageur, 'checkpoint', FCFCheckpoint(), create=True)
     mocker.patch.object(no_patch_fcf_autotrageur.checkpoint, 'save')
@@ -796,6 +799,7 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
             assert is_opportunity_result == (is_opportunity and is_in_limits)
         assert no_patch_fcf_autotrageur.h_to_e1_max == max(h_to_e1_max, e1_spread)
         assert no_patch_fcf_autotrageur.h_to_e2_max == max(h_to_e2_max, e2_spread)
+        balance_checker.check_crypto_balances.assert_called_with(spread_opp)
 
 
 def test_clean_up(fcf_autotrageur):
@@ -804,7 +808,7 @@ def test_clean_up(fcf_autotrageur):
 
 
 def test_load_configs(mocker, no_patch_fcf_autotrageur):
-    s = mocker.patch.object(builtins, 'super')
+    mocker.patch.object(builtins, 'super')
     args = mocker.Mock()
     mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
         TWILIO_CFG_PATH: 'path/to/config'
