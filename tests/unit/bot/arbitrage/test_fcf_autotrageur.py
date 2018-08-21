@@ -808,7 +808,7 @@ def test_clean_up(fcf_autotrageur):
 
 
 def test_load_configs(mocker, no_patch_fcf_autotrageur):
-    s = mocker.patch.object(builtins, 'super')
+    mocker.patch.object(builtins, 'super')
     args = mocker.Mock()
     mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
         TWILIO_CFG_PATH: 'path/to/config'

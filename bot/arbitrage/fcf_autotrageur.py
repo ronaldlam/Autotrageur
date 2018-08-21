@@ -11,6 +11,7 @@ import schedule
 import yaml
 
 import bot.arbitrage.arbseeker as arbseeker
+import libs.utils.schedule_utils as schedule_utils
 import libs.db.maria_db_handler as db_handler
 import libs.twilio.twilio_client as twilio_client
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
@@ -83,7 +84,7 @@ class FCFBalanceChecker():
 
         Args:
             buy_price (Decimal): The buy price in quote currency.
-            buy_volume (Decimal): The buy volume.
+            buy_volume (Decimal): The buy volume in quote currency.
             sell_balance (Decimal): The sell exchange base balance.
             sell_exchange (str): The sell exchange.
             base (str): The base asset.
@@ -137,7 +138,8 @@ class FCFBalanceChecker():
                 # Schedule warning notification and execute immediately.
                 schedule.every(1).hour.do(self.__send_balance_warning).tag(
                     self.CRYPTO_BELOW_THRESHOLD_SCHEDULE_TAG)
-                schedule.jobs[-1].run()
+                schedule_utils.fetch_only_job(
+                    self.CRYPTO_BELOW_THRESHOLD_SCHEDULE_TAG).run()
             else:
                 logging.warning(self.low_balance_message)
             self.trader1.update_wallet_balances(is_dry_run=self.is_dry_run)
