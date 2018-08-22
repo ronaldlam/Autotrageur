@@ -385,7 +385,8 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
                                         None, None, None, None, None)
     }, create=True)
     mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
-        ID: FAKE_CONFIG_UUID
+        ID: FAKE_CONFIG_UUID,
+        START_TIMESTAMP: FAKE_CURR_TIME
     }, create=True)
     mocker.patch.object(db_handler, 'insert_row')
     mocker.patch.object(db_handler, 'commit_all')
@@ -404,9 +405,11 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
     if buy_response_copy is not None:
         assert buy_response_copy.get('trade_opportunity_id') is None
         assert buy_response_copy.get('autotrageur_config_id') is None
+        assert buy_response_copy.get('autotrageur_config_start_timestamp') is None
     if sell_response_copy is not None:
         assert sell_response_copy.get('trade_opportunity_id') is None
         assert sell_response_copy.get('autotrageur_config_id') is None
+        assert sell_response_copy.get('autotrageur_config_start_timestamp') is None
     no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data(
         buy_response_copy, sell_response_copy)
 
@@ -420,6 +423,7 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
         ))
         assert buy_response_copy.get('trade_opportunity_id') is FAKE_SPREAD_OPP_ID
         assert buy_response_copy.get('autotrageur_config_id') is FAKE_CONFIG_UUID
+        assert buy_response_copy.get('autotrageur_config_start_timestamp') is FAKE_CURR_TIME
 
     if sell_response_copy is not None:
         insert_num_calls += 1
@@ -431,6 +435,7 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
         ))
         assert sell_response_copy.get('trade_opportunity_id') is FAKE_SPREAD_OPP_ID
         assert sell_response_copy.get('autotrageur_config_id') is FAKE_CONFIG_UUID
+        assert sell_response_copy.get('autotrageur_config_start_timestamp') is FAKE_CURR_TIME
 
     assert db_handler.insert_row.call_count == insert_num_calls
     assert db_handler.insert_row.call_args_list == insert_call_args_list
