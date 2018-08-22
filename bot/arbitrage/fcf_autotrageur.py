@@ -1,5 +1,6 @@
 import logging
 import os
+import pickle
 import pprint
 import time
 import traceback
@@ -21,7 +22,9 @@ from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          TWILIO_SENDER_NUMBER, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
+                                     FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
+                                     FCF_STATE_PRIM_KEY_ID, FCF_STATE_TABLE,
                                      FOREX_RATE_PRIM_KEY_ID, FOREX_RATE_TABLE,
                                      TRADE_OPPORTUNITY_PRIM_KEY_ID,
                                      TRADE_OPPORTUNITY_TABLE,
@@ -40,8 +43,9 @@ from libs.utilities import num_to_decimal
 from .autotrageur import Autotrageur
 
 
-class AuthenticationError(Exception):
-    """Incorrect credentials or exchange unavailable."""
+class FCFAuthenticationError(Exception):
+    """Incorrect credentials or exchange unavailable when attempting to
+    communicate through an exchange's API."""
     pass
 
 
@@ -54,6 +58,12 @@ class InsufficientCryptoBalance(Exception):
     """Thrown when there is not enough crypto balance to fulfill the matching
     sell order."""
     pass
+
+
+class IncorrectStateObjectTypeError(Exception):
+    """Raised when an incorrect object type is being used as the bot's
+    state.  For fcf_autotrageur, FCFCheckpoint is the required object type.
+    """
 
 
 class FCFBalanceChecker():
@@ -155,8 +165,19 @@ class FCFCheckpoint():
     Encapsulates values pertaining to the algorithm.  Useful for rollback
     situations.
     """
-    def __init__(self):
-        """Constructor."""
+    def __init__(self, config_id):
+        """Constructor.
+
+        Initializes variables and sets the configuration ID used for the bot
+        run.  Note that if the bot is started as a resumed run, the
+        configuration ID is eventually overwritten with a previously created
+        ID.
+
+        Args:
+            config_id (str): The unique configuration ID created for this bot
+                run.
+        """
+        self.config_id = config_id
         self.has_started = False
         self.momentum = None
         self.e1_targets = None
@@ -169,6 +190,10 @@ class FCFCheckpoint():
     def save(self, autotrageur):
         """Saves the current autotrageur state before another algorithm
         iteration.
+
+        The rationale for saving `h_to_e1_max` and `h_to_e2_max` is that the
+        historical maximums provided by the config file may have been surpassed
+        during the bot's run.
 
         Args:
             autotrageur (FCFAutotrageur): The current FCFAutotrageur.
@@ -185,9 +210,13 @@ class FCFCheckpoint():
     def restore(self, autotrageur):
         """Restores the saved autotrageur state.
 
+        Sets relevant FCFAutotrageur's 'self' object attributes to the previously
+        saved state.
+
         Args:
             autotrageur (FCFAutotrageur): The current FCFAutotrageur.
         """
+        autotrageur.config[ID] = self.config_id
         autotrageur.has_started = self.has_started
         autotrageur.momentum = self.momentum
         autotrageur.e1_targets = self.e1_targets
@@ -363,18 +392,15 @@ class FCFAutotrageur(Autotrageur):
         # service to the bot.
         self.twilio_client.test_connection()
 
-    def __persist_configs(self):
+    def __persist_config(self):
         """Persists the configuration for this `fcf_autotrageur` run."""
-        # Add extra config entries for database persistence.
-        self.config[START_TIMESTAMP] = int(time.time())
-        self.config[ID] = str(uuid.uuid4())
-
         fcf_autotrageur_config_row = db_handler.build_row(
             FCF_AUTOTRAGEUR_CONFIG_COLUMNS, self.config)
         config_row_obj = InsertRowObject(
             FCF_AUTOTRAGEUR_CONFIG_TABLE,
             fcf_autotrageur_config_row,
-            (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID, ))
+            (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
+            FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS))
 
         db_handler.insert_row(config_row_obj)
         db_handler.commit_all()
@@ -521,6 +547,65 @@ class FCFAutotrageur(Autotrageur):
         logging.debug('#### target_index advanced by one, is now: {}'.format(
             self.target_index))
 
+    def __setup_algorithm(self, resume_id=None):
+        """Sets up the algorithm by either initializing or restoring the
+        algorithm's state.
+
+        Args:
+            resume_id (str): The configuration id which links to the
+                autotrageur's previous state.  Defaults to None, in the case
+                that this run is new.
+        """
+        if resume_id:
+            logging.debug("#### resume_id: {}".format(resume_id))
+            raw_result = db_handler.execute_parametrized_query(
+                "SELECT state FROM fcf_state where id = %s;",
+                resume_id)
+
+            # The raw result comes back as a list of tuples.  We expect only
+            # one result as the `autotrageur_resume_id` is unique per
+            # export.
+            self._import_state(raw_result[0][0])
+        else:
+            self.has_started = False
+            self.h_to_e1_max = num_to_decimal(self.config[H_TO_E1_MAX])
+            self.h_to_e2_max = num_to_decimal(self.config[H_TO_E2_MAX])
+
+        self.spread_min = num_to_decimal(self.config[SPREAD_MIN])
+        self.vol_min = num_to_decimal(self.config[VOL_MIN])
+
+    def __setup_forex(self):
+        """Sets up any forex services for fiat conversion, if necessary."""
+        # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
+            # to USD fiat.
+        for trader in (self.trader1, self.trader2):
+            if ((trader.quote in FIAT_SYMBOLS)
+                    and (trader.quote != 'USD')
+                    and (trader.quote != 'USDT')):
+                logging.info("Set fiat conversion to USD as necessary for: {}"
+                             " with quote: {}".format(trader.exchange_name,
+                                                      trader.quote))
+                trader.conversion_needed = True
+                self.__update_forex(trader)
+                # TODO: Adjust interval once real-time forex implemented.
+                schedule.every().hour.do(self.__update_forex, trader)
+
+    def __setup_wallet_balances(self):
+        """Sets up the balances for each exchange, on each trader.
+
+        Also sets up the FCFBalanceChecker to monitor wallet balances for the
+        algorithm."""
+        try:
+            # Dry run uses balances set in the configuration files.
+            self.trader1.update_wallet_balances(is_dry_run=self.config[DRYRUN])
+            self.trader2.update_wallet_balances(is_dry_run=self.config[DRYRUN])
+        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
+            logging.error(auth_error)
+            raise FCFAuthenticationError(auth_error)
+
+        self.balance_checker = FCFBalanceChecker(
+            self.trader1, self.trader2, self.config[DRYRUN], self._send_email)
+
     def __update_trade_targets(self):
         """Updates the trade targets based on the direction of the completed
         trade.  E.g. If the trade was performed from e1 -> e2, then the
@@ -659,6 +744,47 @@ class FCFAutotrageur(Autotrageur):
                 self.__persist_trade_data(buy_response, sell_response)
 
     # @Override
+    def _export_state(self):
+        """Exports the state of the autotrageur to a database."""
+        logging.debug("#### Exporting bot's current state")
+
+        # The generated ID can be used as the `resume_id` to resume the bot
+        # from the saved state.
+        fcf_state_map = {
+            'id': str(uuid.uuid4()),
+            'autotrageur_config_id': self.config[ID],
+            'autotrageur_config_start_timestamp': self.config[START_TIMESTAMP],
+            'state': pickle.dumps(self.checkpoint)
+        }
+        logging.debug("#### The exported checkpoint object __dict__ is: {}"
+            .format(pprint.pformat(self.checkpoint.__dict__)))
+        fcf_state_row_obj = InsertRowObject(
+            FCF_STATE_TABLE,
+            fcf_state_map,
+            (FCF_STATE_PRIM_KEY_ID,))
+        db_handler.insert_row(fcf_state_row_obj)
+        db_handler.commit_all()
+
+    # @Override
+    def _import_state(self, previous_state):
+        """Imports the state of a previous autotrageur run.
+
+        Args:
+            previous_state (bytes): The previous state of the autotrageur run.
+                Expressed as bytes, typically pickled into a database.
+        """
+        logging.debug("#### Importing bot's previous state")
+        self.checkpoint = pickle.loads(previous_state)
+
+        if not isinstance(self.checkpoint, FCFCheckpoint):
+            raise IncorrectStateObjectTypeError(
+                "FCFCheckpoint is the required type.  {} type was given."
+                    .format(type(self.checkpoint)))
+        logging.debug("#### The restored checkpoint object __dict__ is now: {}"
+            .format(pprint.pformat(self.checkpoint.__dict__)))
+        self.checkpoint.restore(self)
+
+    # @Override
     def _load_configs(self, arguments):
         """Load the configurations of the Autotrageur run.
 
@@ -740,41 +866,40 @@ class FCFAutotrageur(Autotrageur):
         send_all_emails(self.config[EMAIL_CFG_PATH], subject, msg)
 
     # @Override
-    def _setup(self):
-        """Sets up the algorithm to use.
+    def _setup(self, resume_id=None):
+        """Initializes the autotrageur bot for use.
+
+        Sets up the algorithm by either initializing or restoring the
+        algorithm's state.
+
+        Other responsibilities include:
+        - Initializing forex services and state for the bot.
+        - Persisting configurations and forex ratio in the database.
+
+        Args:
+            resume_id (str): The unique id which links to the autotrageur's
+                previous state.  Defaults to None, in the case that this run is
+                new.
 
         Raises:
-            AuthenticationError: If not dryrun and authentication fails.
+            FCFAuthenticationError: If not dryrun and authentication fails.
         """
         super()._setup()
 
-        # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
-        # to USD fiat.
-        for trader in (self.trader1, self.trader2):
-            if ((trader.quote in FIAT_SYMBOLS)
-                    and (trader.quote != 'USD')
-                    and (trader.quote != 'USDT')):
-                logging.info("Set fiat conversion to USD as necessary for: {}"
-                             " with quote: {}".format(trader.exchange_name,
-                                                      trader.quote))
-                trader.conversion_needed = True
-                self.__update_forex(trader)
-                # TODO: Adjust interval once real-time forex implemented.
-                schedule.every().hour.do(self.__update_forex, trader)
-        try:
-            # Dry run uses balances set in the configuration files.
-            self.trader1.update_wallet_balances(is_dry_run=self.config[DRYRUN])
-            self.trader2.update_wallet_balances(is_dry_run=self.config[DRYRUN])
-        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
-            logging.error(auth_error)
-            raise AuthenticationError(auth_error)
+        # Set the configuration start_timestamp and id.  This is used as the
+        # compound primary key for the current bot run.
+        self.config[START_TIMESTAMP] = int(time.time())
+        self.config[ID] = str(uuid.uuid4())
 
-        self.__persist_configs()
-        self.balance_checker = FCFBalanceChecker(
-            self.trader1, self.trader2, self.config[DRYRUN], self._send_email)
-        self.has_started = False
-        self.spread_min = num_to_decimal(self.config[SPREAD_MIN])
-        self.vol_min = num_to_decimal(self.config[VOL_MIN])
-        self.h_to_e1_max = num_to_decimal(self.config[H_TO_E1_MAX])
-        self.h_to_e2_max = num_to_decimal(self.config[H_TO_E2_MAX])
-        self.checkpoint = FCFCheckpoint()
+        # Create a checkpoint object to keep track of bot's current state.
+        self.checkpoint = FCFCheckpoint(self.config[ID])
+
+        # Setup and fetch the wallet balances available for each trader.
+        self.__setup_wallet_balances()
+
+        # Set up the algorithm.
+        self.__setup_algorithm(resume_id)
+        self.__persist_config()
+
+        # Set up forex service.
+        self.__setup_forex()

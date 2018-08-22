@@ -10,7 +10,7 @@ import bot.arbitrage.autotrageur
 import libs.db.maria_db_handler as db_handler
 import libs.twilio.twilio_client as twilio_client
 from bot.arbitrage.autotrageur import Autotrageur
-from bot.arbitrage.fcf_autotrageur import AuthenticationError
+from bot.arbitrage.fcf_autotrageur import FCFAuthenticationError
 from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
                                          DRYRUN_E2_BASE, DRYRUN_E2_QUOTE,
@@ -37,6 +37,12 @@ class Mocktrageur(Autotrageur):
         pass
 
     def _clean_up(self):
+        pass
+
+    def _export_state(self):
+        pass
+
+    def _import_state(self, previous_state):
         pass
 
 
@@ -215,7 +221,11 @@ def test_setup(mocker, autotrageur, ex1_test, ex2_test, dryrun):
 
 
 class TestRunAutotrageur:
-    FAKE_ARGS = ['fake', 'arguments']
+    FAKE_RESUME_ID = '12345'
+    FAKE_ARGS = {
+        'FAKE': 'ARGS',
+        '--resume_id': FAKE_RESUME_ID
+    }
 
     def _setup_mocks(self, mocker, autotrageur):
         # Use SystemExit to stop the infinite loop.
@@ -223,6 +233,7 @@ class TestRunAutotrageur:
         mocker.patch.object(autotrageur, '_setup')
         mocker.patch.object(autotrageur, '_clean_up', create=True)
         mocker.patch.object(autotrageur, '_execute_trade')
+        mocker.patch.object(autotrageur, '_export_state')
         mocker.patch.object(autotrageur, '_wait', side_effect=[
             None, None, None, None, SystemExit
         ])
@@ -242,7 +253,8 @@ class TestRunAutotrageur:
             autotrageur.run_autotrageur(self.FAKE_ARGS, requires_configs)
 
         autotrageur._alert.assert_not_called()
-        autotrageur._setup.assert_called_once_with()
+        autotrageur._setup.assert_called_once_with(self.FAKE_RESUME_ID)
+        autotrageur._export_state.assert_not_called()
         assert autotrageur._clean_up.call_count == 5
         assert autotrageur._wait.call_count == 5
         assert autotrageur._poll_opportunity.call_count == 5
@@ -273,8 +285,9 @@ class TestRunAutotrageur:
                 autotrageur.run_autotrageur(self.FAKE_ARGS)
 
         autotrageur._alert.assert_not_called()
-        autotrageur._setup.assert_called_once_with()
+        autotrageur._setup.assert_called_once_with(self.FAKE_RESUME_ID)
         autotrageur._load_configs.assert_called_with(self.FAKE_ARGS)
+        autotrageur._export_state.assert_called_once_with()
         assert autotrageur._clean_up.call_count == 4
         assert autotrageur._wait.call_count == 3
         assert autotrageur._poll_opportunity.call_count == 4
@@ -285,7 +298,7 @@ class TestRunAutotrageur:
             autotrageur.dry_run.log_all.assert_called_once_with()
 
     @pytest.mark.parametrize("exc_type", [
-        AuthenticationError,
+        FCFAuthenticationError,
         ccxt.ExchangeError,
         Exception
     ])
@@ -322,8 +335,9 @@ class TestRunAutotrageur:
             autotrageur.run_autotrageur.assert_called_once_with(
                 self.FAKE_ARGS, False)
 
-        autotrageur._setup.assert_called_once_with()
+        autotrageur._setup.assert_called_once_with(self.FAKE_RESUME_ID)
         autotrageur._load_configs.assert_called_with(self.FAKE_ARGS)
+        autotrageur._export_state.assert_called_once_with()
         assert autotrageur._clean_up.call_count == 2
         assert autotrageur._wait.call_count == 1
         assert autotrageur._poll_opportunity.call_count == 2
@@ -360,7 +374,7 @@ class TestRunAutotrageur:
             assert autotrageur._clean_up.call_count == 4
             assert autotrageur._wait.call_count == 3
 
-        autotrageur._setup.assert_called_once_with()
+        autotrageur._setup.assert_called_once_with(self.FAKE_RESUME_ID)
         autotrageur._load_configs.assert_called_with(self.FAKE_ARGS)
         assert autotrageur._execute_trade.call_count == 1
         assert retry_counter_instance.increment.call_count == 1

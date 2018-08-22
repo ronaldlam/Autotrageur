@@ -111,7 +111,7 @@ class Autotrageur(ABC):
                 keys = decrypt(
                     in_file.read(),
                     to_bytes(pw),
-                    arguments['--pi-mode'])
+                    arguments['--pi_mode'])
 
             str_keys = to_str(keys)
             return keyfile_to_map(str_keys)
@@ -170,8 +170,14 @@ class Autotrageur(ABC):
             self.exchange2_configs['password'] = (
                 exchange_key_map[self.config[EXCHANGE2]][PASSWORD])
 
-    def _setup(self):
-        """Sets up the algorithm to use."""
+    def _setup(self, resume_id=None):
+        """Initializes the autotrageur bot for use.
+
+        Args:
+            resume_id (str): The configuration id which links to the
+                autotrageur's previous state.  Defaults to None, in the case
+                that this run is new.
+        """
         # Extract the pairs and compare them to see if conversion needed to
         # USD.
         e1_base, e1_quote = self.config[EXCHANGE1_PAIR].upper().split("/")
@@ -250,6 +256,23 @@ class Autotrageur(ABC):
         """Cleans up the state of the autotrageur."""
         pass
 
+    @abstractmethod
+    def _export_state(self):
+        """Exports the state of the autotrageur. Normally exported to a file or
+        a database."""
+        pass
+
+    @abstractmethod
+    def _import_state(self, previous_state):
+        """Imports the state of a previous autotrageur run. Normally imported
+        from a file or a database.
+
+        Args:
+            previous_state (bytes): The previous state of the autotrageur run.
+                Expressed as bytes, typically pickled into a database.
+        """
+        pass
+
     def _wait(self):
         """Wait for the specified polling interval."""
         time.sleep(5)
@@ -275,7 +298,7 @@ class Autotrageur(ABC):
         if requires_configs:
             self._load_configs(arguments)
 
-        self._setup()
+        self._setup(arguments['--resume_id'])
         retry_counter = RetryCounter()
 
         try:
@@ -300,6 +323,8 @@ class Autotrageur(ABC):
                     else:
                         raise
         except KeyboardInterrupt:
+            self._export_state()
+
             if self.config[DRYRUN]:
                 logging.critical("Keyboard Interrupt")
                 fancy_log("Summary")
@@ -308,6 +333,8 @@ class Autotrageur(ABC):
             else:
                 raise
         except Exception as e:
+            self._export_state()
+
             if not self.config[DRYRUN]:
                 logging.critical("Falling back to dry run, error encountered:")
                 logging.critical(e)
