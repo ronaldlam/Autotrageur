@@ -762,6 +762,8 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
     is_within_limits = mocker.patch.object(no_patch_fcf_autotrageur,
                                            '_FCFAutotrageur__check_within_limits',
                                            return_value=is_in_limits)
+    update_targets = mocker.patch.object(no_patch_fcf_autotrageur,
+                                         '_FCFAutotrageur__update_trade_targets')
     mocker.patch.object(
         arbseeker, 'get_spreads_by_ob', return_value=spread_opp)
     if exc_type:
@@ -794,6 +796,8 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, vol_min,
             calc_targets.assert_not_called()
             if is_opportunity:
                 is_within_limits.assert_called_once_with()
+                if not is_within_limits:
+                    update_targets.assert_called_once_with()
             else:
                 is_within_limits.assert_not_called()
             assert is_opportunity_result == (is_opportunity and is_in_limits)

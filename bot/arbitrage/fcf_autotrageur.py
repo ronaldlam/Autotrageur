@@ -719,6 +719,10 @@ class FCFAutotrageur(Autotrageur):
             if self.__is_trade_opportunity(spread_opp):
                 logging.debug('#### Is a trade opportunity')
                 is_opportunity = self.__check_within_limits()
+                if not is_opportunity:
+                    # Targets were hit, but current balances cannot facilitate
+                    # trade. Recalculate targets with no balance update.
+                    self.__update_trade_targets()
                 logging.debug('#### Is within exchange limits: {}'.format(is_opportunity))
 
         self.h_to_e1_max = max(self.h_to_e1_max, spread_opp.e1_spread)
