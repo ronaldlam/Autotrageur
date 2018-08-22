@@ -19,7 +19,8 @@ import bot.arbitrage.arbseeker as arbseeker
 import bot.arbitrage.fcf_autotrageur
 import libs.db.maria_db_handler as db_handler
 from bot.arbitrage.arbseeker import SpreadOpportunity
-from bot.arbitrage.fcf_autotrageur import (FCFAuthenticationError, FCFAutotrageur,
+from bot.arbitrage.fcf_autotrageur import (FCFAuthenticationError,
+                                           FCFAutotrageur, FCFBalanceChecker,
                                            FCFCheckpoint,
                                            IncompleteArbitrageError,
                                            IncorrectStateObjectTypeError,
@@ -547,6 +548,8 @@ def test_setup_wallet_balances(mocker, no_patch_fcf_autotrageur,
     mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
         DRYRUN: dryrun
     }, create=True)
+    mock_fcf_balance_checker_constructor = mocker.patch.object(
+        FCFBalanceChecker, '__init__', return_value=None)
 
     # If wallet balance fetch fails, expect either ccxt.AuthenticationError or
     # ccxt.ExchangeNotAvailable to be raised.
@@ -566,6 +569,9 @@ def test_setup_wallet_balances(mocker, no_patch_fcf_autotrageur,
             is_dry_run=dryrun)
         trader2.update_wallet_balances.assert_called_once_with(
             is_dry_run=dryrun)
+        assert isinstance(no_patch_fcf_autotrageur.balance_checker, FCFBalanceChecker)
+        mock_fcf_balance_checker_constructor.assert_called_once_with(
+            trader1, trader2, dryrun, no_patch_fcf_autotrageur._send_email)
 
 
 @pytest.mark.parametrize('resume_id', [None, FAKE_RESUME_UUID])
@@ -837,6 +843,9 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, fcf_checkpoint,
                           h_to_e2_max, is_opportunity, is_in_limits):
     trader1 = mocker.Mock()
     trader2 = mocker.Mock()
+    balance_checker = mocker.Mock()
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'balance_checker', balance_checker, create=True)
     mocker.patch.object(
         no_patch_fcf_autotrageur, 'checkpoint', fcf_checkpoint, create=True)
     mocker.patch.object(no_patch_fcf_autotrageur.checkpoint, 'save')
@@ -908,6 +917,7 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur, fcf_checkpoint,
             assert is_opportunity_result == (is_opportunity and is_in_limits)
         assert no_patch_fcf_autotrageur.h_to_e1_max == max(h_to_e1_max, e1_spread)
         assert no_patch_fcf_autotrageur.h_to_e2_max == max(h_to_e2_max, e2_spread)
+        balance_checker.check_crypto_balances.assert_called_with(spread_opp)
 
 
 def test_clean_up(mocker, no_patch_fcf_autotrageur):
