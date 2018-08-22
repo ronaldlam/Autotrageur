@@ -345,6 +345,106 @@ class ext_kraken(ccxt.kraken):
         We use Decimal internally here to avoid floating point errors
         and return floats to keep compatibility with ccxt interface.
 
+        Sample fetch_balance() response:
+        {
+            "info": {
+                "ZUSD": "2474.1871",
+                "ZCAD": "0.0000",
+                "XXBT": "0.0550314800",
+                "XETH": "2.1488299200"
+            },
+            "USD": {
+                "free": 2474.1871,
+                "used": 0.0,
+                "total": 2474.1871
+            },
+            "CAD": {
+                "free": 0.0,
+                "used": 0.0,
+                "total": 0.0
+            },
+            "BTC": {
+                "free": 0.05503148,
+                "used": 0.0,
+                "total": 0.05503148
+            },
+            "ETH": {
+                "free": 2.14882992,
+                "used": 0.0,
+                "total": 2.14882992
+            },
+            "free": {
+                "USD": 2474.1871,
+                "CAD": 0.0,
+                "BTC": 0.05503148,
+                "ETH": 2.14882992
+            },
+            "used": {
+                "USD": 0.0,
+                "CAD": 0.0,
+                "BTC": 0.0,
+                "ETH": 0.0
+            },
+            "total": {
+                "USD": 2474.1871,
+                "CAD": 0.0,
+                "BTC": 0.05503148,
+                "ETH": 2.14882992
+            }
+        }
+
+        Sample fetch_open_orders() response:
+        [
+            {
+                "id": "ODEDJH-37FCN-ULFHRY",
+                "info": {
+                    "id": "ODEDJH-37FCN-ULFHRY",
+                    "refid": None,
+                    "userref": 0,
+                    "status": "open",
+                    "opentm": 1534378898.7951,
+                    "starttm": 0,
+                    "expiretm": 0,
+                    "descr": {
+                        "pair": "XBTUSD",
+                        "type": "buy",
+                        "ordertype": "limit",
+                        "price": "3000.0",
+                        "price2": "0",
+                        "leverage": "none",
+                        "order": "buy 0.22100000 XBTUSD @ limit 3000.0",
+                        "close": ""
+                    },
+                    "vol": "0.22100000",
+                    "vol_exec": "0.00000000",
+                    "cost": "0.00000",
+                    "fee": "0.00000",
+                    "price": "0.00000",
+                    "stopprice": "0.00000",
+                    "limitprice": "0.00000",
+                    "misc": "",
+                    "oflags": "fciq,post"
+                },
+                "timestamp": 1534378898795,
+                "datetime": "2018-08-16T00: 21: 38.795Z",
+                "lastTradeTimestamp": None,
+                "status": "open",
+                "symbol": "BTC/USD",
+                "type": "limit",
+                "side": "buy",
+                "price": 3000.0,
+                "cost": 0.0,
+                "amount": 0.221,
+                "filled": 0.0,
+                "remaining": 0.221,
+                "fee": {
+                    "cost": 0.0,
+                    "rate": None,
+                    "currency": "USD"
+                }
+            }
+        ]
+
         Args:
             params (dict, optional): Defaults to {}. The extra
                 parameters to pass into the ccxt fetch_balance call.
@@ -354,9 +454,12 @@ class ext_kraken(ccxt.kraken):
         """
         balances = super().fetch_balance(params)
         open_orders = self.fetch_open_orders()
+
+        # Create dict of used assets.
         fixed_keys = ['info', 'free', 'used', 'total']
         used_assets = {key: ZERO for key in balances if key not in fixed_keys}
 
+        # Calculate used balances.
         for open_order in open_orders:
             base, quote = split_symbol(open_order['symbol'])
             if open_order['side'] == BUY_SIDE:
@@ -367,6 +470,7 @@ class ext_kraken(ccxt.kraken):
             elif open_order['side'] == SELL_SIDE:
                 used_assets[base] += num_to_decimal(open_order['remaining'])
 
+        # Correct original fetch_balance dict.
         for asset, used_balance in used_assets.items():
             balances[asset]['used'] = float(used_balance)
             balances[asset]['free'] = float(
