@@ -100,7 +100,7 @@ class ext_kraken(ccxt.kraken):
             true_price = post_fee_quote / post_fee_base
 
         return {
-            'exchange': self.name.lower(),
+            'exchange': self.name.lower(),          # pylint: disable=E1101
             'base': base,
             'quote': quote,
             'pre_fee_base': pre_fee_base,
@@ -328,3 +328,50 @@ class ext_kraken(ccxt.kraken):
         """
         return self._create_market_order(
             SELL_SIDE, symbol, float(asset_amount), params)
+
+    # @Override
+    def fetch_balance(self, params={}):
+        """Fetch the current balances of each asset on the exchange.
+
+        NOTE: The default ccxt implementation lacks information on used
+        balances in open orders. We do the calculations internally by
+        fetching all open orders immediately after the balance fetch. Be
+        aware of possible race conditions if orders are to be filled
+        wholly or partially in between the calls. Either case would
+        affect the resulting balance. We do not guard against that here
+        and assume that limit orders placed are sufficiently far from
+        the current market price.
+
+        We use Decimal internally here to avoid floating point errors
+        and return floats to keep compatibility with ccxt interface.
+
+        Args:
+            params (dict, optional): Defaults to {}. The extra
+                parameters to pass into the ccxt fetch_balance call.
+
+        Returns:
+            dict: The updated balance result.
+        """
+        balances = super().fetch_balance(params)
+        open_orders = self.fetch_open_orders()
+        fixed_keys = ['info', 'free', 'used', 'total']
+        used_assets = {key: ZERO for key in balances if key not in fixed_keys}
+
+        for open_order in open_orders:
+            base, quote = split_symbol(open_order['symbol'])
+            if open_order['side'] == BUY_SIDE:
+                used_assets[quote] += (
+                    num_to_decimal(open_order['price']) *
+                    num_to_decimal(open_order['remaining'])
+                )
+            elif open_order['side'] == SELL_SIDE:
+                used_assets[base] += num_to_decimal(open_order['remaining'])
+
+        for asset, used_balance in used_assets.items():
+            balances[asset]['used'] = float(used_balance)
+            balances[asset]['free'] = float(
+                num_to_decimal(balances[asset]['free']) - used_balance)
+            balances['used'][asset] = balances[asset]['used']
+            balances['free'][asset] = balances[asset]['free']
+
+        return balances
