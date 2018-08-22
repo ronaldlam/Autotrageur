@@ -464,6 +464,8 @@ class FCFAutotrageur(Autotrageur):
         if buy_response is not None:
             buy_response['trade_opportunity_id'] = trade_opportunity_id
             buy_response['autotrageur_config_id'] = self.config[ID]
+            buy_response['autotrageur_config_start_timestamp'] = (
+                self.config[START_TIMESTAMP])
             buy_trade_row_obj = InsertRowObject(
                 TRADES_TABLE,
                 buy_response,
@@ -474,6 +476,8 @@ class FCFAutotrageur(Autotrageur):
         if sell_response is not None:
             sell_response['trade_opportunity_id'] = trade_opportunity_id
             sell_response['autotrageur_config_id'] = self.config[ID]
+            sell_response['autotrageur_config_start_timestamp'] = (
+                self.config[START_TIMESTAMP])
             sell_trade_row_obj = InsertRowObject(
                 TRADES_TABLE,
                 sell_response,
