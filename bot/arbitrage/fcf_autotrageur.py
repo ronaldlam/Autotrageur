@@ -2,7 +2,6 @@ import logging
 import os
 import pickle
 import pprint
-import sys
 import time
 import traceback
 import uuid
@@ -43,8 +42,9 @@ from libs.utilities import num_to_decimal
 from .autotrageur import Autotrageur
 
 
-class AuthenticationError(Exception):
-    """Incorrect credentials or exchange unavailable."""
+class FCFAuthenticationError(Exception):
+    """Incorrect credentials or exchange unavailable when attempting to
+    communicate through an exchange's API."""
     pass
 
 
@@ -109,6 +109,9 @@ class FCFCheckpoint():
 
     def restore(self, autotrageur):
         """Restores the saved autotrageur state.
+
+        Sets relevant FCFAutotrageur's 'self' object attributes to the previously
+        saved state.
 
         Args:
             autotrageur (FCFAutotrageur): The current FCFAutotrageur.
@@ -472,13 +475,31 @@ class FCFAutotrageur(Autotrageur):
             self.h_to_e1_max = num_to_decimal(self.config[H_TO_E1_MAX])
             self.h_to_e2_max = num_to_decimal(self.config[H_TO_E2_MAX])
 
+    def __setup_forex(self):
+        """Sets up any forex services for fiat conversion, if necessary."""
+        # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
+            # to USD fiat.
+        for trader in (self.trader1, self.trader2):
+            if ((trader.quote in FIAT_SYMBOLS)
+                    and (trader.quote != 'USD')
+                    and (trader.quote != 'USDT')):
+                logging.info("Set fiat conversion to USD as necessary for: {}"
+                             " with quote: {}".format(trader.exchange_name,
+                                                      trader.quote))
+                trader.conversion_needed = True
+                self.__update_forex(trader)
+                # TODO: Adjust interval once real-time forex implemented.
+                schedule.every().hour.do(self.__update_forex, trader)
+
+    def __setup_wallet_balances(self):
+        """Sets up the balances for each exchange, on each trader."""
         try:
             # Dry run uses balances set in the configuration files.
             self.trader1.update_wallet_balances(is_dry_run=self.config[DRYRUN])
             self.trader2.update_wallet_balances(is_dry_run=self.config[DRYRUN])
         except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
             logging.error(auth_error)
-            raise AuthenticationError(auth_error)
+            raise FCFAuthenticationError(auth_error)
 
     def __update_trade_targets(self):
         """Updates the trade targets based on the direction of the completed
@@ -631,7 +652,7 @@ class FCFAutotrageur(Autotrageur):
             'state': pickle.dumps(self.checkpoint)
         }
         logging.debug("#### The exported checkpoint object __dict__ is: {}"
-            .format(self.checkpoint.__dict__))
+            .format(pprint.pformat(self.checkpoint.__dict__)))
         fcf_state_row_obj = InsertRowObject(
             FCF_STATE_TABLE,
             fcf_state_map,
@@ -648,17 +669,14 @@ class FCFAutotrageur(Autotrageur):
                 Expressed as bytes, typically pickled into a database.
         """
         logging.debug("#### Importing bot's previous state")
+        self.checkpoint = pickle.loads(previous_state)
 
-        pickled_autotrageur = previous_state
-        previous_state = pickle.loads(pickled_autotrageur)
-
-        if not isinstance(previous_state, FCFCheckpoint):
+        if not isinstance(self.checkpoint, FCFCheckpoint):
             raise IncorrectStateObjectTypeError(
                 "FCFCheckpoint is the required type.  {} type was given."
-                .format(type(previous_state)))
-        self.checkpoint = previous_state
+                    .format(type(self.checkpoint)))
         logging.debug("#### The restored checkpoint object __dict__ is now: {}"
-            .format(self.checkpoint.__dict__))
+            .format(pprint.pformat(self.checkpoint.__dict__)))
         self.checkpoint.restore(self)
 
     # @Override
@@ -753,7 +771,7 @@ class FCFAutotrageur(Autotrageur):
                 new.
 
         Raises:
-            AuthenticationError: If not dryrun and authentication fails.
+            FCFAuthenticationError: If not dryrun and authentication fails.
         """
         super()._setup()
 
@@ -765,22 +783,12 @@ class FCFAutotrageur(Autotrageur):
         # Create a checkpoint object to keep track of bot's current state.
         self.checkpoint = FCFCheckpoint(self.config[ID])
 
+        # Setup and fetch the wallet balances available for each trader.
+        self.__setup_wallet_balances()
+
         # Set up the algorithm.
         self.__setup_algorithm(resume_id)
         self.__persist_config()
 
         # Set up forex service.
-        # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
-        # to USD fiat.
-        for trader in (self.trader1, self.trader2):
-            if ((trader.quote in FIAT_SYMBOLS)
-                    and (trader.quote != 'USD')
-                    and (trader.quote != 'USDT')):
-                logging.info("Set fiat conversion to USD as necessary for: {}"
-                             " with quote: {}".format(trader.exchange_name,
-                                                      trader.quote))
-                trader.conversion_needed = True
-                self.__update_forex(trader)
-                # TODO: Adjust interval once real-time forex implemented.
-                schedule.every().hour.do(self.__update_forex, trader)
-
+        self.__setup_forex()

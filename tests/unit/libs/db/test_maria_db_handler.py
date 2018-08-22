@@ -97,6 +97,23 @@ def test_commit_all(mocker):
     db_handler.db.commit.assert_called_once_with()
 
 
+def test_execute_parametrized_query(mocker):
+    FAKE_QUERY_STRING = 'SELECT SQL FROM SQL WHERE SQL=%s'
+    FAKE_PARAM = 'SQL_PARAM'
+    FAKE_RESULT = 'FAKE_RESULT'
+
+    mock_cursor = MagicMock()
+    db_handler.db = MockMariaDB().connect()
+    mocker.patch.object(db_handler.db, 'cursor', return_value=mock_cursor)
+    mocker.patch.object(mock_cursor, 'fetchall', return_value=FAKE_RESULT)
+
+    result = db_handler.execute_parametrized_query(FAKE_QUERY_STRING, FAKE_PARAM)
+
+    mock_cursor.execute.assert_called_once_with(FAKE_QUERY_STRING, (FAKE_PARAM,))
+    mock_cursor.fetchall.assert_called_once_with()
+    assert result is FAKE_RESULT
+
+
 @pytest.mark.parametrize('insert_obj, exp_columns, exp_row_data, exp_params', [
     pytest.param(InsertRowObject(FAKE_TABLE_NAME, {}, FAKE_ROW_PRIM_KEYS), (), (), '', marks=xfail(
         raises=InvalidRowFormatError, reason="row must not be empty", strict=True)),

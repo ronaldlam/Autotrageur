@@ -129,6 +129,26 @@ def commit_all():
     db.commit()
 
 
+def execute_parametrized_query(param_query_string, param):
+    """Performs a parametrized query.
+
+    NOTE: Ensure that the query string is parameterized with '%s'
+    placeholders to avoid potential SQL injection.
+
+    Args:
+        param_query_string (str): The query string with parameters.
+        param (tuple(str)): The parameters to be substituted into the query
+            string.  Must be in the form of a tuple.  One parameter will look
+            like '(PARAM_ONE,)'.
+
+    Returns:
+        list[(tuple)]: A list of rows as tuples.
+    """
+    cursor = db.cursor()
+    cursor.execute(param_query_string, (param,))
+    return cursor.fetchall()
+
+
 def insert_row(insert_obj):
     """Inserts a row into the database.
 
@@ -167,26 +187,6 @@ def ping_db():
     """Ping the database to keep connection alive."""
     global db
     db.ping()
-
-
-def execute_parametrized_query(param_query_string, param):
-    """Performs a parametrized query.
-
-    NOTE: Ensure that the query string is parameterized with '%s'
-    placeholders to avoid potential SQL injection.
-
-    Args:
-        param_query_string (str): The query string with parameters.
-        param (tuple(str)): The parameters to be substituted into the query
-            string.  Must be in the form of a tuple.  One parameter will look
-            like '(PARAM_ONE,)'.
-
-    Returns:
-        list[(tuple)]: A list of rows as tuples.
-    """
-    cursor = db.cursor()
-    cursor.execute(param_query_string, (param,))
-    return cursor.fetchall()
 
 
 def start_db(db_user, db_password, db_name):

@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS fcf_state (
         ON DELETE CASCADE
         ON UPDATE CASCADE,
     CONSTRAINT `fk_config_start_timestamp`
-        FOREIGN KEY (autotrageur_config_id) REFERENCES fcf_autotrageur_config (id)
+        FOREIGN KEY (autotrageur_config_id) REFERENCES fcf_autotrageur_config (start_timestamp)
         ON DELETE CASCADE
         ON UPDATE CASCADE
 );
