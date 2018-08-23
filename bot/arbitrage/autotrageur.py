@@ -269,7 +269,8 @@ class Autotrageur(ABC):
 
         Args:
             previous_state (bytes): The previous state of the autotrageur run.
-                Expressed as bytes, typically pickled into a database.
+                Expressed as bytes, typically retrieved as a pickled object
+                from a database.
         """
         pass
 

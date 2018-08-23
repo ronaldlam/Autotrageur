@@ -99,7 +99,7 @@ def test_commit_all(mocker):
 
 def test_execute_parametrized_query(mocker):
     FAKE_QUERY_STRING = 'SELECT SQL FROM SQL WHERE SQL=%s'
-    FAKE_PARAM = 'SQL_PARAM'
+    FAKE_PARAM = ('SQL_PARAM1',)
     FAKE_RESULT = 'FAKE_RESULT'
 
     mock_cursor = MagicMock()
@@ -109,7 +109,7 @@ def test_execute_parametrized_query(mocker):
 
     result = db_handler.execute_parametrized_query(FAKE_QUERY_STRING, FAKE_PARAM)
 
-    mock_cursor.execute.assert_called_once_with(FAKE_QUERY_STRING, (FAKE_PARAM,))
+    mock_cursor.execute.assert_called_once_with(FAKE_QUERY_STRING, FAKE_PARAM)
     mock_cursor.fetchall.assert_called_once_with()
     assert result is FAKE_RESULT
 

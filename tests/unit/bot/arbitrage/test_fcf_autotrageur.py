@@ -603,7 +603,7 @@ def test_setup_algorithm(mocker, no_patch_fcf_autotrageur, resume_id):
 
     if resume_id:
         mock_exec_param_query.assert_called_once_with(
-            "SELECT state FROM fcf_state where id = %s;", resume_id)
+            "SELECT state FROM fcf_state where id = %s;", (resume_id,))
         mock_import_state.assert_called_once_with(MOCK_RESULT)
         assert no_patch_fcf_autotrageur.has_started is True
         assert no_patch_fcf_autotrageur.h_to_e1_max is MOCK_RESUMED_H_TO_E1_MAX

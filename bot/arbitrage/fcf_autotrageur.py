@@ -564,7 +564,7 @@ class FCFAutotrageur(Autotrageur):
             logging.debug("#### resume_id: {}".format(resume_id))
             raw_result = db_handler.execute_parametrized_query(
                 "SELECT state FROM fcf_state where id = %s;",
-                resume_id)
+                (resume_id,))
 
             # The raw result comes back as a list of tuples.  We expect only
             # one result as the `autotrageur_resume_id` is unique per
@@ -581,7 +581,7 @@ class FCFAutotrageur(Autotrageur):
     def __setup_forex(self):
         """Sets up any forex services for fiat conversion, if necessary."""
         # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
-            # to USD fiat.
+        # to USD fiat.
         for trader in (self.trader1, self.trader2):
             if ((trader.quote in FIAT_SYMBOLS)
                     and (trader.quote != 'USD')
