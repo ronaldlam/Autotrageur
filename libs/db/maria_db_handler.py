@@ -60,7 +60,7 @@ def _insert_into_with_values(table_name, columns, row_data_params):
         table_name (str): Name of the table to insert into.
         columns (tuple(str)): Column names represented as a tuple of strings.
         row_data_params (str): A param substitution string composed of repeating
-            sequences of '%s' for data insertion.  E.g. '%s, %s, %s"
+            sequences of '%s' for data insertion.  E.g. '%s, %s, %s'
 
     Returns:
         str: A basic 'INSERT INTO ... VALUES(...)' query string.
@@ -127,6 +127,26 @@ def build_row(table_columns, map_data):
 def commit_all():
     """Commits any outstanding transactions into the database."""
     db.commit()
+
+
+def execute_parametrized_query(param_query_string, params):
+    """Performs a parametrized query.
+
+    NOTE: Ensure that the query string is parameterized with '%s'
+    placeholders to avoid potential SQL injection.
+
+    Args:
+        param_query_string (str): The query string with parameters.
+        params (tuple(str)): The parameters to be substituted into the query
+            string.  Must be in the form of a tuple.  One parameter will look
+            like '(PARAM_ONE,)'.
+
+    Returns:
+        list[(tuple)]: A list of rows as tuples.
+    """
+    cursor = db.cursor()
+    cursor.execute(param_query_string, params)
+    return cursor.fetchall()
 
 
 def insert_row(insert_obj):

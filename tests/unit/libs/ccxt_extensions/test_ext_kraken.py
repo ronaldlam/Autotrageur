@@ -1,12 +1,12 @@
-from decimal import Decimal
+import copy
 import time
+from decimal import Decimal
 
 import ccxt
 import pytest
 
-from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
 import libs.ccxt_extensions as ccxt_extensions
-
+from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
 
 # Test Constants.
 FAKE_ORDER_ID = 'SOME_UNIQUE_ID'
@@ -267,6 +267,344 @@ BUY_FETCH_ORDER_NOT_FILLED_RESPONSE = {
     'true_price': Decimal('0.00'),
 }
 
+FETCH_BALANCE_CCXT_RESPONSE = {
+    "info": {
+        "ZUSD": "2474.1871",
+        "ZCAD": "0.0000",
+        "XXBT": "0.0550314800",
+        "XETH": "2.1488299200"
+    },
+    "USD": {
+        "free": 2474.1871,
+        "used": 0.0,
+        "total": 2474.1871
+    },
+    "CAD": {
+        "free": 0.0,
+        "used": 0.0,
+        "total": 0.0
+    },
+    "BTC": {
+        "free": 0.05503148,
+        "used": 0.0,
+        "total": 0.05503148
+    },
+    "ETH": {
+        "free": 2.14882992,
+        "used": 0.0,
+        "total": 2.14882992
+    },
+    "free": {
+        "USD": 2474.1871,
+        "CAD": 0.0,
+        "BTC": 0.05503148,
+        "ETH": 2.14882992
+    },
+    "used": {
+        "USD": 0.0,
+        "CAD": 0.0,
+        "BTC": 0.0,
+        "ETH": 0.0
+    },
+    "total": {
+        "USD": 2474.1871,
+        "CAD": 0.0,
+        "BTC": 0.05503148,
+        "ETH": 2.14882992
+    }
+}
+
+FETCH_OPEN_ORDERS_OPEN_BUY_RESPONSE = [
+    {
+        "id": "ODEDJH-37FCN-ULFHRY",
+        "info": {
+            "id": "ODEDJH-37FCN-ULFHRY",
+            "refid": None,
+            "userref": 0,
+            "status": "open",
+            "opentm": 1534378898.7951,
+            "starttm": 0,
+            "expiretm": 0,
+            "descr": {
+                "pair": "XBTUSD",
+                "type": "buy",
+                "ordertype": "limit",
+                "price": "3000.0",
+                "price2": "0",
+                "leverage": "none",
+                "order": "buy 0.22100000 XBTUSD @ limit 3000.0",
+                "close": ""
+            },
+            "vol": "0.22100000",
+            "vol_exec": "0.00000000",
+            "cost": "0.00000",
+            "fee": "0.00000",
+            "price": "0.00000",
+            "stopprice": "0.00000",
+            "limitprice": "0.00000",
+            "misc": "",
+            "oflags": "fciq,post"
+        },
+        "timestamp": 1534378898795,
+        "datetime": "2018-08-16T00: 21: 38.795Z",
+        "lastTradeTimestamp": None,
+        "status": "open",
+        "symbol": "BTC/USD",
+        "type": "limit",
+        "side": "buy",
+        "price": 3000.0,
+        "cost": 0.0,
+        "amount": 0.221,
+        "filled": 0.0,
+        "remaining": 0.221,
+        "fee": {
+            "cost": 0.0,
+            "rate": None,
+            "currency": "USD"
+        }
+    }
+]
+
+FETCH_OPEN_ORDERS_OPEN_SELL_RESPONSE = [
+    {
+        "id": "OTA3BA-6EZDT-FJ2YVL",
+        "info": {
+            "id": "OTA3BA-6EZDT-FJ2YVL",
+            "refid": None,
+            "userref": 0,
+            "status": "open",
+            "opentm": 1534898678.2204,
+            "starttm": 0,
+            "expiretm": 0,
+            "descr": {
+                "pair": "ETHUSD",
+                "type": "sell",
+                "ordertype": "limit",
+                "price": "1200.00",
+                "price2": "0",
+                "leverage": "none",
+                "order": "sell 0.20000000 ETHUSD @ limit 1200.00",
+                "close": ""
+            },
+            "vol": "0.20000000",
+            "vol_exec": "0.00000000",
+            "cost": "0.00000",
+            "fee": "0.00000",
+            "price": "0.00000",
+            "stopprice": "0.00000",
+            "limitprice": "0.00000",
+            "misc": "",
+            "oflags": "fciq"
+        },
+        "timestamp": 1534898678220,
+        "datetime": "2018-08-22T00:44:38.220Z",
+        "lastTradeTimestamp": None,
+        "status": "open",
+        "symbol": "ETH/USD",
+        "type": "limit",
+        "side": "sell",
+        "price": 1200.0,
+        "cost": 0.0,
+        "amount": 0.2,
+        "filled": 0.0,
+        "remaining": 0.2,
+        "fee": {
+            "cost": 0.0,
+            "rate": None,
+            "currency": "USD"
+        }
+    },
+    {
+        "id": "OPVHM2-W5RET-NT23DO",
+        "info": {
+            "id": "OPVHM2-W5RET-NT23DO",
+            "refid": None,
+            "userref": 0,
+            "status": "open",
+            "opentm": 1534898619.6447,
+            "starttm": 0,
+            "expiretm": 0,
+            "descr": {
+                "pair": "ETHUSD",
+                "type": "sell",
+                "ordertype": "limit",
+                "price": "1000.00",
+                "price2": "0",
+                "leverage": "none",
+                "order": "sell 0.50000000 ETHUSD @ limit 1000.00",
+                "close": ""
+            },
+            "vol": "0.50000000",
+            "vol_exec": "0.00000000",
+            "cost": "0.00000",
+            "fee": "0.00000",
+            "price": "0.00000",
+            "stopprice": "0.00000",
+            "limitprice": "0.00000",
+            "misc": "",
+            "oflags": "fciq"
+        },
+        "timestamp": 1534898619644,
+        "datetime": "2018-08-22T00:43:39.644Z",
+        "lastTradeTimestamp": None,
+        "status": "open",
+        "symbol": "ETH/USD",
+        "type": "limit",
+        "side": "sell",
+        "price": 1000.0,
+        "cost": 0.0,
+        "amount": 0.5,
+        "filled": 0.0,
+        "remaining": 0.5,
+        "fee": {
+            "cost": 0.0,
+            "rate": None,
+            "currency": "USD"
+        }
+    }
+]
+
+FETCH_BALANCE_AUTOTRAGEUR_OPEN_BUY_RESPONSE = {
+    "info": {
+        "ZUSD": "2474.1871",
+        "ZCAD": "0.0000",
+        "XXBT": "0.0550314800",
+        "XETH": "2.1488299200"
+    },
+    "USD": {
+        "free": 1811.1871,
+        "used": 663.0,
+        "total": 2474.1871
+    },
+    "CAD": {
+        "free": 0.0,
+        "used": 0.0,
+        "total": 0.0
+    },
+    "BTC": {
+        "free": 0.05503148,
+        "used": 0.0,
+        "total": 0.05503148
+    },
+    "ETH": {
+        "free": 2.14882992,
+        "used": 0.0,
+        "total": 2.14882992
+    },
+    "free": {
+        "USD": 1811.1871,
+        "CAD": 0.0,
+        "BTC": 0.05503148,
+        "ETH": 2.14882992
+    },
+    "used": {
+        "USD": 663.0,
+        "CAD": 0.0,
+        "BTC": 0.0,
+        "ETH": 0.0
+    },
+    "total": {
+        "USD": 2474.1871,
+        "CAD": 0.0,
+        "BTC": 0.05503148,
+        "ETH": 2.14882992
+    }
+}
+
+FETCH_BALANCE_AUTOTRAGEUR_OPEN_SELL_RESPONSE = {
+    "info": {
+        "ZUSD": "2474.1871",
+        "ZCAD": "0.0000",
+        "XXBT": "0.0550314800",
+        "XETH": "2.1488299200"
+    },
+    "USD": {
+        "free": 2474.1871,
+        "used": 0.0,
+        "total": 2474.1871
+    },
+    "CAD": {
+        "free": 0.0,
+        "used": 0.0,
+        "total": 0.0
+    },
+    "BTC": {
+        "free": 0.05503148,
+        "used": 0.0,
+        "total": 0.05503148
+    },
+    "ETH": {
+        "free": 1.44882992,
+        "used": 0.7,
+        "total": 2.14882992
+    },
+    "free": {
+        "USD": 2474.1871,
+        "CAD": 0.0,
+        "BTC": 0.05503148,
+        "ETH": 1.44882992
+    },
+    "used": {
+        "USD": 0.0,
+        "CAD": 0.0,
+        "BTC": 0.0,
+        "ETH": 0.7
+    },
+    "total": {
+        "USD": 2474.1871,
+        "CAD": 0.0,
+        "BTC": 0.05503148,
+        "ETH": 2.14882992
+    }
+}
+
+FETCH_BALANCE_AUTOTRAGEUR_OPEN_BUY_SELL_RESPONSE = {
+    "info": {
+        "ZUSD": "2474.1871",
+        "ZCAD": "0.0000",
+        "XXBT": "0.0550314800",
+        "XETH": "2.1488299200"
+    },
+    "USD": {
+        "free": 1811.1871,
+        "used": 663.0,
+        "total": 2474.1871
+    },
+    "CAD": {
+        "free": 0.0,
+        "used": 0.0,
+        "total": 0.0
+    },
+    "BTC": {
+        "free": 0.05503148,
+        "used": 0.0,
+        "total": 0.05503148
+    },
+    "ETH": {
+        "free": 1.44882992,
+        "used": 0.7,
+        "total": 2.14882992
+    },
+    "free": {
+        "USD": 1811.1871,
+        "CAD": 0.0,
+        "BTC": 0.05503148,
+        "ETH": 1.44882992
+    },
+    "used": {
+        "USD": 663.0,
+        "CAD": 0.0,
+        "BTC": 0.0,
+        "ETH": 0.7
+    },
+    "total": {
+        "USD": 2474.1871,
+        "CAD": 0.0,
+        "BTC": 0.05503148,
+        "ETH": 2.14882992
+    }
+}
+
 BUY_FETCH_ORDERS = [
     BUY_FETCH_ORDER_TYPICAL,
     BUY_FETCH_ORDER_NOT_FILLED
@@ -461,3 +799,31 @@ class TestCreateMarketOrder:
         kraken._create_market_order.assert_called_once_with(SELL_SIDE, ETH_USD, FAKE_AMOUNT, params)
         kraken._poll_order.assert_called_once_with(FAKE_ORDER_ID)
         self._validate_response(SELL_SIDE, response, expected_response, fetched_order, params)
+
+
+@pytest.mark.parametrize('balances, open_orders, expected_result',
+    zip(
+        [FETCH_BALANCE_CCXT_RESPONSE] * 4,
+        [
+            FETCH_OPEN_ORDERS_OPEN_BUY_RESPONSE,
+            FETCH_OPEN_ORDERS_OPEN_SELL_RESPONSE,
+            FETCH_OPEN_ORDERS_OPEN_BUY_RESPONSE + FETCH_OPEN_ORDERS_OPEN_SELL_RESPONSE,
+            []
+        ],
+        [
+            FETCH_BALANCE_AUTOTRAGEUR_OPEN_BUY_RESPONSE,
+            FETCH_BALANCE_AUTOTRAGEUR_OPEN_SELL_RESPONSE,
+            FETCH_BALANCE_AUTOTRAGEUR_OPEN_BUY_SELL_RESPONSE,
+            FETCH_BALANCE_CCXT_RESPONSE
+        ]
+    )
+)
+def test_fetch_balance(mocker, kraken, balances, open_orders, expected_result):
+    mocker.patch.object(
+        ccxt.kraken, 'fetch_balance', return_value=copy.deepcopy(balances))
+    mocker.patch.object(
+        kraken, 'fetch_open_orders', return_value=open_orders)
+
+    result = kraken.fetch_balance()
+
+    assert result == expected_result
