@@ -122,7 +122,8 @@ class TestTwilioClient:
         ['+1234'],
         ['+1234', '+123456', '+12345678']
     ])
-    def test_phone(self, mocker, mock_twilio_client, to_phone_numbers):
+    @pytest.mark.parametrize('is_mock_call', [True, False])
+    def test_phone(self, mocker, mock_twilio_client, to_phone_numbers, is_mock_call):
         FAKE_FROM_NUMBER = 'fake_from_number'
         ESCAPED_MESSAGES = 'bunchofescapedmessages'
 
@@ -130,13 +131,18 @@ class TestTwilioClient:
         mocker.patch.object(mock_twilio_client.client, 'calls')
         mock_create_call = mocker.patch.object(mock_twilio_client.client.calls, 'create')
 
-        mock_twilio_client.phone(['FAKE_MESSAGE'], to_phone_numbers, FAKE_FROM_NUMBER)
+        mock_twilio_client.phone(
+            ['FAKE_MESSAGE'], to_phone_numbers, FAKE_FROM_NUMBER, is_mock_call=is_mock_call)
 
-        expected_call_args_list = []
-        for phone_number in to_phone_numbers:
-            expected_call_args_list.append(mocker.call(
-                url=TWIMLETS_MESSAGE_ENDPOINT + ESCAPED_MESSAGES,
-                to=phone_number,
-                from_=FAKE_FROM_NUMBER))
-        twilio_client._form_messages_url_query.assert_called_once_with(['FAKE_MESSAGE'])    # pylint: disable=E1101
-        assert mock_create_call.call_args_list == expected_call_args_list
+        if is_mock_call:
+            twilio_client._form_messages_url_query.assert_not_called()
+            assert mock_create_call.call_args_list == []
+        else:
+            expected_call_args_list = []
+            for phone_number in to_phone_numbers:
+                expected_call_args_list.append(mocker.call(
+                    url=TWIMLETS_MESSAGE_ENDPOINT + ESCAPED_MESSAGES,
+                    to=phone_number,
+                    from_=FAKE_FROM_NUMBER))
+            twilio_client._form_messages_url_query.assert_called_once_with(['FAKE_MESSAGE'])    # pylint: disable=E1101
+            assert mock_create_call.call_args_list == expected_call_args_list

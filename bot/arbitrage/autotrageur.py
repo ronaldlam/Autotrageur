@@ -18,7 +18,7 @@ from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          ENV_VAR_NAMES, EXCHANGE1,
                                          EXCHANGE1_PAIR, EXCHANGE1_TEST,
                                          EXCHANGE2, EXCHANGE2_PAIR,
-                                         EXCHANGE2_TEST, SLIPPAGE)
+                                         EXCHANGE2_TEST, SLIPPAGE, TESTRUN)
 from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import CCXTTrader
@@ -35,6 +35,11 @@ KEYFILE = "KEYFILE"
 START_END_FORMAT = "{} {:^15} {}"
 STARS = "*"*20
 
+
+class AsymmetricTestExchangeConfigError(Exception):
+    """Raised when one exchange has enabled trading against a test API and the
+    other has not."""
+    pass
 
 def fancy_log(title):
     """Log title surrounded by stars."""
@@ -197,6 +202,9 @@ class Autotrageur(ABC):
             dry_e2 = DryRunExchange(exchange2, e2_base, e2_quote,
                                     e2_base_balance, e2_quote_balance)
             self.dry_run = DryRun(dry_e1, dry_e2)
+            fancy_log(
+                "DRY RUN mode initiated. Trades will NOT execute on actual "
+                "exchanges.")
         else:
             dry_e1 = None
             dry_e2 = None
@@ -217,11 +225,17 @@ class Autotrageur(ABC):
             self.exchange2_configs,
             dry_e2)
 
-        # Connect to test API's if required
-        if self.config[EXCHANGE1_TEST]:
+        if not self.config[EXCHANGE1_TEST] and not self.config[EXCHANGE2_TEST]:
+            fancy_log("Starting bot against LIVE exchanges.")
+            self.config[TESTRUN] = False
+        elif self.config[EXCHANGE1_TEST] and self.config[EXCHANGE2_TEST]:
+            fancy_log("Starting bot against TEST exchanges.")
             self.trader1.connect_test_api()
-        if self.config[EXCHANGE2_TEST]:
             self.trader2.connect_test_api()
+            self.config[TESTRUN] = True
+        else:
+            raise AsymmetricTestExchangeConfigError(
+                "Only one of the exchanges has been set to a test API.")
 
         # Load the available markets for the exchange.
         self.trader1.load_markets()
