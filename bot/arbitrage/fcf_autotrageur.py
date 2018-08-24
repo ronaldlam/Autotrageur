@@ -202,7 +202,15 @@ class FCFAutotrageur(Autotrageur):
                 that this run is new.
         """
         strategy_builder = FCFStrategyBuilder()
-        strategy_builder.set_trader1(self.trader1).set_trader2(self.trader2)
+        (strategy_builder
+            .set_has_started(False)
+            .set_h_to_e1_max(num_to_decimal(self.config[H_TO_E1_MAX]))
+            .set_h_to_e2_max(num_to_decimal(self.config[H_TO_E2_MAX]))
+            .set_spread_min(num_to_decimal(self.config[SPREAD_MIN]))
+            .set_vol_min(num_to_decimal(self.config[VOL_MIN]))
+            .set_checkpoint(FCFCheckpoint(self.config[ID]))
+            .set_trader1(self.trader1)
+            .set_trader2(self.trader2))
 
         # Setup and fetch the wallet balances available for each trader.
         self.__setup_wallet_balances(strategy_builder)
@@ -217,28 +225,13 @@ class FCFAutotrageur(Autotrageur):
             # one result as the `autotrageur_resume_id` is unique per
             # export.
             self._import_state(raw_result[0][0], strategy_builder)
-            strategy = (
-                strategy_builder
-                    .set_spread_min(num_to_decimal(self.config[SPREAD_MIN]))
-                    .set_vol_min(num_to_decimal(self.config[VOL_MIN]))
-                    .build()
-            )
+            strategy = strategy_builder.build()
+
+            # Overwrite state set in config.
             strategy.restore()
-            # TODO: Evaluate. This logic was here before, but i'm not 100%
-            # convinced it's what we want.
-            # strategy.spread_min = num_to_decimal(self.config[SPREAD_MIN])
-            # strategy.vol_min = num_to_decimal(self.config[VOL_MIN])
         else:
-            strategy = (
-                strategy_builder
-                    .set_has_started(False)
-                    .set_h_to_e1_max(num_to_decimal(self.config[H_TO_E1_MAX]))
-                    .set_h_to_e2_max(num_to_decimal(self.config[H_TO_E2_MAX]))
-                    .set_spread_min(num_to_decimal(self.config[SPREAD_MIN]))
-                    .set_vol_min(num_to_decimal(self.config[VOL_MIN]))
-                    .set_checkpoint(FCFCheckpoint(self.config[ID]))
-                    .build()
-            )
+            strategy = strategy_builder.build()
+
         return strategy
 
     def __setup_forex(self):
@@ -295,7 +288,7 @@ class FCFAutotrageur(Autotrageur):
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
         actions which may be harmed by previous state."""
-        self.trade_metadata = None
+        pass
 
     def _execute_trade(self):
         """Execute the arbitrage."""

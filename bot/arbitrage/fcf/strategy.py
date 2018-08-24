@@ -17,6 +17,7 @@ class InsufficientCryptoBalance(Exception):
 
 class FCFStrategyBuilder():
     """Builder for the FCFStrategy class."""
+
     def set_h_to_e1_max(self, h_to_e1_max):
         """Set the h_to_e1_max of the builder."""
         self.h_to_e1_max = h_to_e1_max
@@ -77,6 +78,7 @@ class FCFStrategyBuilder():
 
 
 class FCFStrategy():
+    """Class containing the core strategy for the FCFAutotrageur."""
 
     def __init__(self, h_to_e1_max, h_to_e2_max, has_started, spread_min,
                  vol_min, balance_checker, checkpoint, trader1, trader2):
@@ -329,6 +331,7 @@ class FCFStrategy():
                 list(enumerate(self.e1_targets))))
 
     def restore(self):
+        """Rollback to previous saved state."""
         self.checkpoint.restore(self)
 
     def finalize_trade(self):
