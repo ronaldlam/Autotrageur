@@ -21,7 +21,17 @@ class FCFBalanceChecker():
     SELL_SIDE_CRYPTO_BALANCE_BUFFER = Decimal('1.05')
 
     def __init__(self, trader1, trader2, notification_func):
-        """Constructor."""
+        """Constructor.
+
+        NOTE: The notification_func function must take two parameters,
+        being the subject and the body of the message respectively.
+
+        Args:
+            trader1 (CCXTTrader): The trader for the first exchange.
+            trader2 (CCXTTrader): The trader for the second exchange.
+            notification_func (func): The function to call when
+                notifications are required.
+        """
         self.trader1 = trader1
         self.trader2 = trader2
         self.notification_func = notification_func

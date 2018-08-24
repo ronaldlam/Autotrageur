@@ -82,6 +82,26 @@ class FCFStrategy():
 
     def __init__(self, h_to_e1_max, h_to_e2_max, has_started, spread_min,
                  vol_min, balance_checker, checkpoint, trader1, trader2):
+        """Constructor.
+
+        Args:
+            h_to_e1_max (Decimal): The historical max spread trading e1
+                to e2.
+            h_to_e2_max (Decimal): The historical max spread trading e2
+                to e1.
+            has_started (bool): Whether the algorithm is past its first
+                poll.
+            spread_min (Decimal): The minimum spread increment between
+                trades.
+            vol_min (Decimal): The ideal minimum volume the algorithm
+                uses to calculate targets.
+            balance_checker (FCFBalanceChecker): Helper object to
+                determine whether crypto balances are sufficient.
+            checkpoint (FCFCheckpoint): Helper object that stores
+                current algorithm state.
+            trader1 (CCXTTrader): The trader for the first exchange.
+            trader2 (CCXTTrader): The trader for the second exchange.
+        """
         self.h_to_e1_max = h_to_e1_max
         self.h_to_e2_max = h_to_e2_max
         self.has_started = has_started
@@ -379,12 +399,14 @@ class FCFStrategy():
         if not self.has_started:
             self.momentum = Momentum.NEUTRAL
 
-            self.e1_targets = self.__calc_targets(spread_opp.e1_spread,
-                                                  self.h_to_e1_max, self.trader2.get_usd_balance())
+            self.e1_targets = self.__calc_targets(
+                spread_opp.e1_spread, self.h_to_e1_max,
+                self.trader2.get_usd_balance())
             logging.debug('#### Initial e1_targets: {}'.format(
                 list(enumerate(self.e1_targets))))
-            self.e2_targets = self.__calc_targets(spread_opp.e2_spread,
-                                                  self.h_to_e2_max, self.trader1.get_usd_balance())
+            self.e2_targets = self.__calc_targets(
+                spread_opp.e2_spread, self.h_to_e2_max,
+                self.trader1.get_usd_balance())
             logging.debug('#### Initial e2_targets: {}'.format(
                 list(enumerate(self.e2_targets))))
 
