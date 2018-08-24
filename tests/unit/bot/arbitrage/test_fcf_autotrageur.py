@@ -6,7 +6,7 @@ import pickle
 import time
 import traceback
 import uuid
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from unittest.mock import Mock
 
 import ccxt
