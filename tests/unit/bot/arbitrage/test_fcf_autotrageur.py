@@ -369,7 +369,7 @@ def test_construct_strategy(mocker, no_patch_fcf_autotrageur, resume_id):
 
     if resume_id:
         mock_exec_param_query.assert_called_once_with(
-            "SELECT state FROM fcf_state where id = %s;", resume_id)
+            "SELECT state FROM fcf_state where id = %s;", (resume_id,))
         mock_import_state.assert_called_once_with(
             MOCK_RESULT, mock_strategy_builder)
         mock_strategy.restore.assert_called_once_with()
