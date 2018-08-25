@@ -1,4 +1,5 @@
 import logging
+from collections import namedtuple
 
 import ccxt
 
@@ -7,6 +8,22 @@ from bot.common.decimal_constants import ONE
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import OrderbookException
 from libs.utilities import num_to_decimal
+
+
+# See https://stackoverflow.com/questions/1606436/adding-docstrings-to-namedtuples
+class TradeMetadata(namedtuple('TradeMetadata', [
+        'spread_opp', 'buy_price', 'sell_price', 'buy_trader', 'sell_trader'])):
+    """Encapsulates trade metadata produced by algorithm for execution.
+
+    Args:
+        spread_opp (SpreadOpportunity): The spread opportunity to
+            consider.
+        buy_price (Decimal): The buy price.
+        sell_price (Decimal): The sell price.
+        buy_trader (CCXTTrader): The trader for the buy side exchange.
+        sell_trader (CCXTTrader): The trader for the sell side exchange.
+    """
+    __slots__ = ()
 
 
 class InsufficientCryptoBalance(Exception):
@@ -172,11 +189,11 @@ class FCFStrategy():
         Returns:
             bool: Whether the trade falls within the limits.
         """
-        buy_trader = self.trade_metadata['buy_trader']
-        sell_trader = self.trade_metadata['sell_trader']
+        buy_trader = self.trade_metadata.buy_trader
+        sell_trader = self.trade_metadata.sell_trader
         min_base_buy = buy_trader.get_min_base_limit()
         min_base_sell = sell_trader.get_min_base_limit()
-        min_target_amount = (self.trade_metadata['buy_price']
+        min_target_amount = (self.trade_metadata.buy_price
                              * max(min_base_buy, min_base_sell))
         return buy_trader.quote_target_amount > min_target_amount
 
@@ -301,16 +318,16 @@ class FCFStrategy():
             buy_price = spread_opp.e2_buy
             sell_price = spread_opp.e1_sell
 
-        self.trade_metadata = {
-            'spread_opp': spread_opp,
-            'buy_price': buy_price,
-            'sell_price': sell_price,
-            'buy_trader': buy_trader,
-            'sell_trader': sell_trader
-        }
+        self.trade_metadata = TradeMetadata(
+            spread_opp=spread_opp,
+            buy_price=buy_price,
+            sell_price=sell_price,
+            buy_trader=buy_trader,
+            sell_trader=sell_trader
+        )
 
         required_base = (
-            buy_trader.quote_target_amount / self.trade_metadata['buy_price'])
+            buy_trader.quote_target_amount / self.trade_metadata.buy_price)
         base = buy_trader.base
 
         if required_base > sell_trader.base_bal:
@@ -337,15 +354,15 @@ class FCFStrategy():
         NOTE: Trade targets should only be updated if a trade was completely
         successful (buy and sell trades completed).
         """
-        if self.trade_metadata['buy_trader'] is self.trader2:
+        if self.trade_metadata.buy_trader is self.trader2:
             self.e2_targets = self.__calc_targets(
-                self.trade_metadata['spread_opp'].e2_spread, self.h_to_e2_max,
+                self.trade_metadata.spread_opp.e2_spread, self.h_to_e2_max,
                 self.trader1.get_usd_balance())
             logging.debug("#### New calculated e2_targets: {}".format(
                 list(enumerate(self.e2_targets))))
         else:
             self.e1_targets = self.__calc_targets(
-                self.trade_metadata['spread_opp'].e1_spread, self.h_to_e1_max,
+                self.trade_metadata.spread_opp.e1_spread, self.h_to_e1_max,
                 self.trader2.get_usd_balance())
             logging.debug("#### New calculated e1_targets: {}".format(
                 list(enumerate(self.e1_targets))))
@@ -353,6 +370,7 @@ class FCFStrategy():
     def restore(self):
         """Rollback to previous saved state."""
         self.checkpoint.restore(self)
+        self.trade_metadata = None
 
     def finalize_trade(self):
         """Do cleanup after trade is executed."""
@@ -365,11 +383,14 @@ class FCFStrategy():
         # balances are the most up to date for the target amounts.
         self.__update_trade_targets()
 
+        # Clear trade_metadata in preparation for next poll.
+        self.trade_metadata = None
+
     def get_trade_data(self):
         """Get trade metadata.
 
         Returns:
-            dict: The trade metadata to execute on.
+            TradeMetadata: The trade metadata to execute on.
         """
         return self.trade_metadata
 

@@ -19,6 +19,7 @@ import bot.arbitrage.arbseeker as arbseeker
 import bot.arbitrage.fcf_autotrageur
 import libs.db.maria_db_handler as db_handler
 from bot.arbitrage.arbseeker import SpreadOpportunity
+from bot.arbitrage.fcf.strategy import TradeMetadata
 from bot.arbitrage.fcf_autotrageur import (FCFAuthenticationError,
                                            FCFAutotrageur, FCFBalanceChecker,
                                            FCFCheckpoint,
@@ -103,7 +104,7 @@ def fcf_autotrageur(mocker, fake_ccxt_trader):
         'spread_target_low': 1.0,
         'spread_target_high': 5.0
     }
-    f.trade_metadata = {}
+    f.trade_metadata = TradeMetadata(None, None, None, None, None)
     trader1 = fake_ccxt_trader
     trader2 = copy.deepcopy(fake_ccxt_trader)
     mocker.patch.object(f, 'trader1', trader1, create=True)
@@ -201,10 +202,10 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
     buy_response_copy = copy.deepcopy(buy_response)
     sell_response_copy = copy.deepcopy(sell_response)
 
-    trade_metadata = {
-        'spread_opp': SpreadOpportunity(FAKE_SPREAD_OPP_ID, None, None, None,
-                                        None, None, None, None, None)
-    }
+    trade_metadata = TradeMetadata(
+        SpreadOpportunity(
+            FAKE_SPREAD_OPP_ID, None, None, None, None, None, None, None, None),
+        None, None, None, None)
     mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
         ID: FAKE_CONFIG_UUID,
         START_TIMESTAMP: FAKE_CURR_TIME
@@ -218,7 +219,7 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
         mocker.call(
             InsertRowObject(
                 TRADE_OPPORTUNITY_TABLE,
-                trade_metadata['spread_opp']._asdict(),
+                trade_metadata.spread_opp._asdict(),
                 (TRADE_OPPORTUNITY_PRIM_KEY_ID, )))
     ]
 
@@ -403,12 +404,13 @@ class TestExecuteTrade:
             no_patch_fcf_autotrageur, 'config', { DRYRUN: dryrun }, create=True)
         mocker.patch.object(no_patch_fcf_autotrageur, 'strategy', create=True)
         mocker.patch.object(no_patch_fcf_autotrageur.strategy, 'get_trade_data',
-            return_value={
-                'buy_price': FAKE_BUY_PRICE,
-                'sell_price': FAKE_SELL_PRICE,
-                'buy_trader': no_patch_fcf_autotrageur.trader1,
-                'sell_trader': no_patch_fcf_autotrageur.trader2
-            }, create=True)
+            return_value=TradeMetadata(
+                spread_opp=None,
+                buy_price=FAKE_BUY_PRICE,
+                sell_price=FAKE_SELL_PRICE,
+                buy_trader=no_patch_fcf_autotrageur.trader1,
+                sell_trader=no_patch_fcf_autotrageur.trader2
+            ), create=True)
         mocker.patch.object(
             arbseeker, 'execute_buy', return_value=FAKE_UNIFIED_RESPONSE_BUY)
         mocker.patch.object(
@@ -431,11 +433,11 @@ class TestExecuteTrade:
 
         trade_metadata = no_patch_fcf_autotrageur.strategy.get_trade_data.return_value
         arbseeker.execute_buy.assert_called_once_with(
-            trade_metadata['buy_trader'],
-            trade_metadata['buy_price'])
+            trade_metadata.buy_trader,
+            trade_metadata.buy_price)
         arbseeker.execute_sell.assert_called_once_with(
-            trade_metadata['sell_trader'],
-            trade_metadata['sell_price'],
+            trade_metadata.sell_trader,
+            trade_metadata.sell_price,
             FAKE_UNIFIED_RESPONSE_BUY['post_fee_base'])
         no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data.assert_called_once_with(
             FAKE_UNIFIED_RESPONSE_BUY, FAKE_UNIFIED_RESPONSE_SELL, trade_metadata)
@@ -462,8 +464,8 @@ class TestExecuteTrade:
         trade_metadata = no_patch_fcf_autotrageur.strategy.get_trade_data.return_value
         mock_persist_data = no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data
         arbseeker.execute_buy.assert_called_once_with(
-            trade_metadata['buy_trader'],
-            trade_metadata['buy_price'])
+            trade_metadata.buy_trader,
+            trade_metadata.buy_price)
         arbseeker.execute_sell.assert_not_called()
         mock_persist_data.assert_called_once_with(None, None, trade_metadata)
         no_patch_fcf_autotrageur.strategy.restore.assert_called_once()
@@ -491,11 +493,11 @@ class TestExecuteTrade:
         trade_metadata = no_patch_fcf_autotrageur.strategy.get_trade_data.return_value
         mock_persist_data = no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data
         arbseeker.execute_buy.assert_called_once_with(
-            trade_metadata['buy_trader'],
-            trade_metadata['buy_price'])
+            trade_metadata.buy_trader,
+            trade_metadata.buy_price)
         arbseeker.execute_sell.assert_called_once_with(
-            trade_metadata['sell_trader'],
-            trade_metadata['sell_price'],
+            trade_metadata.sell_trader,
+            trade_metadata.sell_price,
             FAKE_UNIFIED_RESPONSE_BUY['post_fee_base'])
 
         # IncompleteArbitrageError gets raised with a populated sell_response,
@@ -578,6 +580,13 @@ def test_load_configs(mocker, no_patch_fcf_autotrageur):
 
     no_patch_fcf_autotrageur._FCFAutotrageur__load_twilio.assert_called_once_with(
         no_patch_fcf_autotrageur.config[TWILIO_CFG_PATH])
+
+
+def test_poll_opportunity(mocker, no_patch_fcf_autotrageur):
+    mock_strategy = mocker.patch.object(
+        no_patch_fcf_autotrageur, 'strategy', create=True)
+    no_patch_fcf_autotrageur._poll_opportunity()
+    mock_strategy.poll_opportunity.assert_called_once_with()
 
 
 def test_send_email(mocker, no_patch_fcf_autotrageur):

@@ -12,6 +12,10 @@ import yaml
 
 import bot.arbitrage.arbseeker as arbseeker
 import libs.db.maria_db_handler as db_handler
+from bot.arbitrage.autotrageur import Autotrageur
+from bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
+from bot.arbitrage.fcf.checkpoint import FCFCheckpoint
+from bot.arbitrage.fcf.strategy import FCFStrategyBuilder
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, SPREAD_MIN,
                                          START_TIMESTAMP, TWILIO_CFG_PATH,
@@ -33,11 +37,6 @@ from libs.email_client.simple_email_client import send_all_emails
 from libs.fiat_symbols import FIAT_SYMBOLS
 from libs.twilio.twilio_client import TwilioClient
 from libs.utilities import num_to_decimal
-
-from .autotrageur import Autotrageur
-from .fcf.balance_checker import FCFBalanceChecker
-from .fcf.checkpoint import FCFCheckpoint
-from .fcf.strategy import FCFStrategyBuilder
 
 
 class FCFAuthenticationError(Exception):
@@ -154,12 +153,12 @@ class FCFAutotrageur(Autotrageur):
             sell_response (dict): The autotrageur unified response from the
                 executed sell trade.  If a sell trade was unsuccessful, then
                 sell_response is None.
-            trade_metadata (dict): The trade metadata prepared by the
+            trade_metadata (TradeMetadata): The trade metadata prepared by the
                 autotrageur strategy.
         """
         # Persist the spread_opp.
-        trade_opportunity_id = trade_metadata['spread_opp'].id
-        spread_opp = trade_metadata['spread_opp']._asdict()
+        trade_opportunity_id = trade_metadata.spread_opp.id
+        spread_opp = trade_metadata.spread_opp._asdict()
         trade_opp_row_obj = InsertRowObject(
             TRADE_OPPORTUNITY_TABLE,
             spread_opp,
@@ -299,13 +298,13 @@ class FCFAutotrageur(Autotrageur):
         if self.config[DRYRUN]:
             logging.debug("**Dry run - begin fake execution")
             buy_response = arbseeker.execute_buy(
-                trade_metadata['buy_trader'],
-                trade_metadata['buy_price'])
+                trade_metadata.buy_trader,
+                trade_metadata.buy_price)
 
             executed_amount = buy_response['post_fee_base']
             sell_response = arbseeker.execute_sell(
-                trade_metadata['sell_trader'],
-                trade_metadata['sell_price'],
+                trade_metadata.sell_trader,
+                trade_metadata.sell_price,
                 executed_amount)
             self.strategy.finalize_trade()
             self.dry_run.log_balances()
@@ -315,8 +314,8 @@ class FCFAutotrageur(Autotrageur):
         else:
             try:
                 buy_response = arbseeker.execute_buy(
-                    trade_metadata['buy_trader'],
-                    trade_metadata['buy_price'])
+                    trade_metadata.buy_trader,
+                    trade_metadata.buy_price)
                 bought_amount = buy_response['post_fee_base']
             except Exception as exc:
                 self._send_email("BUY ERROR ALERT - CONTINUING", repr(exc))
@@ -327,11 +326,11 @@ class FCFAutotrageur(Autotrageur):
                 # second trade.
                 try:
                     sell_response = arbseeker.execute_sell(
-                        trade_metadata['sell_trader'],
-                        trade_metadata['sell_price'],
+                        trade_metadata.sell_trader,
+                        trade_metadata.sell_price,
                         bought_amount)
 
-                    sell_trader = trade_metadata['sell_trader']
+                    sell_trader = trade_metadata.sell_trader
                     rounded_sell_amount = sell_trader.round_exchange_precision(
                         bought_amount)
 

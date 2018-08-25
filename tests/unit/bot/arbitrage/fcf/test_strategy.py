@@ -6,7 +6,8 @@ from ccxt import NetworkError
 
 import bot.arbitrage.arbseeker as arbseeker
 from bot.arbitrage.arbseeker import SpreadOpportunity
-from bot.arbitrage.fcf.strategy import FCFStrategy, InsufficientCryptoBalance
+from bot.arbitrage.fcf.strategy import (FCFStrategy, InsufficientCryptoBalance,
+                                        TradeMetadata)
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import CCXTTrader, OrderbookException
 
@@ -100,11 +101,13 @@ def test_check_within_limits(mocker, fcf_strategy, min_base_buy,
     buy_trader.quote_target_amount = buy_quote_target
     sell_trader = mocker.Mock()
     sell_trader.get_min_base_limit.return_value = min_base_sell
-    fake_trade_metadata = {
-        'buy_trader': buy_trader,
-        'sell_trader': sell_trader,
-        'buy_price': buy_price
-    }
+    fake_trade_metadata = TradeMetadata(
+        spread_opp=None,
+        buy_price=buy_price,
+        sell_price=None,
+        buy_trader=buy_trader,
+        sell_trader=sell_trader
+    )
     mocker.patch.object(fcf_strategy, 'trade_metadata',
                         fake_trade_metadata, create=True)
 
@@ -300,7 +303,7 @@ def test_prepare_trade(mocker, fcf_strategy, is_momentum_change, to_e1,
     fcf_strategy._FCFStrategy__prepare_trade(
         is_momentum_change, buy_trader, sell_trader, targets, spread_opp)
 
-    sell_price_result = fcf_strategy.trade_metadata['sell_price']
+    sell_price_result = fcf_strategy.trade_metadata.sell_price
     if to_e1:
         assert sell_price_result == spread_opp.e1_sell
     else:
@@ -317,17 +320,21 @@ def test_update_trade_targets(mocker, fcf_strategy, is_trader1_buy):
     mocker.patch.object(
         fcf_strategy, '_FCFStrategy__calc_targets', return_value=mock_targets)
     if is_trader1_buy:
-        mocker.patch.object(fcf_strategy, 'trade_metadata', {
-            'spread_opp': mock_spread_opp,
-            'buy_trader': fcf_strategy.trader1,
-            'sell_trader': fcf_strategy.trader2
-        }, create=True)
+        mocker.patch.object(fcf_strategy, 'trade_metadata', TradeMetadata(
+            spread_opp=mock_spread_opp,
+            buy_price=None,
+            sell_price=None,
+            buy_trader=fcf_strategy.trader1,
+            sell_trader=fcf_strategy.trader2
+        ), create=True)
     else:
-        mocker.patch.object(fcf_strategy, 'trade_metadata', {
-            'spread_opp': mock_spread_opp,
-            'buy_trader': fcf_strategy.trader2,
-            'sell_trader': fcf_strategy.trader1
-        }, create=True)
+        mocker.patch.object(fcf_strategy, 'trade_metadata', TradeMetadata(
+            spread_opp=mock_spread_opp,
+            buy_price=None,
+            sell_price=None,
+            buy_trader=fcf_strategy.trader2,
+            sell_trader=fcf_strategy.trader1
+        ), create=True)
     mocker.patch.object(fcf_strategy, 'h_to_e1_max', create=True)
     mocker.patch.object(fcf_strategy, 'h_to_e2_max', create=True)
     mocker.patch.object(fcf_strategy.trader1, 'get_usd_balance')
