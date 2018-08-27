@@ -1,13 +1,14 @@
-from enum import Enum
 from decimal import Decimal
+from enum import Enum
 
 import ccxt
 import pytest
 
-import bot.currencyconverter as currencyconverter
 import bot.trader.ccxt_trader as ccxt_trader
 from libs.fiat_symbols import FIAT_SYMBOLS
-from libs.utilities import set_autotrageur_decimal_context, num_to_decimal
+from libs.trade.executor.ccxt_executor import CCXTExecutor
+from libs.trade.executor.dryrun_executor import DryRunExecutor
+from libs.utilities import num_to_decimal, set_autotrageur_decimal_context
 
 # Namespace shortcuts.
 CCXTTrader = ccxt_trader.CCXTTrader
@@ -825,13 +826,17 @@ class TestSetTargetAmount:
 ])
 def test_update_wallet_balances(mocker, fake_ccxt_trader, symbols, live_balances, dryrun_balances, is_dry_run):
     mocker.patch.object(fake_ccxt_trader.fetcher, 'fetch_free_balances', return_value=live_balances)
-    executor = mocker.patch.object(fake_ccxt_trader, 'executor')
-    dry_run_exchange = mocker.patch.object(executor, 'dry_run_exchange')
-    mocker.patch.object(dry_run_exchange, 'base_balance', dryrun_balances[0])
-    mocker.patch.object(dry_run_exchange, 'quote_balance', dryrun_balances[1])
+    executor = mocker.patch.object(
+        fake_ccxt_trader, 'executor',
+        autospec=DryRunExecutor if is_dry_run else CCXTExecutor)
     mocker.patch.object(fake_ccxt_trader, 'forex_ratio', FAKE_FOREX_RATIO)
+    if is_dry_run:
+        dry_run_exchange = mocker.patch.object(
+            executor, 'dry_run_exchange', create=True)
+        mocker.patch.object(dry_run_exchange, 'base_balance', dryrun_balances[0])
+        mocker.patch.object(dry_run_exchange, 'quote_balance', dryrun_balances[1])
 
-    fake_ccxt_trader.update_wallet_balances(is_dry_run=is_dry_run)
+    fake_ccxt_trader.update_wallet_balances()
 
     if is_dry_run:
         assert fake_ccxt_trader.base_bal == dryrun_balances[0]
