@@ -16,8 +16,7 @@ import libs.db.maria_db_handler as db_handler
 import libs.utils.schedule_utils as schedule_utils
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, SPREAD_MIN,
-                                         START_TIMESTAMP, TESTRUN,
-                                         TWILIO_CFG_PATH,
+                                         START_TIMESTAMP, TWILIO_CFG_PATH,
                                          TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
@@ -660,7 +659,7 @@ class FCFAutotrageur(Autotrageur):
             [subject, traceback.format_exc()],
             self.twilio_config[TWILIO_RECIPIENT_NUMBERS],
             self.twilio_config[TWILIO_SENDER_NUMBER],
-            is_mock_call=self.config[DRYRUN] or self.config[TESTRUN])
+            is_mock_call=self.config[DRYRUN] or self.is_test_run)
 
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next

@@ -18,7 +18,7 @@ from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          ENV_VAR_NAMES, EXCHANGE1,
                                          EXCHANGE1_PAIR, EXCHANGE1_TEST,
                                          EXCHANGE2, EXCHANGE2_PAIR,
-                                         EXCHANGE2_TEST, SLIPPAGE, TESTRUN)
+                                         EXCHANGE2_TEST, SLIPPAGE)
 from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import CCXTTrader
@@ -227,12 +227,12 @@ class Autotrageur(ABC):
 
         if not self.config[EXCHANGE1_TEST] and not self.config[EXCHANGE2_TEST]:
             fancy_log("Starting bot against LIVE exchanges.")
-            self.config[TESTRUN] = False
+            self.is_test_run = False
         elif self.config[EXCHANGE1_TEST] and self.config[EXCHANGE2_TEST]:
             fancy_log("Starting bot against TEST exchanges.")
             self.trader1.connect_test_api()
             self.trader2.connect_test_api()
-            self.config[TESTRUN] = True
+            self.is_test_run = True
         else:
             raise AsymmetricTestExchangeConfigError(
                 "Only one of the exchanges has been set to a test API.")

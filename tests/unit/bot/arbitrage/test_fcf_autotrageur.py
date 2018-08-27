@@ -28,8 +28,7 @@ from bot.arbitrage.fcf_autotrageur import (FCFAuthenticationError,
                                            arbseeker)
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, SPREAD_MIN,
-                                         START_TIMESTAMP, TESTRUN,
-                                         TWILIO_CFG_PATH,
+                                         START_TIMESTAMP, TWILIO_CFG_PATH,
                                          TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
@@ -1047,9 +1046,9 @@ def test_alert(mocker, subject, no_patch_fcf_autotrageur, is_dry_run, is_test_ru
     FAKE_RECIPIENT_NUMBERS = ['+12345678', '9101121314']
     FAKE_SENDER_NUMBER = '+15349875'
     mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
-        DRYRUN: is_dry_run,
-        TESTRUN: is_test_run
+        DRYRUN: is_dry_run
     }, create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur, 'is_test_run', is_test_run, create=True)
     mocker.patch.object(no_patch_fcf_autotrageur, 'twilio_config', {
         TWILIO_RECIPIENT_NUMBERS: FAKE_RECIPIENT_NUMBERS,
         TWILIO_SENDER_NUMBER: FAKE_SENDER_NUMBER
