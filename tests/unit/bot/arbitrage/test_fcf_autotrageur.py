@@ -515,9 +515,13 @@ class TestExecuteTrade:
         no_patch_fcf_autotrageur._send_email.assert_called_once()
 
 
-# Placeholder. This function does nothing atm.
-# def test_clean_up(mocker, no_patch_fcf_autotrageur):
-#     no_patch_fcf_autotrageur._clean_up()
+def test_clean_up(mocker, no_patch_fcf_autotrageur):
+    mock_strategy = mocker.patch.object(
+        no_patch_fcf_autotrageur, 'strategy', create=True)
+
+    no_patch_fcf_autotrageur._clean_up()
+
+    mock_strategy.clean_up.assert_called_once_with()
 
 
 def test_export_state(mocker, no_patch_fcf_autotrageur, fcf_checkpoint):

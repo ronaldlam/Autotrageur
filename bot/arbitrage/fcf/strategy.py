@@ -367,10 +367,13 @@ class FCFStrategy():
             logging.debug("#### New calculated e1_targets: {}".format(
                 list(enumerate(self.e1_targets))))
 
+    def clean_up(self):
+        """Clean up any state information before the next poll."""
+        self.trade_metadata = None
+
     def restore(self):
         """Rollback to previous saved state."""
         self.checkpoint.restore(self)
-        self.trade_metadata = None
 
     def finalize_trade(self):
         """Do cleanup after trade is executed."""
@@ -382,9 +385,6 @@ class FCFStrategy():
         # Calculate the targets after the potential trade so that the wallet
         # balances are the most up to date for the target amounts.
         self.__update_trade_targets()
-
-        # Clear trade_metadata in preparation for next poll.
-        self.trade_metadata = None
 
     def get_trade_data(self):
         """Get trade metadata.

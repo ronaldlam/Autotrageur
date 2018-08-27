@@ -356,6 +356,37 @@ def test_update_trade_targets(mocker, fcf_strategy, is_trader1_buy):
         assert fcf_strategy.e2_targets == mock_targets
 
 
+def test_clean_up(fcf_strategy):
+    fcf_strategy.clean_up()
+    assert fcf_strategy.trade_metadata == None
+
+
+def test_restore(mocker, fcf_strategy):
+    mock_checkpoint = mocker.patch.object(fcf_strategy, 'checkpoint')
+    fcf_strategy.restore()
+    mock_checkpoint.restore.assert_called_once_with(fcf_strategy)
+
+
+def test_finalize_trade(mocker, fcf_strategy):
+    mock_trader1 = mocker.patch.object(fcf_strategy, 'trader1')
+    mock_trader2 = mocker.patch.object(fcf_strategy, 'trader2')
+    mock_update_targets = mocker.patch.object(
+        fcf_strategy, '_FCFStrategy__update_trade_targets')
+
+    fcf_strategy.finalize_trade()
+
+    mock_trader1.update_wallet_balances.assert_called_once_with()
+    mock_trader2.update_wallet_balances.assert_called_once_with()
+    mock_update_targets.assert_called_once_with()
+
+
+def test_get_trade_data(mocker, fcf_strategy):
+    mock_trade_data = mocker.Mock()
+    mocker.patch.object(fcf_strategy, 'trade_metadata', mock_trade_data, create=True)
+    result = fcf_strategy.get_trade_data()
+    assert result is mock_trade_data
+
+
 @pytest.mark.parametrize('vol_min', [Decimal('100'), Decimal('1000')])
 @pytest.mark.parametrize('e1_quote_balance', [Decimal('0'), Decimal('2000')])
 @pytest.mark.parametrize('e2_quote_balance', [Decimal('0'), Decimal('2000')])

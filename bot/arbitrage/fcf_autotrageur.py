@@ -287,7 +287,7 @@ class FCFAutotrageur(Autotrageur):
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
         actions which may be harmed by previous state."""
-        pass
+        self.strategy.clean_up()
 
     def _execute_trade(self):
         """Execute the arbitrage."""
