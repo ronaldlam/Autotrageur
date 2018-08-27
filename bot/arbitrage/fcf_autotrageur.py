@@ -12,9 +12,8 @@ import schedule
 import yaml
 
 import bot.arbitrage.arbseeker as arbseeker
-import libs.utils.schedule_utils as schedule_utils
 import libs.db.maria_db_handler as db_handler
-import libs.twilio.twilio_client as twilio_client
+import libs.utils.schedule_utils as schedule_utils
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, SPREAD_MIN,
                                          START_TIMESTAMP, TWILIO_CFG_PATH,
@@ -660,7 +659,7 @@ class FCFAutotrageur(Autotrageur):
             [subject, traceback.format_exc()],
             self.twilio_config[TWILIO_RECIPIENT_NUMBERS],
             self.twilio_config[TWILIO_SENDER_NUMBER],
-            dryrun=self.config[DRYRUN])
+            is_mock_call=self.config[DRYRUN] or self.is_test_run)
 
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next

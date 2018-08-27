@@ -1,5 +1,4 @@
 import getpass
-from pathlib import Path
 
 import ccxt
 import pytest
@@ -8,8 +7,8 @@ import yaml
 
 import bot.arbitrage.autotrageur
 import libs.db.maria_db_handler as db_handler
-import libs.twilio.twilio_client as twilio_client
-from bot.arbitrage.autotrageur import Autotrageur
+from bot.arbitrage.autotrageur import (AsymmetricTestExchangeConfigError,
+                                       Autotrageur)
 from bot.arbitrage.fcf_autotrageur import FCFAuthenticationError
 from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
@@ -19,8 +18,6 @@ from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          EXCHANGE2_PAIR, EXCHANGE2_TEST,
                                          SLIPPAGE, TWILIO_CFG_PATH)
 from bot.trader.dry_run import DryRun, DryRunExchange
-from libs.security.encryption import decrypt
-from libs.utilities import keyfile_to_map
 from libs.utils.ccxt_utils import RetryableError
 
 
@@ -200,7 +197,19 @@ def test_setup(mocker, autotrageur, ex1_test, ex2_test, dryrun):
     }
 
     mocker.patch.dict(autotrageur.config, configuration)
-    autotrageur._setup()
+
+    if ex1_test != ex2_test:
+        with pytest.raises(AsymmetricTestExchangeConfigError):
+            autotrageur._setup()
+        assert(instance.load_markets.call_count == 0)
+    else:
+        autotrageur._setup()
+        assert(instance.load_markets.call_count == 2)
+
+    if ex1_test and ex2_test:
+        assert(instance.connect_test_api.call_count == 2)
+    else:
+        assert(instance.connect_test_api.call_count == 0)
 
     # Dry run verification.
     if dryrun:
@@ -209,15 +218,6 @@ def test_setup(mocker, autotrageur, ex1_test, ex2_test, dryrun):
         assert isinstance(autotrageur.dry_run.e2, DryRunExchange)
     else:
         assert autotrageur.dry_run is None
-
-    if ex1_test and ex2_test:
-        assert(instance.connect_test_api.call_count == 2)
-    elif ex1_test != ex2_test:
-        assert(instance.connect_test_api.call_count == 1)
-    else:
-        assert(instance.connect_test_api.call_count == 0)
-
-    assert(instance.load_markets.call_count == 2)
 
 
 class TestRunAutotrageur:
