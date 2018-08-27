@@ -1,11 +1,10 @@
 import logging
 import time
-from decimal import Decimal
 
 from bot.common.ccxt_constants import (BUY_SIDE, ORDER_TYPE_LIMIT,
                                        ORDER_TYPE_MARKET, SELL_SIDE)
 from bot.common.decimal_constants import ONE
-from libs.utilities import num_to_decimal, split_symbol
+from libs.utilities import split_symbol
 
 from .base_executor import BaseExecutor
 

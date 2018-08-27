@@ -277,13 +277,14 @@ class Autotrageur(ABC):
         pass
 
     @abstractmethod
-    def _import_state(self, previous_state):
+    def _import_state(self, previous_state, *args):
         """Imports the state of a previous autotrageur run. Normally imported
         from a file or a database.
 
         Args:
             previous_state (bytes): The previous state of the autotrageur run.
-                Expressed as bytes, typically pickled into a database.
+                Expressed as bytes, typically retrieved as a pickled object
+                from a database.
         """
         pass
 

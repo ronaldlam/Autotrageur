@@ -129,7 +129,7 @@ def commit_all():
     db.commit()
 
 
-def execute_parametrized_query(param_query_string, param):
+def execute_parametrized_query(param_query_string, params):
     """Performs a parametrized query.
 
     NOTE: Ensure that the query string is parameterized with '%s'
@@ -137,7 +137,7 @@ def execute_parametrized_query(param_query_string, param):
 
     Args:
         param_query_string (str): The query string with parameters.
-        param (tuple(str)): The parameters to be substituted into the query
+        params (tuple(str)): The parameters to be substituted into the query
             string.  Must be in the form of a tuple.  One parameter will look
             like '(PARAM_ONE,)'.
 
@@ -145,7 +145,7 @@ def execute_parametrized_query(param_query_string, param):
         list[(tuple)]: A list of rows as tuples.
     """
     cursor = db.cursor()
-    cursor.execute(param_query_string, (param,))
+    cursor.execute(param_query_string, params)
     return cursor.fetchall()
 
 

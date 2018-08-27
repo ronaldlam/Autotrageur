@@ -4,28 +4,25 @@ import pytest
 import schedule
 
 import libs.utils.schedule_utils as schedule_utils
-from bot.arbitrage.fcf_autotrageur import FCFBalanceChecker
+from bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
 
 
 @pytest.fixture
 def balance_checker(mocker):
     trader1 = mocker.Mock()
     trader2 = mocker.Mock()
-    is_dry_run = False
     notification_func = mocker.Mock()
-    return FCFBalanceChecker(trader1, trader2, is_dry_run, notification_func)
+    return FCFBalanceChecker(trader1, trader2, notification_func)
 
 def test_init(mocker):
     trader1 = mocker.Mock()
     trader2 = mocker.Mock()
-    is_dry_run = False
     notification_func = mocker.Mock()
 
-    result = FCFBalanceChecker(trader1, trader2, is_dry_run, notification_func)
+    result = FCFBalanceChecker(trader1, trader2, notification_func)
 
     assert result.trader1 == trader1
     assert result.trader2 == trader2
-    assert result.is_dry_run == is_dry_run
     assert result.notification_func == notification_func
     assert result.crypto_balance_low == False
 
