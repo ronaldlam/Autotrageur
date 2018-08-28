@@ -3,7 +3,7 @@ import uuid
 from collections import namedtuple
 
 import bot.arbitrage.spreadcalculator as spreadcalculator
-from bot.common.ccxt_constants import BUY_SIDE, SELL_SIDE
+from libs.constants.ccxt_constants import BUY_SIDE, SELL_SIDE
 from libs.utils.ccxt_utils import wrap_ccxt_retry
 
 BIDS = "bids"

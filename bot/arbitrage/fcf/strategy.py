@@ -4,9 +4,9 @@ from collections import namedtuple
 import ccxt
 
 import bot.arbitrage.arbseeker as arbseeker
-from bot.common.decimal_constants import ONE
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import OrderbookException
+from libs.constants.decimal_constants import ONE
 from libs.utilities import num_to_decimal
 
 

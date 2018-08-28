@@ -3,7 +3,7 @@ import logging
 
 import ccxt
 
-from bot.common.decimal_constants import ZERO
+from libs.constants.decimal_constants import ZERO
 import bot.currencyconverter as currencyconverter
 import libs.ccxt_extensions as ccxt_extensions
 from libs.trade.executor.ccxt_executor import CCXTExecutor

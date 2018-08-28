@@ -1,6 +1,6 @@
 import logging
 
-from bot.common.decimal_constants import ZERO
+from libs.constants.decimal_constants import ZERO
 from libs.utilities import num_to_decimal
 
 
