@@ -1,5 +1,4 @@
 import logging
-from decimal import Decimal
 
 from libs.constants.decimal_constants import ZERO
 from libs.utilities import num_to_decimal

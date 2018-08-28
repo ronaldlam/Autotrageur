@@ -1,7 +1,5 @@
 from collections import namedtuple
-from enum import Enum
 import logging
-import sys
 
 import ccxt
 
@@ -528,17 +526,15 @@ class CCXTTrader():
         logging.debug('{} quote_target_amount updated to: {}'.format(
             self.exchange_name, self.quote_target_amount))
 
-    def update_wallet_balances(self, is_dry_run=False):
+    def update_wallet_balances(self):
         """Fetches and saves the wallet balances of the base and quote
         currencies on the exchange.
 
         Note that quote balances are in USD.
-
-        Args:
-            is_dry_run (bool): Whether the bot is executing in dry run
-                mode.
         """
-        if is_dry_run:
+        # TODO: Perhaps create DryRunFetcher to keep reference to
+        # DryRunExchange to avoid introspection.
+        if isinstance(self.executor, DryRunExecutor):
             self.base_bal = self.executor.dry_run_exchange.base_balance
             self.quote_bal = self.executor.dry_run_exchange.quote_balance
         else:

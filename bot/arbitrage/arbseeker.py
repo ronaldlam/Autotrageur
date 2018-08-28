@@ -2,12 +2,8 @@ import logging
 import uuid
 from collections import namedtuple
 
-from ccxt import NetworkError
-
 import bot.arbitrage.spreadcalculator as spreadcalculator
-from bot.trader.ccxt_trader import OrderbookException
 from libs.constants.ccxt_constants import BUY_SIDE, SELL_SIDE
-from libs.utilities import num_to_decimal
 from libs.utils.ccxt_utils import wrap_ccxt_retry
 
 BIDS = "bids"

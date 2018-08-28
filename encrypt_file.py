@@ -4,10 +4,10 @@ Creates an encrypted file encrypted-<file-name> containing of the
 specified api key data.
 
 Usage:
-    encrypt_file.py FILE [--pi-mode]
+    encrypt_file.py FILE [--pi_mode]
 
 Options:
-    --pi-mode               Whether this is to be used with the raspberry pi or on a full desktop.
+    --pi_mode               Whether this is to be used with the raspberry pi or on a full desktop.
 
 Description:
     FILE                    The file to encrypt, with plaintext.
@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     file_name = arguments["FILE"]
     password = to_bytes(pw)
-    pi_mode = arguments["--pi-mode"]
+    pi_mode = arguments["--pi_mode"]
 
     with open(file_name, "rb") as in_file:
         plaintext = in_file.read()
