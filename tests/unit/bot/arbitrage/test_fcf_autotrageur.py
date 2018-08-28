@@ -635,13 +635,16 @@ def test_setup(mocker, no_patch_fcf_autotrageur, fcf_checkpoint):
 
 
 @pytest.mark.parametrize('subject', [SUBJECT_DRY_RUN_FAILURE, SUBJECT_LIVE_FAILURE])
-def test_alert(mocker, subject, no_patch_fcf_autotrageur):
-    FAKE_DRY_RUN = 'fake_dry_run_setting'
+@pytest.mark.parametrize('is_dry_run', [True, False])
+@pytest.mark.parametrize('is_test_run', [True, False])
+def test_alert(mocker, subject, no_patch_fcf_autotrageur, is_dry_run, is_test_run):
+    # FAKE_DRY_RUN = 'fake_dry_run_setting'
     FAKE_RECIPIENT_NUMBERS = ['+12345678', '9101121314']
     FAKE_SENDER_NUMBER = '+15349875'
     mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
-        DRYRUN: FAKE_DRY_RUN
+        DRYRUN: is_dry_run
     }, create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur, 'is_test_run', is_test_run, create=True)
     mocker.patch.object(no_patch_fcf_autotrageur, 'twilio_config', {
         TWILIO_RECIPIENT_NUMBERS: FAKE_RECIPIENT_NUMBERS,
         TWILIO_SENDER_NUMBER: FAKE_SENDER_NUMBER
@@ -661,4 +664,4 @@ def test_alert(mocker, subject, no_patch_fcf_autotrageur):
         [subject, traceback.format_exc()],
         FAKE_RECIPIENT_NUMBERS,
         FAKE_SENDER_NUMBER,
-        dryrun=FAKE_DRY_RUN)
+        is_mock_call=is_dry_run or is_test_run)

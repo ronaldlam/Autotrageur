@@ -282,7 +282,7 @@ class FCFAutotrageur(Autotrageur):
             [subject, traceback.format_exc()],
             self.twilio_config[TWILIO_RECIPIENT_NUMBERS],
             self.twilio_config[TWILIO_SENDER_NUMBER],
-            dryrun=self.config[DRYRUN])
+            is_mock_call=self.config[DRYRUN] or self.is_test_run)
 
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
