@@ -105,7 +105,7 @@ class CCXTFetcher():
         Returns:
             dict: The full orderbook.
         """
-        return self.exchange.fetch_order_book(base + "/" + quote)
+        return self.exchange.fetch_order_book(base + "/" + quote) #params={'limit_bids':200, 'limit_asks':200})
 
     def load_markets(self):
         """Load the markets of the exchange.
