@@ -30,8 +30,8 @@ class FCFCheckpoint():
         self.h_to_e1_max = None
         self.h_to_e2_max = None
 
-    def save(self, autotrageur):
-        """Saves the current autotrageur state before another algorithm
+    def save(self, strategy):
+        """Saves the current strategy state before another algorithm
         iteration.
 
         The rationale for saving `h_to_e1_max` and `h_to_e2_max` is that the
@@ -39,32 +39,32 @@ class FCFCheckpoint():
         during the bot's run.
 
         Args:
-            autotrageur (FCFAutotrageur): The current FCFAutotrageur.
+            strategy (FCFStrategy): The current FCFStrategy.
         """
-        self.has_started = autotrageur.has_started
-        self.momentum = autotrageur.momentum
-        self.e1_targets = autotrageur.e1_targets
-        self.e2_targets = autotrageur.e2_targets
-        self.target_index = autotrageur.target_index
-        self.last_target_index = autotrageur.last_target_index
-        self.h_to_e1_max = autotrageur.h_to_e1_max
-        self.h_to_e2_max = autotrageur.h_to_e2_max
+        self.has_started = strategy.has_started
+        self.momentum = strategy.momentum
+        self.e1_targets = strategy.e1_targets
+        self.e2_targets = strategy.e2_targets
+        self.target_index = strategy.target_index
+        self.last_target_index = strategy.last_target_index
+        self.h_to_e1_max = strategy.h_to_e1_max
+        self.h_to_e2_max = strategy.h_to_e2_max
 
-    def restore(self, autotrageur):
-        """Restores the saved autotrageur state.
+    def restore(self, strategy):
+        """Restores the saved strategy state.
 
-        Sets relevant FCFAutotrageur's 'self' object attributes to the previously
+        Sets relevant FCFStrategy's 'self' object attributes to the previously
         saved state.
 
         Args:
-            autotrageur (FCFAutotrageur): The current FCFAutotrageur.
+            strategy (FCFStrategy): The current FCFStrategy.
         """
-        autotrageur.config[ID] = self.config_id
-        autotrageur.has_started = self.has_started
-        autotrageur.momentum = self.momentum
-        autotrageur.e1_targets = self.e1_targets
-        autotrageur.e2_targets = self.e2_targets
-        autotrageur.target_index = self.target_index
-        autotrageur.last_target_index = self.last_target_index
-        autotrageur.h_to_e1_max = self.h_to_e1_max
-        autotrageur.h_to_e2_max = self.h_to_e2_max
+        strategy.config[ID] = self.config_id
+        strategy.has_started = self.has_started
+        strategy.momentum = self.momentum
+        strategy.e1_targets = self.e1_targets
+        strategy.e2_targets = self.e2_targets
+        strategy.target_index = self.target_index
+        strategy.last_target_index = self.last_target_index
+        strategy.h_to_e1_max = self.h_to_e1_max
+        strategy.h_to_e2_max = self.h_to_e2_max
