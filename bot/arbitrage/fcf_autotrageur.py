@@ -16,11 +16,9 @@ from bot.arbitrage.autotrageur import Autotrageur
 from bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
 from bot.arbitrage.fcf.checkpoint import FCFCheckpoint
 from bot.arbitrage.fcf.strategy import FCFStrategyBuilder
-from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
-                                         H_TO_E2_MAX, ID, SPREAD_MIN,
-                                         START_TIMESTAMP, TWILIO_CFG_PATH,
+from bot.common.config_constants import (EMAIL_CFG_PATH, TWILIO_CFG_PATH,
                                          TWILIO_RECIPIENT_NUMBERS,
-                                         TWILIO_SENDER_NUMBER, VOL_MIN)
+                                         TWILIO_SENDER_NUMBER)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS,
@@ -98,7 +96,7 @@ class FCFAutotrageur(Autotrageur):
     def __persist_config(self):
         """Persists the configuration for this `fcf_autotrageur` run."""
         fcf_autotrageur_config_row = db_handler.build_row(
-            FCF_AUTOTRAGEUR_CONFIG_COLUMNS, self.config)
+            FCF_AUTOTRAGEUR_CONFIG_COLUMNS, self._config._asdict())
         config_row_obj = InsertRowObject(
             FCF_AUTOTRAGEUR_CONFIG_TABLE,
             fcf_autotrageur_config_row,
@@ -168,9 +166,9 @@ class FCFAutotrageur(Autotrageur):
         # Persist the executed buy order, if available.
         if buy_response is not None:
             buy_response['trade_opportunity_id'] = trade_opportunity_id
-            buy_response['autotrageur_config_id'] = self.config[ID]
+            buy_response['autotrageur_config_id'] = self._config.id
             buy_response['autotrageur_config_start_timestamp'] = (
-                self.config[START_TIMESTAMP])
+                self._config.start_timestamp)
             buy_trade_row_obj = InsertRowObject(
                 TRADES_TABLE,
                 buy_response,
@@ -180,9 +178,9 @@ class FCFAutotrageur(Autotrageur):
         # Persist the executed sell order, if available.
         if sell_response is not None:
             sell_response['trade_opportunity_id'] = trade_opportunity_id
-            sell_response['autotrageur_config_id'] = self.config[ID]
+            sell_response['autotrageur_config_id'] = self._config.id
             sell_response['autotrageur_config_start_timestamp'] = (
-                self.config[START_TIMESTAMP])
+                self._config.start_timestamp)
             sell_trade_row_obj = InsertRowObject(
                 TRADES_TABLE,
                 sell_response,
@@ -203,11 +201,11 @@ class FCFAutotrageur(Autotrageur):
         strategy_builder = FCFStrategyBuilder()
         (strategy_builder
             .set_has_started(False)
-            .set_h_to_e1_max(num_to_decimal(self.config[H_TO_E1_MAX]))
-            .set_h_to_e2_max(num_to_decimal(self.config[H_TO_E2_MAX]))
-            .set_spread_min(num_to_decimal(self.config[SPREAD_MIN]))
-            .set_vol_min(num_to_decimal(self.config[VOL_MIN]))
-            .set_checkpoint(FCFCheckpoint(self.config[ID]))
+            .set_h_to_e1_max(num_to_decimal(self._config.h_to_e1_max))
+            .set_h_to_e2_max(num_to_decimal(self._config.h_to_e2_max))
+            .set_spread_min(num_to_decimal(self._config.spread_min))
+            .set_vol_min(num_to_decimal(self._config.vol_min))
+            .set_checkpoint(FCFCheckpoint(self._config.id))
             .set_trader1(self.trader1)
             .set_trader2(self.trader2))
 
@@ -282,7 +280,7 @@ class FCFAutotrageur(Autotrageur):
             [subject, traceback.format_exc()],
             self.twilio_config[TWILIO_RECIPIENT_NUMBERS],
             self.twilio_config[TWILIO_SENDER_NUMBER],
-            is_mock_call=self.config[DRYRUN] or self.is_test_run)
+            is_mock_call=self._config.dryrun or self.is_test_run)
 
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
@@ -295,7 +293,7 @@ class FCFAutotrageur(Autotrageur):
         sell_response = None
         trade_metadata = self.strategy.get_trade_data()
 
-        if self.config[DRYRUN]:
+        if self._config.dryrun:
             logging.debug("**Dry run - begin fake execution")
             buy_response = arbseeker.execute_buy(
                 trade_metadata.buy_trader,
@@ -372,8 +370,8 @@ class FCFAutotrageur(Autotrageur):
         # from the saved state.
         fcf_state_map = {
             'id': str(uuid.uuid4()),
-            'autotrageur_config_id': self.config[ID],
-            'autotrageur_config_start_timestamp': self.config[START_TIMESTAMP],
+            'autotrageur_config_id': self._config.id,
+            'autotrageur_config_start_timestamp': self._config.start_timestamp,
             'state': pickle.dumps(self.strategy.checkpoint)
         }
         logging.debug("#### The exported checkpoint object __dict__ is: {}"
@@ -407,22 +405,6 @@ class FCFAutotrageur(Autotrageur):
             .format(pprint.pformat(checkpoint.__dict__)))
         strategy_builder.set_checkpoint(checkpoint)
 
-    # @Override
-    def _load_configs(self, arguments):
-        """Load the configurations of the Autotrageur run.
-
-        Args:
-            arguments (dict): Map of the arguments passed to the program.
-
-        Raises:
-            IOError: If the encrypted keyfile does not open, and not in
-                dryrun mode.
-        """
-        super()._load_configs(arguments)
-
-        # Load the twilio config file, and test the twilio credentials.
-        self.__load_twilio(self.config[TWILIO_CFG_PATH])
-
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
 
@@ -438,10 +420,10 @@ class FCFAutotrageur(Autotrageur):
             subject (str): The subject of the message.
             msg (str): The contents of the email to send out.
         """
-        send_all_emails(self.config[EMAIL_CFG_PATH], subject, msg)
+        send_all_emails(self._config.email_cfg_path, subject, msg)
 
     # @Override
-    def _setup(self, resume_id=None):
+    def _setup(self, arguments):
         """Initializes the autotrageur bot for use.
 
         Sets up the algorithm by either initializing or restoring the
@@ -452,23 +434,20 @@ class FCFAutotrageur(Autotrageur):
         - Persisting configurations and forex ratio in the database.
 
         Args:
-            resume_id (str): The unique id which links to the autotrageur's
-                previous state.  Defaults to None, in the case that this run is
-                new.
+            arguments (dict): Map of the arguments passed to the program.
 
         Raises:
             FCFAuthenticationError: If not dryrun and authentication fails.
         """
-        super()._setup()
-
-        # Set the configuration start_timestamp and id.  This is used as the
-        # compound primary key for the current bot run.
-        self.config[START_TIMESTAMP] = int(time.time())
-        self.config[ID] = str(uuid.uuid4())
+        super()._setup(arguments)
 
         # Set up the algorithm.
-        self.strategy = self.__construct_strategy(resume_id)
+        self.strategy = self.__construct_strategy(
+            resume_id=arguments['--resume_id'])
         self.__persist_config()
+
+        # Set up Twilio Client.
+        self.__load_twilio(self._config.twilio_cfg_path)
 
         # Set up forex service.
         self.__setup_forex()
