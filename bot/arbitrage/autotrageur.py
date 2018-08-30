@@ -43,10 +43,39 @@ class Configuration(namedtuple('Configuration', [
     """Holds all of the configuration for the autotrageur bot.
 
     Args:
-    #TODO comments
-        spread_opp (SpreadOpportunity): The spread opportunity to
-            consider.
-
+        db_name (str): The database name to connect the bot with.
+        db_user (str): The username to connect to the database.
+        dryrun (bool): If True, this bot's run is considered to be a dry run
+            against fake exchange objects and no real trades are performed.
+        dryrun_e1_base (str): In dry run, the base used for exchange one.
+        dryrun_e1_quote (str): In dry run, the quote used for exchange one.
+        dryrun_e2_base (str): In dry run, the base used for exchange two.
+        dryrun_e2_quote (str): In dry run, the quote used for exchange two.
+        email_cfg_path (str): Path to the email config file, used for sending
+            notifications.
+        exchange1 (str): Name of the exchange one.
+        exchange1_pair (str): Symbol of the pair to use for exchange one.
+        exchange1_test (bool): If True, will attempt using exchange one's test
+            API.
+        exchange2 (str): Name of the exchange two.
+        exchange2_pair (str): Symbol of the pair to use for exchange two.
+        exchange2_test (bool): If True, will attempt using exchange two's test
+            API.
+        h_to_e1_max (float): The historical max spread going to exchange one.
+        h_to_e2_max (float): The historical max spread going to exchange two.
+        id (str): The unique id tagged to the current configuration and bot
+            run.  This is not provided from the config file and set during
+            initialization.
+        slippage (float): Percentage downside of limit order slippage tolerable
+            for market order emulations
+        spread_min (float): The minimum spread increment for considering trade
+            targets.
+        start_timestamp (float): The unix timestamp tagged against the current
+            bot run.  This is not provided from the config file and set during
+            initialization.
+        twilio_cfg_path (str): Path for the twilio config file, used for
+            sending notifications.
+        vol_min (float): The minimum volume trade in USD.
     """
     __slots__ = ()
 
@@ -74,10 +103,13 @@ class Autotrageur(ABC):
     """
 
     def __parse_config_file(self, file_name):
-        """Load the given config file.
+        """Parses the given config file into a dict.
 
         Args:
             file_name (str): The name of the file.
+
+        Returns:
+            dict: The configuration file represented as a dict.
         """
         with open(file_name, 'r') as ymlfile:
             return yaml.safe_load(ymlfile)
@@ -258,6 +290,7 @@ class Autotrageur(ABC):
         Setup includes:
         - loading environment variables
         - initializing and connecting to the DB
+        - parsing the keyfile for relevant authentication
         - setting up traders to interface with exchange APIs
 
         Args:
@@ -271,7 +304,7 @@ class Autotrageur(ABC):
         # Initialize and connect to the database.
         self.__init_db()
 
-        # Load keyfile.
+        # Parse keyfile into a dict.
         exchange_key_map = self.__parse_keyfile(
             arguments[KEYFILE], arguments['--pi_mode'])
 
@@ -348,11 +381,8 @@ class Autotrageur(ABC):
                 the call requires the config file to be loaded.
         """
         # If it's a resumed run, skip loading configuration.
-        if arguments['--resume_id']:
-            pass
-        else:
-            if requires_configs:
-                self._load_configs(arguments[CONFIGFILE])
+        if requires_configs and not arguments['--resume_id']:
+            self._load_configs(arguments[CONFIGFILE])
 
         self._setup(arguments)
 
