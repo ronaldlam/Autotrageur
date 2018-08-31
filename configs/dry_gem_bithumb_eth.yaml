@@ -24,6 +24,8 @@ exchange2_test: false
 h_to_e1_max: 3
 # Historical max spread to exchange 2.
 h_to_e2_max: 5
+# The maximum USD value of any given trade.
+max_trade_size: 200
 # The minimum spread increment for considering trade targets.
 spread_min: 0.05
 # The minimum volume trade in USD.

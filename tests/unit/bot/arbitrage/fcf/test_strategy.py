@@ -16,7 +16,7 @@ FAKE_CONFIG_UUID = str(uuid.uuid4())
 
 @pytest.fixture(scope='module')
 def fcf_strategy():
-    return FCFStrategy(None, None, None, None, None, None, None,
+    return FCFStrategy(None, None, None, None, None, None, None, None,
         CCXTTrader('ETH', 'USD', 'kraken', Decimal('0')),
         CCXTTrader('ETH', 'USD', 'bitfinex', Decimal('0')))
 
@@ -361,12 +361,6 @@ def test_clean_up(fcf_strategy):
     assert fcf_strategy.trade_metadata == None
 
 
-def test_restore(mocker, fcf_strategy):
-    mock_checkpoint = mocker.patch.object(fcf_strategy, 'checkpoint')
-    fcf_strategy.restore()
-    mock_checkpoint.restore.assert_called_once_with(fcf_strategy)
-
-
 def test_finalize_trade(mocker, fcf_strategy):
     mock_trader1 = mocker.patch.object(fcf_strategy, 'trader1')
     mock_trader2 = mocker.patch.object(fcf_strategy, 'trader2')
@@ -485,3 +479,9 @@ def test_poll_opportunity(mocker, fcf_strategy, vol_min, e1_quote_balance,
         assert fcf_strategy.h_to_e2_max == max(
             h_to_e2_max, e2_spread)
         balance_checker.check_crypto_balances.assert_called_with(spread_opp)
+
+
+def test_restore(mocker, fcf_strategy):
+    mock_checkpoint = mocker.patch.object(fcf_strategy, 'checkpoint')
+    fcf_strategy.restore()
+    mock_checkpoint.restore.assert_called_once_with(fcf_strategy)

@@ -25,10 +25,10 @@ class FCFCheckpoint():
         self.momentum = None
         self.e1_targets = None
         self.e2_targets = None
-        self.target_index = None
-        self.last_target_index = None
         self.h_to_e1_max = None
         self.h_to_e2_max = None
+        self.target_tracker = None
+        self.trade_chunker = None
 
     def save(self, strategy):
         """Saves the current strategy state before another algorithm
@@ -45,10 +45,10 @@ class FCFCheckpoint():
         self.momentum = strategy.momentum
         self.e1_targets = strategy.e1_targets
         self.e2_targets = strategy.e2_targets
-        self.target_index = strategy.target_index
-        self.last_target_index = strategy.last_target_index
         self.h_to_e1_max = strategy.h_to_e1_max
         self.h_to_e2_max = strategy.h_to_e2_max
+        self.target_tracker = strategy.target_tracker
+        self.trade_chunker = strategy.trade_chunker
 
     def restore(self, strategy):
         """Restores the saved strategy state.
@@ -64,7 +64,7 @@ class FCFCheckpoint():
         strategy.momentum = self.momentum
         strategy.e1_targets = self.e1_targets
         strategy.e2_targets = self.e2_targets
-        strategy.target_index = self.target_index
-        strategy.last_target_index = self.last_target_index
         strategy.h_to_e1_max = self.h_to_e1_max
         strategy.h_to_e2_max = self.h_to_e2_max
+        strategy.target_tracker = self.target_tracker
+        strategy.trade_chunker = self.trade_chunker

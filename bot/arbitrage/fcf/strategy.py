@@ -4,6 +4,8 @@ from collections import namedtuple
 import ccxt
 
 import bot.arbitrage.arbseeker as arbseeker
+from bot.arbitrage.fcf.target_tracker import FCFTargetTracker
+from bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import OrderbookException
 from libs.constants.decimal_constants import ONE
@@ -50,6 +52,11 @@ class FCFStrategyBuilder():
         self.has_started = has_started
         return self
 
+    def set_max_trade_size(self, max_trade_size):
+        """Set the max_trade_size of the builder."""
+        self.max_trade_size = max_trade_size
+        return self
+
     def set_spread_min(self, spread_min):
         """Set the spread_min of the builder."""
         self.spread_min = spread_min
@@ -90,15 +97,16 @@ class FCFStrategyBuilder():
         """
         return FCFStrategy(
             self.h_to_e1_max, self.h_to_e2_max, self.has_started,
-            self.spread_min, self.vol_min, self.balance_checker,
-            self.checkpoint, self.trader1, self.trader2)
+            self.max_trade_size, self.spread_min, self.vol_min,
+            self.balance_checker, self.checkpoint, self.trader1, self.trader2)
 
 
 class FCFStrategy():
     """Class containing the core strategy for the FCFAutotrageur."""
 
-    def __init__(self, h_to_e1_max, h_to_e2_max, has_started, spread_min,
-                 vol_min, balance_checker, checkpoint, trader1, trader2):
+    def __init__(self, h_to_e1_max, h_to_e2_max, has_started, max_trade_size,
+                 spread_min, vol_min, balance_checker, checkpoint, trader1,
+                 trader2):
         """Constructor.
 
         Args:
@@ -108,6 +116,8 @@ class FCFStrategy():
                 to e1.
             has_started (bool): Whether the algorithm is past its first
                 poll.
+            max_trade_size (Decimal): The maximum USD value that the bot
+                will attempt to arbitrage in a single trade.
             spread_min (Decimal): The minimum spread increment between
                 trades.
             vol_min (Decimal): The ideal minimum volume the algorithm
@@ -122,28 +132,13 @@ class FCFStrategy():
         self.h_to_e1_max = h_to_e1_max
         self.h_to_e2_max = h_to_e2_max
         self.has_started = has_started
+        self.max_trade_size = max_trade_size
         self.spread_min = spread_min
         self.vol_min = vol_min
         self.balance_checker = balance_checker
         self.checkpoint = checkpoint
         self.trader1 = trader1
         self.trader2 = trader2
-
-    def __advance_target_index(self, spread, targets):
-        """Increment the target index to minimum target greater than
-        spread.
-
-        Args:
-            spread (Decimal): The calculated spread.
-            targets (list): The list of targets.
-        """
-        while (self.target_index + 1 < len(targets) and
-                spread >= targets[self.target_index + 1][0]):
-            logging.debug(
-                '#### target_index before: {}'.format(self.target_index))
-            self.target_index += 1
-            logging.debug(
-                '#### target_index after: {}'.format(self.target_index))
 
     def __calc_targets(self, spread, h_max, from_balance):
         """Calculate the target spreads and cash positions.
@@ -190,12 +185,7 @@ class FCFStrategy():
             bool: Whether the trade falls within the limits.
         """
         buy_trader = self.trade_metadata.buy_trader
-        sell_trader = self.trade_metadata.sell_trader
-        min_base_buy = buy_trader.get_min_base_limit()
-        min_base_sell = sell_trader.get_min_base_limit()
-        min_target_amount = (self.trade_metadata.buy_price
-                             * max(min_base_buy, min_base_sell))
-        return buy_trader.quote_target_amount > min_target_amount
+        return buy_trader.quote_target_amount > self.__get_min_target_amount()
 
     def __evaluate_to_e1_trade(self, momentum_change, spread_opp):
         """Changes state information to prepare for the trades from e2
@@ -205,7 +195,8 @@ class FCFStrategy():
             momentum_change (bool): Whether there was a momentum change.
             spread_opp (SpreadOpportunity): The spread and price info.
         """
-        self.__advance_target_index(spread_opp.e1_spread, self.e1_targets)
+        self.target_tracker.advance_target_index(
+            spread_opp.e1_spread, self.e1_targets)
         self.__prepare_trade(
             momentum_change,
             self.trader2,
@@ -221,13 +212,27 @@ class FCFStrategy():
             momentum_change (bool): Whether there was a momentum change.
             spread_opp (SpreadOpportunity): The spread and price info.
         """
-        self.__advance_target_index(spread_opp.e2_spread, self.e2_targets)
+        self.target_tracker.advance_target_index(
+            spread_opp.e2_spread, self.e2_targets)
         self.__prepare_trade(
             momentum_change,
             self.trader1,
             self.trader2,
             self.e2_targets,
             spread_opp)
+
+    def __get_min_target_amount(self):
+        """Fetch the minimum target amount that the exchanges support.
+
+        Should be used only when trade_metadata is set and there is a
+        potential trade. The result is based on the buy price.
+
+        Returns:
+            Decimal: The minimum target amount in quote currency.
+        """
+        min_base_buy = self.trade_metadata.buy_trader.get_min_base_limit()
+        min_base_sell = self.trade_metadata.sell_trader.get_min_base_limit()
+        return self.trade_metadata.buy_price * max(min_base_buy, min_base_sell)
 
     def __is_trade_opportunity(self, spread_opp):
         """Evaluate spread numbers against targets and set up state for
@@ -240,24 +245,25 @@ class FCFStrategy():
             bool: Whether there is a trade opportunity.
         """
         if self.momentum is Momentum.NEUTRAL:
-            if (self.target_index < len(self.e2_targets) and
-                    spread_opp.e2_spread >= self.e2_targets[self.target_index][0]):
+            if self.target_tracker.has_hit_targets(
+                    spread_opp.e2_spread, self.e2_targets, True):
                 self.__evaluate_to_e2_trade(True, spread_opp)
                 self.momentum = Momentum.TO_E2
                 return True
-            elif (self.target_index < len(self.e1_targets) and
-                    spread_opp.e1_spread >= self.e1_targets[self.target_index][0]):
+            elif self.target_tracker.has_hit_targets(
+                    spread_opp.e1_spread, self.e1_targets, True):
                 self.__evaluate_to_e1_trade(True, spread_opp)
                 self.momentum = Momentum.TO_E1
                 return True
         elif self.momentum is Momentum.TO_E2:
-            if (self.target_index < len(self.e2_targets) and
-                    spread_opp.e2_spread >= self.e2_targets[self.target_index][0]):
+            if self.target_tracker.has_hit_targets(
+                    spread_opp.e2_spread, self.e2_targets, False):
                 self.__evaluate_to_e2_trade(False, spread_opp)
                 return True
             # Momentum change from TO_E2 to TO_E1.
-            elif spread_opp.e1_spread >= self.e1_targets[0][0]:
-                self.target_index = 0
+            elif self.target_tracker.has_hit_targets(
+                    spread_opp.e1_spread, self.e1_targets, True):
+                self.target_tracker.change_momentum()
                 logging.debug('#### Momentum changed from TO_E2 to TO_E1')
                 logging.debug('#### TO_E1 spread: {} > First TO_E1 target {}'.
                               format(spread_opp.e1_spread, self.e1_targets[0][0]))
@@ -266,16 +272,17 @@ class FCFStrategy():
                 return True
         elif self.momentum is Momentum.TO_E1:
             # Momentum change from TO_E1 to TO_E2.
-            if spread_opp.e2_spread >= self.e2_targets[0][0]:
-                self.target_index = 0
+            if self.target_tracker.has_hit_targets(
+                    spread_opp.e2_spread, self.e2_targets, True):
+                self.target_tracker.change_momentum()
                 logging.debug('#### Momentum changed from TO_E1 to TO_E2')
                 logging.debug('#### TO_E2 spread: {} > First TO_E2 target {}'.
                               format(spread_opp.e2_spread, self.e2_targets[0][0]))
                 self.__evaluate_to_e2_trade(True, spread_opp)
                 self.momentum = Momentum.TO_E2
                 return True
-            elif (self.target_index < len(self.e1_targets) and
-                    spread_opp.e1_spread >= self.e1_targets[self.target_index][0]):
+            elif self.target_tracker.has_hit_targets(
+                    spread_opp.e1_spread, self.e1_targets, False):
                 self.__evaluate_to_e1_trade(False, spread_opp)
                 return True
 
@@ -297,18 +304,20 @@ class FCFStrategy():
             InsufficientCryptoBalance: If crypto balance on the sell
                 exchange is not enough to cover the buy target.
         """
-        if self.target_index >= 1 and not is_momentum_change:
-            trade_vol = targets[self.target_index][1] - \
-                targets[self.last_target_index][1]
-        else:
-            trade_vol = targets[self.target_index][1]
+        # Note that both target tracker and trade chunker use USD internally.
+        total_usd_vol = self.target_tracker.get_trade_volume(
+            targets, is_momentum_change)
+
+        if is_momentum_change or self.trade_chunker.trade_completed:
+            self.trade_chunker.reset(total_usd_vol)
+
+        usd_trade_vol = self.trade_chunker.get_next_trade()
+        quote_trade_vol = buy_trader.get_quote_from_usd(usd_trade_vol)
 
         # NOTE: Trader's `quote_target_amount` is updated here.  We need to use
         # the quote balance in case of intra-day forex fluctuations which
         # would result in an inaccurate USD balance.
-        target_quote_amount = min(
-            buy_trader.get_quote_from_usd(trade_vol),
-            buy_trader.quote_bal)
+        target_quote_amount = min(quote_trade_vol, buy_trader.quote_bal)
         buy_trader.set_target_amounts(target_quote_amount, is_usd=False)
 
         if buy_trader is self.trader1:
@@ -341,11 +350,6 @@ class FCFStrategy():
                     act_base=sell_trader.base_bal,
                     base=base))
 
-        self.last_target_index = self.target_index
-        self.target_index += 1
-        logging.debug('#### target_index advanced by one, is now: {}'.format(
-            self.target_index))
-
     def __update_trade_targets(self):
         """Updates the trade targets based on the direction of the completed
         trade.  E.g. If the trade was performed from e1 -> e2, then the
@@ -371,12 +375,32 @@ class FCFStrategy():
         """Clean up any state information before the next poll."""
         self.trade_metadata = None
 
-    def restore(self):
-        """Rollback to previous saved state."""
-        self.checkpoint.restore(self)
+    def finalize_trade(self, buy_response, sell_response):
+        """Do cleanup after trade is executed.
 
-    def finalize_trade(self):
-        """Do cleanup after trade is executed."""
+        NOTE: The strategy interface takes the whole responses for
+        processing in case any state within the algorithm needs to
+        change after the trade is made. In this implementation, only the
+        buy_response is used.
+
+        Args:
+            buy_response (dict): The Autotrageur specific unified buy
+                response.
+            sell_response (dict): The Autotrageur specific unified
+                sell response.
+        """
+        # Feed real trade data to chunker to calculate next trade size.
+        post_fee_usd = self.trade_metadata.buy_trader.get_usd_from_quote(
+            buy_response['post_fee_quote'])
+        min_usd_trade_size = self.trade_metadata.buy_trader.get_usd_from_quote(
+            self.__get_min_target_amount())
+        self.trade_chunker.finalize_trade(post_fee_usd, min_usd_trade_size)
+
+        # We increment the target index only after the chunks completely make
+        # up the target.
+        if self.trade_chunker.trade_completed:
+            self.target_tracker.increment()
+
         # Retrieve updated wallet balances if everything worked
         # as expected.
         self.trader1.update_wallet_balances()
@@ -431,8 +455,8 @@ class FCFStrategy():
             logging.debug('#### Initial e2_targets: {}'.format(
                 list(enumerate(self.e2_targets))))
 
-            self.target_index = 0
-            self.last_target_index = 0
+            self.target_tracker = FCFTargetTracker()
+            self.trade_chunker = FCFTradeChunker(self.max_trade_size)
             self.has_started = True
         else:
             # Save the autotrageur state before proceeding with algorithm.
@@ -451,3 +475,7 @@ class FCFStrategy():
         self.h_to_e2_max = max(self.h_to_e2_max, spread_opp.e2_spread)
 
         return is_opportunity
+
+    def restore(self):
+        """Rollback to previous saved state."""
+        self.checkpoint.restore(self)
