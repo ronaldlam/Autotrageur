@@ -27,8 +27,9 @@ from bot.arbitrage.fcf_autotrageur import (FCFAuthenticationError,
                                            IncorrectStateObjectTypeError,
                                            arbseeker)
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
-                                         H_TO_E2_MAX, ID, SPREAD_MIN,
-                                         START_TIMESTAMP, TWILIO_CFG_PATH,
+                                         H_TO_E2_MAX, ID, MAX_TRADE_SIZE,
+                                         SPREAD_MIN, START_TIMESTAMP,
+                                         TWILIO_CFG_PATH,
                                          TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
@@ -336,7 +337,8 @@ def test_construct_strategy(mocker, no_patch_fcf_autotrageur, resume_id):
         SPREAD_MIN: 1.3,
         VOL_MIN: 1000,
         H_TO_E1_MAX: 3,
-        H_TO_E2_MAX: 50
+        H_TO_E2_MAX: 50,
+        MAX_TRADE_SIZE: 200
     }, create=True)
     mock_exec_param_query = mocker.patch.object(
         db_handler, 'execute_parametrized_query', return_value=[(MOCK_RESULT,)])
@@ -360,6 +362,7 @@ def test_construct_strategy(mocker, no_patch_fcf_autotrageur, resume_id):
     mock_strategy_builder.set_has_started.return_value = mock_strategy_builder
     mock_strategy_builder.set_h_to_e1_max.return_value = mock_strategy_builder
     mock_strategy_builder.set_h_to_e2_max.return_value = mock_strategy_builder
+    mock_strategy_builder.set_max_trade_size.return_value = mock_strategy_builder
     mock_strategy_builder.set_spread_min.return_value = mock_strategy_builder
     mock_strategy_builder.set_vol_min.return_value = mock_strategy_builder
     mock_strategy_builder.set_checkpoint.return_value = mock_strategy_builder
@@ -385,6 +388,7 @@ def test_construct_strategy(mocker, no_patch_fcf_autotrageur, resume_id):
     mock_strategy_builder.set_has_started.assert_called_once_with(False)
     mock_strategy_builder.set_h_to_e1_max.assert_called_once_with(Decimal('3'))
     mock_strategy_builder.set_h_to_e2_max.assert_called_once_with(Decimal('50'))
+    mock_strategy_builder.set_max_trade_size.assert_called_once_with(Decimal('200'))
     mock_strategy_builder.set_spread_min.assert_called_once_with(Decimal('1.3'))
     mock_strategy_builder.set_vol_min.assert_called_once_with(Decimal('1000'))
     mock_strategy_builder.set_checkpoint.assert_called_once_with(mock_checkpoint)
@@ -441,7 +445,8 @@ class TestExecuteTrade:
             FAKE_UNIFIED_RESPONSE_BUY['post_fee_base'])
         no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data.assert_called_once_with(
             FAKE_UNIFIED_RESPONSE_BUY, FAKE_UNIFIED_RESPONSE_SELL, trade_metadata)
-        no_patch_fcf_autotrageur.strategy.finalize_trade.assert_called_once_with()
+        no_patch_fcf_autotrageur.strategy.finalize_trade.assert_called_once_with(
+            FAKE_UNIFIED_RESPONSE_BUY, FAKE_UNIFIED_RESPONSE_SELL)
 
         if dryrun:
             no_patch_fcf_autotrageur.dry_run.log_balances.assert_called_once_with()
@@ -665,3 +670,18 @@ def test_alert(mocker, subject, no_patch_fcf_autotrageur, is_dry_run, is_test_ru
         FAKE_RECIPIENT_NUMBERS,
         FAKE_SENDER_NUMBER,
         is_mock_call=is_dry_run or is_test_run)
+
+
+@pytest.mark.parametrize('trade_completed', [True, False])
+def test_wait(mocker, no_patch_fcf_autotrageur, trade_completed):
+    mock_super = mocker.patch.object(builtins, 'super')
+    mock_sleep = mocker.patch.object(time, 'sleep')
+    strategy = mocker.patch.object(no_patch_fcf_autotrageur, 'strategy', create=True)
+    strategy.trade_chunker.trade_completed = trade_completed
+
+    no_patch_fcf_autotrageur._wait()
+
+    if trade_completed:
+        mock_super.return_value._wait.assert_called_once_with()
+    else:
+        mock_sleep.assert_called_once_with(2)

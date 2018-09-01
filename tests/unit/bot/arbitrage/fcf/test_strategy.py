@@ -5,9 +5,10 @@ import pytest
 from ccxt import NetworkError
 
 import bot.arbitrage.arbseeker as arbseeker
-from bot.arbitrage.arbseeker import SpreadOpportunity
 from bot.arbitrage.fcf.strategy import (FCFStrategy, InsufficientCryptoBalance,
                                         TradeMetadata)
+from bot.arbitrage.fcf.target_tracker import FCFTargetTracker
+from bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import CCXTTrader, OrderbookException
 
@@ -19,28 +20,6 @@ def fcf_strategy():
     return FCFStrategy(None, None, None, None, None, None, None, None,
         CCXTTrader('ETH', 'USD', 'kraken', Decimal('0')),
         CCXTTrader('ETH', 'USD', 'bitfinex', Decimal('0')))
-
-
-@pytest.mark.parametrize('spread, start, result', [
-    (-1, 0, 0),
-    (3, 0, 2),
-    (5, 0, 3),
-    (3, 1, 2),
-    (5, 2, 3),
-    (9, 2, 5),
-    (-1, 2, 2),
-    (1, 2, 2),
-    (3, 2, 2),
-])
-def test_advance_target_index(
-        mocker, fcf_strategy, spread, start, result):
-    # Chosen for the roughly round numbers.
-    targets = [(x, 1000 + 200*x) for x in range(-1, 10, 2)]
-    mocker.patch.object(
-        fcf_strategy, 'target_index', start, create=True)
-    fcf_strategy._FCFStrategy__advance_target_index(
-        spread, targets)
-    assert fcf_strategy.target_index == result
 
 
 @pytest.mark.parametrize(
@@ -120,17 +99,16 @@ def test_check_within_limits(mocker, fcf_strategy, min_base_buy,
 def test_evaluate_to_e1_trade(mocker, fcf_strategy, momentum_change):
     spread_opp = mocker.Mock()
     mocker.patch.object(fcf_strategy, 'e1_targets', create=True)
+    mocker.patch.object(fcf_strategy, 'target_tracker', create=True)
     mocker.patch.object(fcf_strategy, 'h_to_e2_max')
     mocker.patch.object(fcf_strategy, 'trader1')
     mocker.patch.object(fcf_strategy, 'trader2')
-    mocker.patch.object(
-        fcf_strategy, '_FCFStrategy__advance_target_index')
     mocker.patch.object(fcf_strategy, '_FCFStrategy__prepare_trade')
 
     fcf_strategy._FCFStrategy__evaluate_to_e1_trade(
         momentum_change, spread_opp)
 
-    fcf_strategy._FCFStrategy__advance_target_index.assert_called_with(
+    fcf_strategy.target_tracker.advance_target_index.assert_called_with(
         spread_opp.e1_spread, fcf_strategy.e1_targets)
     fcf_strategy._FCFStrategy__prepare_trade.assert_called_with(
         momentum_change, fcf_strategy.trader2, fcf_strategy.trader1,
@@ -141,98 +119,83 @@ def test_evaluate_to_e1_trade(mocker, fcf_strategy, momentum_change):
 def test_evaluate_to_e2_trade(mocker, fcf_strategy, momentum_change):
     spread_opp = mocker.Mock()
     mocker.patch.object(fcf_strategy, 'e2_targets', create=True)
+    mocker.patch.object(fcf_strategy, 'target_tracker', create=True)
     mocker.patch.object(fcf_strategy, 'h_to_e1_max')
     mocker.patch.object(fcf_strategy, 'trader1')
     mocker.patch.object(fcf_strategy, 'trader2')
-    mocker.patch.object(
-        fcf_strategy, '_FCFStrategy__advance_target_index')
     mocker.patch.object(fcf_strategy, '_FCFStrategy__prepare_trade')
 
     fcf_strategy._FCFStrategy__evaluate_to_e2_trade(
         momentum_change, spread_opp)
 
-    fcf_strategy._FCFStrategy__advance_target_index.assert_called_with(
+    fcf_strategy.target_tracker.advance_target_index.assert_called_with(
         spread_opp.e2_spread, fcf_strategy.e2_targets)
     fcf_strategy._FCFStrategy__prepare_trade.assert_called_with(
         momentum_change, fcf_strategy.trader1, fcf_strategy.trader2,
         fcf_strategy.e2_targets, spread_opp)
 
 
-@pytest.mark.parametrize('e1_spread, e2_spread, momentum, target_index', [
-    (Decimal('-3'), Decimal('3'), Momentum.NEUTRAL, 1),
-    (Decimal('3'), Decimal('-3'), Momentum.NEUTRAL, 1),
-    (Decimal('-3'), Decimal('3'), Momentum.TO_E1, 1),
-    (Decimal('3'), Decimal('-3'), Momentum.TO_E1, 1),
-    (Decimal('-3'), Decimal('3'), Momentum.TO_E2, 1),
-    (Decimal('3'), Decimal('-3'), Momentum.TO_E2, 1),
-    (Decimal('-2'), Decimal('0'), Momentum.NEUTRAL, 1),
-    (Decimal('-2'), Decimal('0'), Momentum.TO_E1, 1),
-    (Decimal('-2'), Decimal('0'), Momentum.TO_E2, 1),
-    (None, Decimal('-3'), Momentum.NEUTRAL, 1),
-    (Decimal('-3'), None, Momentum.NEUTRAL, 1),
+@pytest.mark.parametrize('momentum, has_hit_targets', [
+    (Momentum.NEUTRAL, [True]),
+    (Momentum.NEUTRAL, [False, True]),
+    (Momentum.NEUTRAL, [False, False, True]),
+    (Momentum.TO_E1, [True]),
+    (Momentum.TO_E1, [False, True]),
+    (Momentum.TO_E1, [False, False, True]),
+    (Momentum.TO_E2, [True]),
+    (Momentum.TO_E2, [False, True]),
+    (Momentum.TO_E2, [False, False, True]),
 ])
-def test_is_trade_opportunity(
-        mocker, fcf_strategy, e1_spread, e2_spread, momentum, target_index):
+def test_is_trade_opportunity(mocker, fcf_strategy, momentum, has_hit_targets):
     # Setup fcf_strategy
-    spread_opp = SpreadOpportunity(
-        FAKE_CONFIG_UUID, e1_spread, e2_spread, None, None, None, None, None, None)
+    spread_opp = mocker.Mock()
     mocker.patch.object(fcf_strategy, 'momentum', momentum, create=True)
-    mocker.patch.object(fcf_strategy, 'target_index',
-                        target_index, create=True)
-    # Chosen for the roughly round numbers.
-    e1_targets = [(Decimal(x), Decimal(1000 + 200*x)) for x in range(-1, 4, 2)]
-    e2_targets = [(Decimal(x), Decimal(1000 + 200*x)) for x in range(1, 10, 2)]
-    mocker.patch.object(fcf_strategy, 'e1_targets', e1_targets, create=True)
-    mocker.patch.object(fcf_strategy, 'e2_targets', e2_targets, create=True)
-    mocker.patch.object(
-        fcf_strategy, '_FCFStrategy__evaluate_to_e1_trade')
-    mocker.patch.object(
-        fcf_strategy, '_FCFStrategy__evaluate_to_e2_trade')
+    mocker.patch.object(fcf_strategy, 'e1_targets', create=True)
+    mocker.patch.object(fcf_strategy, 'e2_targets', create=True)
+    mocker.patch.object(fcf_strategy, '_FCFStrategy__evaluate_to_e1_trade')
+    mocker.patch.object(fcf_strategy, '_FCFStrategy__evaluate_to_e2_trade')
+    mock_target_tracker = mocker.patch.object(fcf_strategy, 'target_tracker', create=True)
+    mock_target_tracker.has_hit_targets.side_effect = has_hit_targets
 
     # Execute test
-    if e1_spread is None or e2_spread is None:
-        with pytest.raises(TypeError):
-            fcf_strategy._FCFStrategy__is_trade_opportunity(spread_opp)
-        return
-    else:
-        result = fcf_strategy._FCFStrategy__is_trade_opportunity(
-            spread_opp)
+    result = fcf_strategy._FCFStrategy__is_trade_opportunity(
+        spread_opp)
 
     # Check results
     if momentum is Momentum.NEUTRAL:
-        if e2_spread >= fcf_strategy.e2_targets[target_index][0]:
+        if len(has_hit_targets) == 1:
             assert result is True
             assert fcf_strategy.momentum is Momentum.TO_E2
             fcf_strategy._FCFStrategy__evaluate_to_e2_trade \
                 .assert_called_with(True, spread_opp)
             return
-        if e1_spread >= fcf_strategy.e1_targets[target_index][0]:
+        if len(has_hit_targets) == 2:
             assert result is True
             assert fcf_strategy.momentum is Momentum.TO_E1
             fcf_strategy._FCFStrategy__evaluate_to_e1_trade \
                 .assert_called_with(True, spread_opp)
             return
     if momentum is Momentum.TO_E1:
-        if e1_spread >= fcf_strategy.e1_targets[target_index][0]:
+        if len(has_hit_targets) == 2:
             assert result is True
             assert fcf_strategy.momentum is Momentum.TO_E1
             fcf_strategy._FCFStrategy__evaluate_to_e1_trade \
                 .assert_called_with(False, spread_opp)
             return
-        if e2_spread >= fcf_strategy.e2_targets[target_index][0]:
+        if len(has_hit_targets) == 1:
             assert result is True
             assert fcf_strategy.momentum is Momentum.TO_E2
             fcf_strategy._FCFStrategy__evaluate_to_e2_trade \
                 .assert_called_with(True, spread_opp)
             return
     if momentum is Momentum.TO_E2:
-        if e1_spread >= fcf_strategy.e1_targets[target_index][0]:
+        if len(has_hit_targets) == 2:
             assert result is True
             assert fcf_strategy.momentum is Momentum.TO_E1
             fcf_strategy._FCFStrategy__evaluate_to_e1_trade \
                 .assert_called_with(True, spread_opp)
             return
-        if e2_spread >= fcf_strategy.e2_targets[target_index][0]:
+        if len(has_hit_targets) == 1:
             assert result is True
             assert fcf_strategy.momentum is Momentum.TO_E2
             fcf_strategy._FCFStrategy__evaluate_to_e2_trade \
@@ -242,46 +205,30 @@ def test_is_trade_opportunity(
     assert result is False
 
 
+@pytest.mark.parametrize('is_momentum_change', [True, False])
+@pytest.mark.parametrize('chunks_complete', [True, False])
+@pytest.mark.parametrize('to_e1', [True, False])
 @pytest.mark.parametrize(
-    'is_momentum_change, to_e1, target_index, last_target_index, '
-    'buy_quote_balance, buy_price, sell_base_balance, result', [
-        (True, True, 0, 0, Decimal('2000'), Decimal('1000'), Decimal('2'),
-            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': Decimal('1200')}),
-        (True, False, 0, 0, Decimal('2000'), Decimal('1000'), Decimal('2'),
-            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': Decimal('1200')}),
-        (False, True, 2, 0, Decimal('2000'), Decimal('1000'), Decimal('2'),
-            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': Decimal('800')}),
-        (False, False, 2, 0, Decimal('2000'), Decimal('1000'), Decimal('2'),
-            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': Decimal('800')}),
-        (True, True, 0, 0, Decimal('600'), Decimal('1000'), Decimal('2'),
-            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': Decimal('600')}),
-        (True, False, 0, 0, Decimal('600'), Decimal('1000'), Decimal('2'),
-            {'target_index': 1, 'last_target_index': 0, 'quote_target_amount': Decimal('600')}),
-        (False, True, 2, 0, Decimal('600'), Decimal('1000'), Decimal('2'),
-            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': Decimal('600')}),
-        (False, False, 2, 0, Decimal('600'), Decimal('1000'), Decimal('2'),
-            {'target_index': 3, 'last_target_index': 2, 'quote_target_amount': Decimal('600')}),
-        (True, True, 0, 0, Decimal('2000'), Decimal('1000'), Decimal('0.5'), None),
-        (True, False, 0, 0, Decimal('2000'), Decimal('1000'), Decimal('0.5'), None),
-        (False, True, 2, 0, Decimal('2000'), Decimal('1000'), Decimal('0.5'), None),
-        (False, False, 2, 0, Decimal('2000'),
-         Decimal('1000'), Decimal('0.5'), None),
-        (True, True, 0, 0, Decimal('600'), Decimal('1000'), Decimal('0.5'), None),
-        (True, False, 0, 0, Decimal('600'), Decimal('1000'), Decimal('0.5'), None),
-        (False, True, 2, 0, Decimal('600'), Decimal('1000'), Decimal('0.5'), None),
-        (False, False, 2, 0, Decimal('600'), Decimal('1000'), Decimal('0.5'), None),
+    'next_quote_vol, buy_quote_balance, buy_price, sell_base_balance, '
+    'result_quote_target_amount', [
+        (Decimal('2001'), Decimal('2000'), Decimal('1000'), Decimal('2'), Decimal('2000')),
+        (Decimal('2000'), Decimal('2001'), Decimal('1000'), Decimal('2'), Decimal('2000')),
+        (Decimal('2001'), Decimal('2000'), Decimal('1000'), Decimal('1.9'), None),
+        (Decimal('2000'), Decimal('2001'), Decimal('1000'), Decimal('1.9'), None),
     ])
-def test_prepare_trade(mocker, fcf_strategy, is_momentum_change, to_e1,
-                       target_index, last_target_index, buy_quote_balance,
-                       buy_price, sell_base_balance, result):
+def test_prepare_trade(mocker, fcf_strategy, is_momentum_change,
+                       chunks_complete, to_e1, next_quote_vol,
+                       buy_quote_balance, buy_price, sell_base_balance,
+                       result_quote_target_amount):
     # Chosen for the roughly round numbers.
     targets = [(x, 1000 + 200*x) for x in range(1, 10, 2)]
     spread_opp = mocker.Mock()
     spread_opp.e1_buy, spread_opp.e2_buy = buy_price, buy_price
-    mocker.patch.object(
-        fcf_strategy, 'target_index', target_index, create=True)
-    mocker.patch.object(
-        fcf_strategy, 'last_target_index', last_target_index, create=True)
+    mock_tracker = mocker.patch.object(
+        fcf_strategy, 'target_tracker', create=True)
+    mock_tracker.trade_completed = chunks_complete
+    mock_chunker = mocker.patch.object(
+        fcf_strategy, 'trade_chunker', create=True)
 
     if to_e1:
         buy_trader = fcf_strategy.trader2
@@ -290,27 +237,31 @@ def test_prepare_trade(mocker, fcf_strategy, is_momentum_change, to_e1,
         buy_trader = fcf_strategy.trader1
         sell_trader = fcf_strategy.trader2
 
+    mock_get_quote_from_usd = mocker.patch.object(
+        buy_trader, 'get_quote_from_usd', return_value=next_quote_vol)
+
     buy_trader.quote_bal = buy_quote_balance
     sell_trader.base_bal = sell_base_balance
 
-    if result is None:
+    if result_quote_target_amount is None:
         with pytest.raises(InsufficientCryptoBalance):
             fcf_strategy._FCFStrategy__prepare_trade(
                 is_momentum_change, buy_trader, sell_trader, targets,
                 spread_opp)
-        return
-
-    fcf_strategy._FCFStrategy__prepare_trade(
-        is_momentum_change, buy_trader, sell_trader, targets, spread_opp)
+    else:
+        fcf_strategy._FCFStrategy__prepare_trade(
+            is_momentum_change, buy_trader, sell_trader, targets, spread_opp)
 
     sell_price_result = fcf_strategy.trade_metadata.sell_price
     if to_e1:
         assert sell_price_result == spread_opp.e1_sell
     else:
         assert sell_price_result == spread_opp.e2_sell
-    assert fcf_strategy.target_index == result['target_index']
-    assert fcf_strategy.last_target_index == result['last_target_index']
-    assert buy_trader.quote_target_amount == result['quote_target_amount']
+    mock_chunker.get_next_trade.assert_called_once_with()
+    mock_get_quote_from_usd.assert_called_once_with(
+        mock_chunker.get_next_trade.return_value)
+
+
 
 
 @pytest.mark.parametrize('is_trader1_buy', [True, False])
@@ -361,17 +312,40 @@ def test_clean_up(fcf_strategy):
     assert fcf_strategy.trade_metadata == None
 
 
-def test_finalize_trade(mocker, fcf_strategy):
+@pytest.mark.parametrize('chunks_complete', [True, False])
+def test_finalize_trade(mocker, fcf_strategy, chunks_complete):
+    mock_buy_response = {'post_fee_quote': 'fake data'}
+    mock_sell_response = mocker.Mock()
+    mock_post_fee_usd = mocker.Mock()
+    mock_min_usd_trade_size = mocker.Mock()
+    mock_chunker = mocker.patch.object(
+        fcf_strategy, 'trade_chunker', create=True)
+    mock_chunker.trade_completed = chunks_complete
+    mock_tracker = mocker.patch.object(
+        fcf_strategy, 'target_tracker', create=True)
+    mock_metadata = mocker.patch.object(
+        fcf_strategy, 'trade_metadata', create=True)
+    mock_metadata.buy_trader.get_usd_from_quote.side_effect = [
+        mock_post_fee_usd, mock_min_usd_trade_size
+    ]
     mock_trader1 = mocker.patch.object(fcf_strategy, 'trader1')
     mock_trader2 = mocker.patch.object(fcf_strategy, 'trader2')
     mock_update_targets = mocker.patch.object(
         fcf_strategy, '_FCFStrategy__update_trade_targets')
+    mock_update_targets = mocker.patch.object(
+        fcf_strategy, '_FCFStrategy__get_min_target_amount')
 
-    fcf_strategy.finalize_trade()
+    fcf_strategy.finalize_trade(mock_buy_response, mock_sell_response)
 
+    assert mock_metadata.buy_trader.get_usd_from_quote.call_count == 2
+    mock_chunker.finalize_trade.assert_called_once_with(
+        mock_post_fee_usd, mock_min_usd_trade_size)
     mock_trader1.update_wallet_balances.assert_called_once_with()
     mock_trader2.update_wallet_balances.assert_called_once_with()
     mock_update_targets.assert_called_once_with()
+
+    if chunks_complete:
+        mock_tracker.increment.assert_called_once_with()
 
 
 def test_get_trade_data(mocker, fcf_strategy):
@@ -456,8 +430,8 @@ def test_poll_opportunity(mocker, fcf_strategy, vol_min, e1_quote_balance,
     else:
         if not has_started:
             assert fcf_strategy.momentum == Momentum.NEUTRAL
-            assert fcf_strategy.target_index == 0
-            assert fcf_strategy.last_target_index == 0
+            assert isinstance(fcf_strategy.target_tracker, FCFTargetTracker)
+            assert isinstance(fcf_strategy.trade_chunker, FCFTradeChunker)
             assert fcf_strategy.has_started is True
             assert calc_targets.call_count == 2
             assert is_opportunity_result is False

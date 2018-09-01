@@ -477,6 +477,11 @@ class FCFAutotrageur(Autotrageur):
 
     # @Override
     def _wait(self):
+        """Wait for the specified polling interval.
+
+        We use the Autotrageur default unless a chunked trade is in
+        progress.
+        """
         if self.strategy.trade_chunker.trade_completed:
             super()._wait()
         else:

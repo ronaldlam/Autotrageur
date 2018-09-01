@@ -38,52 +38,126 @@ class FCFStrategyBuilder():
     """Builder for the FCFStrategy class."""
 
     def set_h_to_e1_max(self, h_to_e1_max):
-        """Set the h_to_e1_max of the builder."""
+        """Set the h_to_e1_max of the builder.
+
+        Args:
+            h_to_e1_max (Decimal): The historical max spread to e1.
+
+        Returns:
+            FCFStrategyBuilder: The current FCFStrategyBuilder.
+        """
         self.h_to_e1_max = h_to_e1_max
         return self
 
     def set_h_to_e2_max(self, h_to_e2_max):
-        """Set the h_to_e2_max of the builder."""
+        """Set the h_to_e2_max of the builder.
+
+        Args:
+            h_to_e2_max (Decimal): The historical max spread to e2.
+
+        Returns:
+            FCFStrategyBuilder: The current FCFStrategyBuilder.
+        """
         self.h_to_e2_max = h_to_e2_max
         return self
 
     def set_has_started(self, has_started):
-        """Set the has_started of the builder."""
+        """Set the has_started of the builder.
+
+        Args:
+            has_started (bool): Whether the first poll has completed.
+
+        Returns:
+            FCFStrategyBuilder: The current FCFStrategyBuilder.
+        """
         self.has_started = has_started
         return self
 
     def set_max_trade_size(self, max_trade_size):
-        """Set the max_trade_size of the builder."""
+        """Set the max_trade_size of the builder.
+
+        Args:
+            max_trade_size (Decimal): The maximum USD value per trade.
+
+        Returns:
+            FCFStrategyBuilder: The current FCFStrategyBuilder.
+        """
         self.max_trade_size = max_trade_size
         return self
 
     def set_spread_min(self, spread_min):
-        """Set the spread_min of the builder."""
+        """Set the spread_min of the builder.
+
+        Args:
+            spread_min (Decimal): The minimum spread used for
+                calculating trade targets.
+
+        Returns:
+            FCFStrategyBuilder: The current FCFStrategyBuilder.
+        """
         self.spread_min = spread_min
         return self
 
     def set_vol_min(self, vol_min):
-        """Set the vol_min of the builder."""
+        """Set the vol_min of the builder.
+
+        Args:
+            vol_min (Decimal): The minimum volume of the first trade for
+                trade target calculation.
+
+        Returns:
+            FCFStrategyBuilder: The current FCFStrategyBuilder.
+        """
         self.vol_min = vol_min
         return self
 
     def set_balance_checker(self, balance_checker):
-        """Set the balance_checker of the builder."""
+        """Set the balance_checker of the builder.
+
+        Args:
+            balance_checker (FCFBalanceChecker): The object used to
+                check for low crypto balances on the exchanges.
+
+        Returns:
+            FCFStrategyBuilder: The current FCFStrategyBuilder.
+        """
         self.balance_checker = balance_checker
         return self
 
     def set_checkpoint(self, checkpoint):
-        """Set the checkpoint of the builder."""
+        """Set the checkpoint of the builder.
+
+        Args:
+            checkpoint (FCFCheckpoint): The object used to save current
+                execution state.
+
+        Returns:
+            FCFStrategyBuilder: The current FCFStrategyBuilder.
+        """
         self.checkpoint = checkpoint
         return self
 
     def set_trader1(self, trader1):
-        """Set the trader1 of the builder."""
+        """Set the trader1 of the builder.
+
+        Args:
+            trader1 (CCXTTrader): The trader of the first exchange.
+
+        Returns:
+            FCFStrategyBuilder: The current FCFStrategyBuilder.
+        """
         self.trader1 = trader1
         return self
 
     def set_trader2(self, trader2):
-        """Set the trader2 of the builder."""
+        """Set the trader2 of the builder.
+
+        Args:
+            trader2 (CCXTTrader): The trader of the second exchange.
+
+        Returns:
+            FCFStrategyBuilder: The current FCFStrategyBuilder.
+        """
         self.trader2 = trader2
         return self
 
@@ -263,7 +337,7 @@ class FCFStrategy():
             # Momentum change from TO_E2 to TO_E1.
             elif self.target_tracker.has_hit_targets(
                     spread_opp.e1_spread, self.e1_targets, True):
-                self.target_tracker.change_momentum()
+                self.target_tracker.reset_target_index()
                 logging.debug('#### Momentum changed from TO_E2 to TO_E1')
                 logging.debug('#### TO_E1 spread: {} > First TO_E1 target {}'.
                               format(spread_opp.e1_spread, self.e1_targets[0][0]))
@@ -274,7 +348,7 @@ class FCFStrategy():
             # Momentum change from TO_E1 to TO_E2.
             if self.target_tracker.has_hit_targets(
                     spread_opp.e2_spread, self.e2_targets, True):
-                self.target_tracker.change_momentum()
+                self.target_tracker.reset_target_index()
                 logging.debug('#### Momentum changed from TO_E1 to TO_E2')
                 logging.debug('#### TO_E2 spread: {} > First TO_E2 target {}'.
                               format(spread_opp.e2_spread, self.e2_targets[0][0]))
@@ -311,13 +385,13 @@ class FCFStrategy():
         if is_momentum_change or self.trade_chunker.trade_completed:
             self.trade_chunker.reset(total_usd_vol)
 
-        usd_trade_vol = self.trade_chunker.get_next_trade()
-        quote_trade_vol = buy_trader.get_quote_from_usd(usd_trade_vol)
+        next_usd_vol = self.trade_chunker.get_next_trade()
+        next_quote_vol = buy_trader.get_quote_from_usd(next_usd_vol)
 
         # NOTE: Trader's `quote_target_amount` is updated here.  We need to use
         # the quote balance in case of intra-day forex fluctuations which
         # would result in an inaccurate USD balance.
-        target_quote_amount = min(quote_trade_vol, buy_trader.quote_bal)
+        target_quote_amount = min(next_quote_vol, buy_trader.quote_bal)
         buy_trader.set_target_amounts(target_quote_amount, is_usd=False)
 
         if buy_trader is self.trader1:
