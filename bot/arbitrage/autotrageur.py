@@ -67,7 +67,7 @@ class Configuration(namedtuple('Configuration', [
             run.  This is not provided from the config file and set during
             initialization.
         slippage (float): Percentage downside of limit order slippage tolerable
-            for market order emulations
+            for market order emulations.
         spread_min (float): The minimum spread increment for considering trade
             targets.
         start_timestamp (float): The unix timestamp tagged against the current
