@@ -17,7 +17,8 @@ from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
                                          ENV_VAR_NAMES, EXCHANGE1,
                                          EXCHANGE1_PAIR, EXCHANGE1_TEST,
                                          EXCHANGE2, EXCHANGE2_PAIR,
-                                         EXCHANGE2_TEST, SLIPPAGE)
+                                         EXCHANGE2_TEST, POLL_WAIT_DEFAULT,
+                                         SLIPPAGE)
 from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import CCXTTrader
@@ -290,7 +291,7 @@ class Autotrageur(ABC):
 
     def _wait(self):
         """Wait for the specified polling interval."""
-        time.sleep(5)
+        time.sleep(self.config[POLL_WAIT_DEFAULT])
 
     def run_autotrageur(self, arguments, requires_configs=True):
         """Run Autotrageur algorithm.

@@ -28,8 +28,8 @@ from bot.arbitrage.fcf_autotrageur import (FCFAuthenticationError,
                                            arbseeker)
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, MAX_TRADE_SIZE,
-                                         SPREAD_MIN, START_TIMESTAMP,
-                                         TWILIO_CFG_PATH,
+                                         POLL_WAIT_SHORT, SPREAD_MIN,
+                                         START_TIMESTAMP, TWILIO_CFG_PATH,
                                          TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
@@ -676,8 +676,11 @@ def test_alert(mocker, subject, no_patch_fcf_autotrageur, is_dry_run, is_test_ru
 def test_wait(mocker, no_patch_fcf_autotrageur, trade_completed):
     mock_super = mocker.patch.object(builtins, 'super')
     mock_sleep = mocker.patch.object(time, 'sleep')
-    strategy = mocker.patch.object(no_patch_fcf_autotrageur, 'strategy', create=True)
+    strategy = mocker.patch.object(
+        no_patch_fcf_autotrageur, 'strategy', create=True)
     strategy.trade_chunker.trade_completed = trade_completed
+    mocker.patch.object(
+        no_patch_fcf_autotrageur, 'config', {POLL_WAIT_SHORT: 2}, create=True)
 
     no_patch_fcf_autotrageur._wait()
 
