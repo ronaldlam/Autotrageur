@@ -18,8 +18,8 @@ from bot.arbitrage.fcf.checkpoint import FCFCheckpoint
 from bot.arbitrage.fcf.strategy import FCFStrategyBuilder
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
                                          H_TO_E2_MAX, ID, MAX_TRADE_SIZE,
-                                         SPREAD_MIN, START_TIMESTAMP,
-                                         TWILIO_CFG_PATH,
+                                         POLL_WAIT_SHORT, SPREAD_MIN,
+                                         START_TIMESTAMP, TWILIO_CFG_PATH,
                                          TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER, VOL_MIN)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
@@ -485,4 +485,4 @@ class FCFAutotrageur(Autotrageur):
         if self.strategy.trade_chunker.trade_completed:
             super()._wait()
         else:
-            time.sleep(2)
+            time.sleep(self.config[POLL_WAIT_SHORT])

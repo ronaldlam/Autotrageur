@@ -20,6 +20,10 @@ exchange2: gdax
 exchange2_pair: ETH/USD
 exchange2_test: false
 
+# Poll intervals in seconds
+poll_wait_default: 5
+poll_wait_short: 2 # Used when trade is chunked and in progress.
+
 # Historical max spread to exchange 1.
 h_to_e1_max: 5
 # Historical max spread to exchange 2.
