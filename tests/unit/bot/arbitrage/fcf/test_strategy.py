@@ -138,13 +138,13 @@ def test_evaluate_to_e2_trade(mocker, fcf_strategy, momentum_change):
 @pytest.mark.parametrize('momentum, has_hit_targets', [
     (Momentum.NEUTRAL, [True]),
     (Momentum.NEUTRAL, [False, True]),
-    (Momentum.NEUTRAL, [False, False, True]),
+    (Momentum.NEUTRAL, [False, False, None]),
     (Momentum.TO_E1, [True]),
     (Momentum.TO_E1, [False, True]),
-    (Momentum.TO_E1, [False, False, True]),
+    (Momentum.TO_E1, [False, False, None]),
     (Momentum.TO_E2, [True]),
     (Momentum.TO_E2, [False, True]),
-    (Momentum.TO_E2, [False, False, True]),
+    (Momentum.TO_E2, [False, False, None]),
 ])
 def test_is_trade_opportunity(mocker, fcf_strategy, momentum, has_hit_targets):
     # Setup fcf_strategy
