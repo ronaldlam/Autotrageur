@@ -3,9 +3,9 @@
 # Dry Run functionality.
 dryrun: false # If True, will log trades instead of executing them.
 dryrun_e1_base: 5
-dryrun_e1_quote: 20000
+dryrun_e1_quote: 2000
 dryrun_e2_base: 5
-dryrun_e2_quote: 20000
+dryrun_e2_quote: 2000
 
 # Email configuration, and email options.
 email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to send e-mails on arb opportunities.
@@ -20,14 +20,20 @@ exchange2: gemini
 exchange2_pair: BTC/USD
 exchange2_test: true
 
+# Poll intervals in seconds
+poll_wait_default: 5
+poll_wait_short: 2 # Used when trade is chunked and in progress.
+
 # Historical max spread to exchange 1.
 h_to_e1_max: 3
 # Historical max spread to exchange 2.
 h_to_e2_max: 50
+# The maximum USD value of any given trade.
+max_trade_size: 200
 # The minimum spread increment for considering trade targets.
 spread_min: 1.7
 # The minimum volume trade in USD.
-vol_min: 25000
+vol_min: 1000
 # Percentage downside of limit order slippage tolerable for market order emulations
 slippage: 0.5 # Important for Gemini, eg. 3
 

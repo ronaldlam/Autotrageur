@@ -5,7 +5,7 @@ Start at the top level directory of the project (Autotrageur).
 ### To run a particular file, add the file:
 ```python -m pytest tests/unit/libs/test_utilities.py```
 ### To run a particular test of the file:
-```python -m pytest tests/unit/libs/test_utilities.py::test_not_keys_exists```
+```python -m pytest tests/unit/libs/test_utilities.py -k test_not_keys_exists```
 
 
 # Code Coverage

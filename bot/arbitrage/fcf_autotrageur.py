@@ -17,7 +17,8 @@ from bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
 from bot.arbitrage.fcf.checkpoint import FCFCheckpoint
 from bot.arbitrage.fcf.strategy import FCFStrategyBuilder
 from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
-                                         H_TO_E2_MAX, ID, SPREAD_MIN,
+                                         H_TO_E2_MAX, ID, MAX_TRADE_SIZE,
+                                         POLL_WAIT_SHORT, SPREAD_MIN,
                                          START_TIMESTAMP, TWILIO_CFG_PATH,
                                          TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER, VOL_MIN)
@@ -205,6 +206,7 @@ class FCFAutotrageur(Autotrageur):
             .set_has_started(False)
             .set_h_to_e1_max(num_to_decimal(self.config[H_TO_E1_MAX]))
             .set_h_to_e2_max(num_to_decimal(self.config[H_TO_E2_MAX]))
+            .set_max_trade_size(num_to_decimal(self.config[MAX_TRADE_SIZE]))
             .set_spread_min(num_to_decimal(self.config[SPREAD_MIN]))
             .set_vol_min(num_to_decimal(self.config[VOL_MIN]))
             .set_checkpoint(FCFCheckpoint(self.config[ID]))
@@ -306,7 +308,7 @@ class FCFAutotrageur(Autotrageur):
                 trade_metadata.sell_trader,
                 trade_metadata.sell_price,
                 executed_amount)
-            self.strategy.finalize_trade()
+            self.strategy.finalize_trade(buy_response, sell_response)
             self.dry_run.log_balances()
             self.__persist_trade_data(
                 buy_response, sell_response, trade_metadata)
@@ -353,7 +355,7 @@ class FCFAutotrageur(Autotrageur):
                     logging.error(exc, exc_info=True)
                     raise
                 else:
-                    self.strategy.finalize_trade()
+                    self.strategy.finalize_trade(buy_response, sell_response)
                     self._send_email(
                         "TRADE SUMMARY",
                         "Buy results:\n\n{}\n\nSell results:\n\n{}\n".format(
@@ -472,3 +474,15 @@ class FCFAutotrageur(Autotrageur):
 
         # Set up forex service.
         self.__setup_forex()
+
+    # @Override
+    def _wait(self):
+        """Wait for the specified polling interval.
+
+        We use the Autotrageur default unless a chunked trade is in
+        progress.
+        """
+        if self.strategy.trade_chunker.trade_completed:
+            super()._wait()
+        else:
+            time.sleep(self.config[POLL_WAIT_SHORT])
