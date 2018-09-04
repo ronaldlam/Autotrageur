@@ -1,33 +1,33 @@
 class FCFCheckpoint():
-    """Contains the current algorithm state.
+    """Contains the current autotrageur state.
 
-    Encapsulates values pertaining to the algorithm.  Useful for rollback
+    Encapsulates values pertaining to the autotrageur run.  Useful for rollback
     situations.
     """
 
-    def __init__(self, config_id):
+    # TODO: @property for all saved components
+    def __init__(self, config):
         """Constructor.
 
-        Initializes variables and sets the configuration ID used for the bot
-        run.  Note that if the bot is started as a resumed run, the
-        configuration ID is eventually overwritten with a previously created
-        ID.
+        Initializes all state-related objects and variables.  Persists the
+        bot's configuration right upon initialization while the others are
+        set when required.
 
         Args:
-            config_id (str): The unique configuration ID created for this bot
-                run.
+            config (Configuration): The current Configuration of the bot.
         """
-        self.config_id = config_id
-        self.has_started = False
-        self.momentum = None
-        self.e1_targets = None
-        self.e2_targets = None
-        self.target_index = None
-        self.last_target_index = None
-        self.h_to_e1_max = None
-        self.h_to_e2_max = None
+        self.config = config
+        # TODO: Should dry run be initialized outside of setup_traders so that
+        # it can be passed in?
+        self.dry_run_manager = None
+        self.strategy_state = None
 
-    def save(self, strategy):
+    def __repr__(self):
+        """Printable representation of the FCFCheckpoint, for debugging."""
+        return "FCFCheckpoint state objects:\n{}\n{}\n{}".format(
+            self.config, self.strategy_state.__dict__, self.dry_run_manager.__dict__)
+
+    def save_strategy_state(self, strategy_state):
         """Saves the current strategy state before another algorithm
         iteration.
 
@@ -36,31 +36,39 @@ class FCFCheckpoint():
         during the bot's run.
 
         Args:
-            strategy (FCFStrategy): The current FCFStrategy.
+            strategy_state (FCFStrategyState): The current state of the
+                FCFStrategy.
         """
-        self.has_started = strategy.has_started
-        self.momentum = strategy.momentum
-        self.e1_targets = strategy.e1_targets
-        self.e2_targets = strategy.e2_targets
-        self.target_index = strategy.target_index
-        self.last_target_index = strategy.last_target_index
-        self.h_to_e1_max = strategy.h_to_e1_max
-        self.h_to_e2_max = strategy.h_to_e2_max
+        self.strategy_state = strategy_state
 
-    def restore(self, strategy):
-        """Restores the saved strategy state.
-
-        Sets relevant FCFStrategy's 'self' object attributes to the previously
-        saved state.
+    def restore_strategy_state(self, strategy_state):
+        """Restores the strategy state to the previously saved state.
 
         Args:
-            strategy (FCFStrategy): The current FCFStrategy.
+            strategy_state (FCFStrategyState): The current state of the
+                FCFStrategy.
         """
-        strategy.has_started = self.has_started
-        strategy.momentum = self.momentum
-        strategy.e1_targets = self.e1_targets
-        strategy.e2_targets = self.e2_targets
-        strategy.target_index = self.target_index
-        strategy.last_target_index = self.last_target_index
-        strategy.h_to_e1_max = self.h_to_e1_max
-        strategy.h_to_e2_max = self.h_to_e2_max
+        strategy_state = self.strategy_state
+
+    def restore_bot_state_from_checkpoint(self, config, strategy_state,
+                                          dry_run_manager):
+        """Restores any state relevant to the bot.
+
+        Component states restored:
+        - Algorithm
+        - Configuration
+        - DryRun (if in dry run mode)
+
+        Args:
+            config (Configuration): The current configuration of the bot.
+            strategy_state (FCFStrategyState): The current state of the
+                FCFStrategy.
+            dry_run_manager (DryRunManager): If on dry run mode, the current
+                DryRunManager of the bot.  If not on dry run mode, this
+                parameter will be `None`.
+        """
+        strategy_state = self.strategy_state
+        config = self.config
+
+        if dry_run_manager:
+            dry_run_manager = self.dry_run_manager
