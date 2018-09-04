@@ -1,6 +1,3 @@
-from bot.common.config_constants import ID
-
-
 class FCFCheckpoint():
     """Contains the current algorithm state.
 
@@ -59,7 +56,6 @@ class FCFCheckpoint():
         Args:
             strategy (FCFStrategy): The current FCFStrategy.
         """
-        strategy.config[ID] = self.config_id
         strategy.has_started = self.has_started
         strategy.momentum = self.momentum
         strategy.e1_targets = self.e1_targets
