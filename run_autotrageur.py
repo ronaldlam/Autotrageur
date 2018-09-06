@@ -3,7 +3,7 @@
 Executes trades based on simple arbitrage strategy
 
 Usage:
-    run_autotrageur.py KEYFILE CONFIGFILE [--pi_mode] [--resume_id=FCF_STATE_ID]
+    run_autotrageur.py KEYFILE CONFIGFILE DBCONFIGFILE [--pi_mode] [--resume_id=FCF_STATE_ID]
 
 Options:
     --pi_mode                           Whether this is to be used with the raspberry pi or on a full desktop.
@@ -12,6 +12,7 @@ Options:
 Description:
     KEYFILE                             The encrypted Keyfile containing relevant api keys.
     CONFIGFILE                          The config file, modeled under configs/arb_config_sample.yaml for use with the bot.
+    DBCONFIGFILE                        The config file for the database.
 """
 from docopt import docopt
 

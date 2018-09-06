@@ -31,12 +31,6 @@ vol_min: 100
 # Percentage downside of limit order slippage tolerable for market order emulations
 slippage: 0 # Important for Gemini, eg. 3
 
-# ----------------DATABASE SETTINGS--------------------------------------------
-# (String) The database name.
-db_name: fcf_trade_history_staging
-# (String) The database user.
-db_user: worker1
-
 # ----------------TWILIO SETTINGS----------------------------------------------
 # Path for the twilio config file.
 twilio_cfg_path: configs/twilio/twilio.yaml

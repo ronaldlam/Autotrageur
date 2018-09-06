@@ -1,0 +1,6 @@
+# ----------------STAGING DB SETTINGS------------------------------------------
+
+# (String) The database name.
+db_name: fcf_trade_history_staging
+# (String) The database user.
+db_user: worker1

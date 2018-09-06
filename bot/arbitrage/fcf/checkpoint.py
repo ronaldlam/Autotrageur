@@ -1,3 +1,8 @@
+from bot.arbitrage.autotrageur import Configuration
+from bot.arbitrage.fcf.strategy import FCFStrategyState
+from bot.trader.dry_run import DryRunManager
+
+
 class FCFCheckpoint():
     """Contains the current autotrageur state.
 
@@ -5,7 +10,6 @@ class FCFCheckpoint():
     situations.
     """
 
-    # TODO: @property for all saved components
     def __init__(self, config):
         """Constructor.
 
@@ -16,59 +20,96 @@ class FCFCheckpoint():
         Args:
             config (Configuration): The current Configuration of the bot.
         """
-        self.config = config
-        # TODO: Should dry run be initialized outside of setup_traders so that
-        # it can be passed in?
-        self.dry_run_manager = None
-        self.strategy_state = None
+        self._config = config
+
+    @property
+    def config(self):
+        """Property getter for the checkpoint's config.
+
+        Returns:
+            Configuration: The checkpoint's saved config.
+        """
+        return self._config
+
+    @config.setter
+    def config(self, config):
+        """Property setter for the checkpoint's config.
+
+        Args:
+            config (Configuration): A configuration to save into the checkpoint.
+
+        Raises:
+            TypeError: Raised if not type Configuration.
+            AttributeError: Raised if a Configuration has already been saved
+                in the checkpoint - ensuring that the config is not
+                accidentally overwritten.
+        """
+        if not isinstance(config, Configuration):
+            raise TypeError("config must be of type Configuration.")
+        if hasattr(self, '_config'):
+            raise AttributeError("a Configuration cannot be changed during a "
+                "run")
+        self._config = config
+
+    @property
+    def dry_run_manager(self):
+        """Property getter for the checkpoint's dry run manager.
+
+        Returns:
+            DryRunManager: The checkpoint's saved dry run manager.
+        """
+        return self._dry_run_manager
+
+    @dry_run_manager.setter
+    def dry_run_manager(self, dry_run_manager):
+        """Property setter for the checkpoint's dry run manager.
+
+        Args:
+            dry_run_manager (DryRunManager): A dry run manager to save into the
+                checkpoint.
+
+        Raises:
+            TypeError: Raised if not type DryRunManager.
+        """
+        if not isinstance(dry_run_manager, DryRunManager):
+            raise TypeError("a dry run manager must be of type DryRunManager.")
+        self._dry_run_manager = dry_run_manager
+
+    @property
+    def strategy_state(self):
+        """Property getter for the checkpoint's strategy state.
+
+        Returns:
+            FCFStrategyState: The checkpoint's saved strategy state.
+        """
+        return self._strategy_state
+
+    @strategy_state.setter
+    def strategy_state(self, strategy_state):
+        """Property setter for the checkpoint's strategy state.
+
+        Args:
+            strategy_state (FCFStrategyState): A strategy state to save into the
+                checkpoint.
+
+        Raises:
+            TypeError: Raised if not type FCFStrategyState.
+        """
+        if not isinstance(strategy_state, FCFStrategyState):
+            raise TypeError("strategy state must be of type FCFStrategyState.")
+        self._strategy_state = strategy_state
 
     def __repr__(self):
         """Printable representation of the FCFCheckpoint, for debugging."""
-        return "FCFCheckpoint state objects:\n{}\n{}\n{}".format(
-            self.config, self.strategy_state.__dict__, self.dry_run_manager.__dict__)
+        return "FCFCheckpoint state objects:\n{0!r}\n{1!r}\n{2!r}".format(
+            self.config, self.strategy_state, self.dry_run_manager)
 
-    def save_strategy_state(self, strategy_state):
-        """Saves the current strategy state before another algorithm
-        iteration.
-
-        The rationale for saving `h_to_e1_max` and `h_to_e2_max` is that the
-        historical maximums provided by the config file may have been surpassed
-        during the bot's run.
-
-        Args:
-            strategy_state (FCFStrategyState): The current state of the
-                FCFStrategy.
-        """
-        self.strategy_state = strategy_state
-
-    def restore_strategy_state(self, strategy_state):
-        """Restores the strategy state to the previously saved state.
-
-        Args:
-            strategy_state (FCFStrategyState): The current state of the
-                FCFStrategy.
-        """
-        strategy_state = self.strategy_state
-
-    def restore_bot_state_from_checkpoint(self, config, strategy_state,
-                                          dry_run_manager):
+    def restore_bot_state_from_checkpoint(self):
         """Restores any state relevant to the bot.
 
         Component states restored:
         - Algorithm
         - Configuration
         - DryRun (if in dry run mode)
-
-        Args:
-            config (Configuration): The current configuration of the bot.
-            strategy_state (FCFStrategyState): The current state of the
-                FCFStrategy.
-            dry_run_manager (DryRunManager): If on dry run mode, the current
-                DryRunManager of the bot.  If not on dry run mode, this
-                parameter will be `None`.
         """
-        strategy_state = self.strategy_state
-        config = self.config
-
-        if dry_run_manager:
-            dry_run_manager = self.dry_run_manager
+        return (self.config, self.strategy_state, self.dry_run_manager)

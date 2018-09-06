@@ -13,6 +13,7 @@ import yaml
 from dotenv import load_dotenv
 
 import libs.db.maria_db_handler as db_handler
+from bot.common.config_constants import DB_NAME, DB_USER
 from bot.common.env_var_constants import ENV_VAR_NAMES
 from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
@@ -25,8 +26,9 @@ from libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
 from libs.utils.ccxt_utils import RetryableError, RetryCounter
 
 # Program argument constants.
-CONFIGFILE = "CONFIGFILE"
-KEYFILE = "KEYFILE"
+CONFIGFILE = 'CONFIGFILE'
+DBCONFIGFILE = 'DBCONFIGFILE'
+KEYFILE = 'KEYFILE'
 
 # Logging constants
 START_END_FORMAT = "{} {:^15} {}"
@@ -34,7 +36,7 @@ STARS = "*"*20
 
 
 class Configuration(namedtuple('Configuration', [
-        'db_name', 'db_user', 'dryrun', 'dryrun_e1_base', 'dryrun_e1_quote',
+        'dryrun', 'dryrun_e1_base', 'dryrun_e1_quote',
         'dryrun_e2_base', 'dryrun_e2_quote', 'email_cfg_path', 'exchange1',
         'exchange1_pair', 'exchange1_test', 'exchange2',
         'exchange2_pair', 'exchange2_test', 'h_to_e1_max', 'h_to_e2_max', 'id',
@@ -43,8 +45,6 @@ class Configuration(namedtuple('Configuration', [
     """Holds all of the configuration for the autotrageur bot.
 
     Args:
-        db_name (str): The database name to connect the bot with.
-        db_user (str): The username to connect to the database.
         dryrun (bool): If True, this bot's run is considered to be a dry run
             against fake exchange objects and no real trades are performed.
         dryrun_e1_base (str): In dry run, the base used for exchange one.
@@ -120,14 +120,22 @@ class Autotrageur(ABC):
         with open(file_name, 'r') as ymlfile:
             return yaml.safe_load(ymlfile)
 
-    def __init_db(self):
-        """Initializes and connects to the database."""
+    def __init_db(self, db_config_path):
+        """Initializes and connects to the database.
+
+        Args:
+            db_config_path (str): Path to the database configuration file.
+        """
         db_password = getpass.getpass(
             prompt="Enter database password:")
+
+        with open(db_config_path, 'r') as db_file:
+            db_info = yaml.safe_load(db_file)
+
         db_handler.start_db(
-            self._config.db_user,
+            db_info[DB_USER],
             db_password,
-            self._config.db_name)
+            db_info[DB_NAME])
         schedule.every(7).hours.do(db_handler.ping_db)
 
     def __load_env_vars(self):
@@ -183,9 +191,14 @@ class Autotrageur(ABC):
                 logging.info("**Dry run: continuing with program")
                 return None
 
-    def __setup_dry_run(self):
+    def __setup_dry_run(self, resume_id):
         # Create dry run objects to hold dry run state, if on dry run mode.
-        if self._config.dryrun:
+        if resume_id and self._config.dryrun:
+            fancy_log(
+                "Resumed - DRY RUN mode. Trades will NOT execute on actual "
+                "exchanges.")
+            return
+        elif self._config.dryrun:
             e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
             e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
             exchange1 = self._config.exchange1
@@ -198,14 +211,14 @@ class Autotrageur(ABC):
                                     e1_base_balance, e1_quote_balance)
             dry_e2 = DryRunExchange(exchange2, e2_base, e2_quote,
                                     e2_base_balance, e2_quote_balance)
-            self.dry_run_manager = DryRunManager(dry_e1, dry_e2)
+            self._dry_run_manager = DryRunManager(dry_e1, dry_e2)
             fancy_log(
                 "DRY RUN mode initiated. Trades will NOT execute on actual "
                 "exchanges.")
         else:
             dry_e1 = None
             dry_e2 = None
-            self.dry_run_manager = None
+            self._dry_run_manager = None
 
     def __setup_traders(self, exchange_key_map):
         """Sets up the Traders to interface with exchanges.
@@ -260,14 +273,14 @@ class Autotrageur(ABC):
             exchange1,
             num_to_decimal(self._config.slippage),
             exchange1_configs,
-            self.dry_run_manager.e1)
+            self._dry_run_manager.e1)
         self.trader2 = CCXTTrader(
             e2_base,
             e2_quote,
             exchange2,
             num_to_decimal(self._config.slippage),
             exchange2_configs,
-            self.dry_run_manager.e2)
+            self._dry_run_manager.e2)
 
         # Set to run against test API, if applicable.
         if not self._config.exchange1_test and not self._config.exchange2_test:
@@ -328,6 +341,9 @@ class Autotrageur(ABC):
         exchange_key_map = self.__parse_keyfile(
             arguments[KEYFILE], arguments['--pi_mode'])
 
+        # Initialize dry run component.
+        self.__setup_dry_run(arguments['--resume_id'])
+
         # Set up the Traders for interfacing with exchange APIs.
         self.__setup_traders(exchange_key_map)
 
@@ -338,12 +354,9 @@ class Autotrageur(ABC):
         Core components initialized:
         - loading environment variables
         - initializing and connecting to the DB
-        - setting up the dry run manager
 
         * Override this method to set up any additional core components for the
         bot's implementation.
-        # TODO: There is an option to just having this be an "abstractmethod"
-        # and having all of the setup in FCF.
 
         Args:
             arguments (dict): Map of the arguments passed to the program.
@@ -354,10 +367,7 @@ class Autotrageur(ABC):
                                    ' environment variables.')
 
         # Initialize and connect to the database.
-        self.__init_db()
-
-        # Initialize dry run component.
-        self.__setup_dry_run()
+        self.__init_db(arguments[DBCONFIGFILE])
 
     @abstractmethod
     def _alert(self, subject, exception):
@@ -427,8 +437,8 @@ class Autotrageur(ABC):
             requires_configs (bool, optional): Defaults to True. Whether
                 the call requires the config file to be loaded.
         """
-        # Must load configs first, as _setup depends on a loaded configuration.
-        if requires_configs:
+        # If not resuming a run, must load configs first.
+        if requires_configs and not arguments['--resume_id']:
             self._load_configs(arguments[CONFIGFILE])
 
         # Initialize core components of the bot.
@@ -466,7 +476,7 @@ class Autotrageur(ABC):
             if self._config.dryrun:
                 logging.critical("Keyboard Interrupt")
                 fancy_log("Summary")
-                self.dry_run_manager.log_all()
+                self._dry_run_manager.log_all()
                 fancy_log("End")
             else:
                 raise

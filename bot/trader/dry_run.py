@@ -96,7 +96,9 @@ class DryRunManager():
 
     def __repr__(self):
         """Printable representation of the DryRunManager, for debugging."""
-        return str(self.e1) + str(self.e2)
+        return "E1: {}\nE2: {}".format(
+            str(self.e1.__dict__),
+            str(self.e2.__dict__))
 
     def log_balances(self):
         """Log the current balances of the run."""

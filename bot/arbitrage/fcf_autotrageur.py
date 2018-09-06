@@ -190,7 +190,7 @@ class FCFAutotrageur(Autotrageur):
             .set_h_to_e2_max(num_to_decimal(self._config.h_to_e2_max))
             .set_spread_min(num_to_decimal(self._config.spread_min))
             .set_vol_min(num_to_decimal(self._config.vol_min))
-            .set_checkpoint(self.checkpoint)
+            .set_manager(self)
             .build()
         )
 
@@ -227,13 +227,13 @@ class FCFAutotrageur(Autotrageur):
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
         actions which may be harmed by previous state."""
-        self.strategy.clean_up()
+        self._strategy.clean_up()
 
     def _execute_trade(self):
         """Execute the arbitrage."""
         buy_response = None
         sell_response = None
-        trade_metadata = self.strategy.get_trade_data()
+        trade_metadata = self._strategy.get_trade_data()
 
         if self._config.dryrun:
             logging.debug("**Dry run - begin fake execution")
@@ -246,8 +246,8 @@ class FCFAutotrageur(Autotrageur):
                 trade_metadata.sell_trader,
                 trade_metadata.sell_price,
                 executed_amount)
-            self.strategy.finalize_trade()
-            self.dry_run_manager.log_balances()
+            self._strategy.finalize_trade()
+            self._dry_run_manager.log_balances()
             self.__persist_trade_data(
                 buy_response, sell_response, trade_metadata)
             logging.debug("**Dry run - end fake execution")
@@ -260,7 +260,7 @@ class FCFAutotrageur(Autotrageur):
             except Exception as exc:
                 self._send_email("BUY ERROR ALERT - CONTINUING", repr(exc))
                 logging.error(exc, exc_info=True)
-                self.checkpoint.restore_strategy_state()
+                self._strategy.strategy_state = self.checkpoint.strategy_state
             else:
                 # If an exception is thrown, we want the program to stop on the
                 # second trade.
@@ -293,7 +293,7 @@ class FCFAutotrageur(Autotrageur):
                     logging.error(exc, exc_info=True)
                     raise
                 else:
-                    self.strategy.finalize_trade()
+                    self._strategy.finalize_trade()
                     self._send_email(
                         "TRADE SUMMARY",
                         "Buy results:\n\n{}\n\nSell results:\n\n{}\n".format(
@@ -310,7 +310,7 @@ class FCFAutotrageur(Autotrageur):
 
         # Set the dry run state, if in dry run mode.
         if self._config.dryrun:
-            self.checkpoint.dry_run_manager = self.dry_run_manager
+            self.checkpoint.dry_run_manager = self._dry_run_manager
 
         # The generated ID can be used as the `resume_id` to resume the bot
         # from the saved state.
@@ -320,8 +320,10 @@ class FCFAutotrageur(Autotrageur):
             'autotrageur_config_start_timestamp': self._config.start_timestamp,
             'state': pickle.dumps(self.checkpoint)
         }
-        logging.debug("#### The exported checkpoint object is: {0!r}".format(
-            self.checkpoint))
+        logging.debug(
+            "#### The exported checkpoint object is: {0!r}".format(
+                self.checkpoint))
+        logging.info("Exported with resume id: {}".format(fcf_state_map['id']))
         fcf_state_row_obj = InsertRowObject(
             FCF_STATE_TABLE,
             fcf_state_map,
@@ -337,12 +339,8 @@ class FCFAutotrageur(Autotrageur):
         state.
 
         Args:
-            previous_config (Configuration): The configuration of the
-                previous bot run.
-            previous_strategy (StrategyState): The strategy's state of the
-                previous bot run.
-            strategy_builder (FCFStrategyBuilder): The builder object to
-                construct the FCFStrategy.
+            resume_id (str): The unique ID used to resume the bot from a
+                previous run.
         """
         logging.debug("#### Importing bot's previous state")
         raw_result = db_handler.execute_parametrized_query(
@@ -360,8 +358,6 @@ class FCFAutotrageur(Autotrageur):
                     .format(type(previous_checkpoint)))
 
         self.checkpoint = previous_checkpoint
-        logging.debug("#### The restored checkpoint object now: {0!r}".format(
-            self.checkpoint))
 
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
@@ -369,7 +365,7 @@ class FCFAutotrageur(Autotrageur):
         Returns:
             bool: Whether there is an opportunity.
         """
-        return self.strategy.poll_opportunity()
+        return self._strategy.poll_opportunity()
 
     # @Override
     def _post_setup(self, arguments):
@@ -379,10 +375,10 @@ class FCFAutotrageur(Autotrageur):
         Components initialized:
         - Twilio Client
         - Forex Client
+        - BalanceChecker
 
         Other responsibilites:
         - Persists Configuration and Forex in the database.
-        - Attaches the Trader objects to the Algorithm.
 
         Args:
             arguments (dict): Map of the arguments passed to the program.
@@ -398,17 +394,9 @@ class FCFAutotrageur(Autotrageur):
         # Persist the configuration.
         self.__persist_config()
 
-        # Attach Traders to Algorithm.  Initialize Balance Checker.
-        # TODO: Step can be avoided if we can decouple Traders, and
-        # BalanceChecker from the Algorithm and make FCFAutotrageur the sole
-        # caller to those components.
-        self.strategy.attach_traders(self.trader1, self.trader2)
-        self.strategy.attach_balance_checker(
-            FCFBalanceChecker(
-                self.trader1,
-                self.trader2,
-                self._send_email))
-
+        # Initialize a Balance Checker.
+        self.balance_checker = FCFBalanceChecker(
+            self.trader1, self.trader2, self._send_email)
 
     def _send_email(self, subject, msg):
         """Send email alert to preconfigured emails.
@@ -428,34 +416,35 @@ class FCFAutotrageur(Autotrageur):
         initialized:
         - Checkpoint (for state-related variables)
         - Algorithm
+        - Dry Run (on resume)
+
+        If starting from resume:
+          - Import the previous Checkpoint, setting a checkpoint object.
+          - Restore any state from the Checkpoint
+        Else:
+          - Initialize the Checkpoint object with the Configuration
+          - Initialize the Algorithm
 
         Args:
             arguments (dict): Map of the arguments passed to the program.
-
-        Raises:
-            FCFAuthenticationError: If not dryrun and authentication fails.
         """
         super()._setup(arguments)
 
-        # Initialize a Checkpoint object to hold state.
-        self.checkpoint = FCFCheckpoint(self._config)
-
-        # Set up the Algorithm.
-        self.strategy = self.__construct_strategy()
-
-        # If starting from resume:
-        #   - Import the previous Checkpoint, setting a checkpoint object.
-        #   - Restore any state from the Checkpoint, overwriting the bot's
-        #     checkpoint object.
         resume_id = arguments['--resume_id']
         if resume_id:
             self._import_state(resume_id)
-            self.checkpoint.restore_bot_state_from_checkpoint(
-                self._config,
-                self.strategy.strategy_state,
-                self.dry_run_manager)
-            logging.debug('#### Restored State objects: {0!r}\n{1!r}\n{2!r}'\
-                .format(
+            self._config = self.checkpoint.config
+            self._strategy = self.__construct_strategy()
+            self._strategy.strategy_state = self.checkpoint.strategy_state
+            self._dry_run_manager = self.checkpoint.dry_run_manager
+            logging.debug(
+                '#### Restored State objects: {0!r}\n{1!r}\n{2!r}'.format(
                     self._config,
-                    self.strategy.strategy_state,
-                    self.dry_run_manager))
+                    self._strategy.strategy_state,
+                    self._dry_run_manager))
+        else:
+            # Initialize a Checkpoint object to hold state.
+            self.checkpoint = FCFCheckpoint(self._config)
+
+            # Set up the Algorithm.
+            self._strategy = self.__construct_strategy()
