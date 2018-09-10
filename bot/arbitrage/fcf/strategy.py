@@ -302,8 +302,8 @@ class FCFStrategy():
         self.__advance_target_index(spread_opp.e1_spread, self.state.e1_targets)
         self.__prepare_trade(
             momentum_change,
-            self._manager.trader1,
             self._manager.trader2,
+            self._manager.trader1,
             self.state.e1_targets,
             spread_opp)
 
@@ -333,18 +333,19 @@ class FCFStrategy():
         Returns:
             bool: Whether there is a trade opportunity.
         """
-        if self.state.momentum is Momentum.NEUTRAL:
+        momentum = self.state.momentum
+        if momentum is Momentum.NEUTRAL:
             if (self.state.target_index < len(self.state.e2_targets) and
                     spread_opp.e2_spread >= self.state.e2_targets[self.state.target_index][0]):
                 self.__evaluate_to_e2_trade(True, spread_opp)
-                self.state.momentum = Momentum.TO_E2
+                momentum = Momentum.TO_E2
                 return True
             elif (self.state.target_index < len(self.state.e1_targets) and
                     spread_opp.e1_spread >= self.state.e1_targets[self.state.target_index][0]):
                 self.__evaluate_to_e1_trade(True, spread_opp)
-                self.state.momentum = Momentum.TO_E1
+                momentum = Momentum.TO_E1
                 return True
-        elif self.state.momentum is Momentum.TO_E2:
+        elif momentum is Momentum.TO_E2:
             if (self.state.target_index < len(self.state.e2_targets) and
                     spread_opp.e2_spread >= self.state.e2_targets[self.state.target_index][0]):
                 self.__evaluate_to_e2_trade(False, spread_opp)
@@ -356,9 +357,9 @@ class FCFStrategy():
                 logging.debug('#### TO_E1 spread: {} > First TO_E1 target {}'.
                               format(spread_opp.e1_spread, self.state.e1_targets[0][0]))
                 self.__evaluate_to_e1_trade(True, spread_opp)
-                self.state.momentum = Momentum.TO_E1
+                momentum = Momentum.TO_E1
                 return True
-        elif self.state.momentum is Momentum.TO_E1:
+        elif momentum is Momentum.TO_E1:
             # Momentum change from TO_E1 to TO_E2.
             if spread_opp.e2_spread >= self.state.e2_targets[0][0]:
                 self.state.target_index = 0
@@ -366,7 +367,7 @@ class FCFStrategy():
                 logging.debug('#### TO_E2 spread: {} > First TO_E2 target {}'.
                               format(spread_opp.e2_spread, self.state.e2_targets[0][0]))
                 self.__evaluate_to_e2_trade(True, spread_opp)
-                self.state.momentum = Momentum.TO_E2
+                momentum = Momentum.TO_E2
                 return True
             elif (self.state.target_index < len(self.state.e1_targets) and
                     spread_opp.e1_spread >= self.state.e1_targets[self.state.target_index][0]):

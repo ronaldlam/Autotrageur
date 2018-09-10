@@ -323,7 +323,8 @@ class FCFAutotrageur(Autotrageur):
         logging.debug(
             "#### The exported checkpoint object is: {0!r}".format(
                 self.checkpoint))
-        logging.info("Exported with resume id: {}".format(fcf_state_map['id']))
+        logging.info("Exported with resume id: {}".format(
+            FCF_STATE_PRIM_KEY_ID))
         fcf_state_row_obj = InsertRowObject(
             FCF_STATE_TABLE,
             fcf_state_map,

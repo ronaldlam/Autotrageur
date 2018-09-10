@@ -103,13 +103,3 @@ class FCFCheckpoint():
         """Printable representation of the FCFCheckpoint, for debugging."""
         return "FCFCheckpoint state objects:\n{0!r}\n{1!r}\n{2!r}".format(
             self.config, self.strategy_state, self.dry_run_manager)
-
-    def restore_bot_state_from_checkpoint(self):
-        """Restores any state relevant to the bot.
-
-        Component states restored:
-        - Algorithm
-        - Configuration
-        - DryRun (if in dry run mode)
-        """
-        return (self.config, self.strategy_state, self.dry_run_manager)
