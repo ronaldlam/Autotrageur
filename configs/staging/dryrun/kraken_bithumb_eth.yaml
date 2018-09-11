@@ -20,10 +20,16 @@ exchange2: bithumb
 exchange2_pair: ETH/KRW
 exchange2_test: false
 
+# Poll intervals in seconds
+poll_wait_default: 5
+poll_wait_short: 2 # Used when trade is chunked and in progress.
+
 # Historical max spread to exchange 1.
 h_to_e1_max: 3
 # Historical max spread to exchange 2.
 h_to_e2_max: 50
+# The maximum USD value of any given trade.
+max_trade_size: 5000
 # The minimum spread increment for considering trade targets.
 spread_min: 0.5
 # The minimum volume trade in USD.

@@ -1,5 +1,4 @@
 # pylint: disable=E1101
-from ccxt import NetworkError
 import pytest
 
 from bot.arbitrage.arbseeker import (get_spreads_by_ob,

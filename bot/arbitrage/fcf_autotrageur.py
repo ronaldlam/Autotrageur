@@ -15,7 +15,7 @@ from bot.arbitrage.autotrageur import Autotrageur
 from bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
 from bot.arbitrage.fcf.checkpoint import FCFCheckpoint
 from bot.arbitrage.fcf.strategy import FCFStrategyBuilder
-from bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
+from bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS, MAX_TRADE_SIZE, POLL_WAIT_SHORT,
                                          TWILIO_SENDER_NUMBER)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
@@ -188,6 +188,7 @@ class FCFAutotrageur(Autotrageur):
             .set_has_started(False)
             .set_h_to_e1_max(num_to_decimal(self._config.h_to_e1_max))
             .set_h_to_e2_max(num_to_decimal(self._config.h_to_e2_max))
+            .set_max_trade_size(num_to_decimal(self.config[MAX_TRADE_SIZE]))
             .set_spread_min(num_to_decimal(self._config.spread_min))
             .set_vol_min(num_to_decimal(self._config.vol_min))
             .set_manager(self)
@@ -246,7 +247,7 @@ class FCFAutotrageur(Autotrageur):
                 trade_metadata.sell_trader,
                 trade_metadata.sell_price,
                 executed_amount)
-            self._strategy.finalize_trade()
+            self.strategy.finalize_trade()
             self._dry_run_manager.log_balances()
             self.__persist_trade_data(
                 buy_response, sell_response, trade_metadata)
@@ -293,7 +294,7 @@ class FCFAutotrageur(Autotrageur):
                     logging.error(exc, exc_info=True)
                     raise
                 else:
-                    self._strategy.finalize_trade()
+                    self.strategy.finalize_trade(buy_response, sell_response)
                     self._send_email(
                         "TRADE SUMMARY",
                         "Buy results:\n\n{}\n\nSell results:\n\n{}\n".format(
@@ -449,3 +450,15 @@ class FCFAutotrageur(Autotrageur):
 
             # Set up the Algorithm.
             self._strategy = self.__construct_strategy()
+
+    # @Override
+    def _wait(self):
+        """Wait for the specified polling interval.
+
+        We use the Autotrageur default unless a chunked trade is in
+        progress.
+        """
+        if self.strategy.trade_chunker.trade_completed:
+            super()._wait()
+        else:
+            time.sleep(self.config[POLL_WAIT_SHORT])

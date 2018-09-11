@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 import libs.db.maria_db_handler as db_handler
 from bot.common.config_constants import DB_NAME, DB_USER
 from bot.common.env_var_constants import ENV_VAR_NAMES
+from bot.common.config_constants import POLL_WAIT_DEFAULT
 from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import CCXTTrader
@@ -417,7 +418,7 @@ class Autotrageur(ABC):
 
     def _wait(self):
         """Wait for the specified polling interval."""
-        time.sleep(5)
+        time.sleep(self.config[POLL_WAIT_DEFAULT])
 
     def run_autotrageur(self, arguments, requires_configs=True):
         """Run Autotrageur algorithm.
