@@ -103,3 +103,16 @@ class FCFCheckpoint():
         """Printable representation of the FCFCheckpoint, for debugging."""
         return "FCFCheckpoint state objects:\n{0!r}\n{1!r}\n{2!r}".format(
             self.config, self.strategy_state, self.dry_run_manager)
+
+    def restore_strategy(self, strategy):
+        """Restores a Strategy to its former state.
+
+        Args:
+            strategy (FCFStrategy): The current FCFStrategy object, before
+                restoration.
+        """
+        strategy.state = self.strategy_state
+        strategy.target_tracker = strategy.state.target_tracker
+        print(strategy.target_tracker.__dict__)
+        strategy.trade_chunker = strategy.state.trade_chunker
+        print(strategy.trade_chunker.__dict__)

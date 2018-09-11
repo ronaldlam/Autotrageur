@@ -54,12 +54,16 @@ class FCFStrategyState():
         self.momentum = None
         self.e1_targets = None
         self.e2_targets = None
-        self.target_index = None
-        self.last_target_index = None
+        self.target_tracker = None
+        self.trade_chunker = None
 
     def __repr__(self):
         """Printable representation of the Configuration, for debugging."""
-        return str(self.__dict__)
+        return ("Entire Strategy State: {}\nTarget Tracker: {}\n Trade Chunker:"
+                " {}\n".format(
+                    str(self.__dict__),
+                    self.target_tracker.__dict__,
+                    self.trade_chunker.__dict__))
 
 
 class FCFStrategyBuilder():
@@ -192,9 +196,15 @@ class FCFStrategy():
         """
         self.state = strategy_state
         self._manager = manager
-        self._max_trade_size = max_trade_size
         self._spread_min = spread_min
         self._vol_min = vol_min
+
+        self.target_tracker = FCFTargetTracker()
+        self.trade_chunker = FCFTradeChunker(max_trade_size)
+
+        # Save any stateful objects to the Strategy State.
+        self.state.target_tracker = self.target_tracker
+        self.state.trade_chunker = self.trade_chunker
 
     @property
     def spread_min(self):
@@ -245,22 +255,6 @@ class FCFStrategy():
             raise AttributeError("vol_min cannot be changed during an FCF "
                 "run")
         self._vol_min = vol_min
-
-    def __advance_target_index(self, spread, targets):
-        """Increment the target index to minimum target greater than
-        spread.
-
-        Args:
-            spread (Decimal): The calculated spread.
-            targets (list): The list of targets.
-        """
-        while (self.state.target_index + 1 < len(targets) and
-                spread >= targets[self.state.target_index + 1][0]):
-            logging.debug(
-                '#### target_index before: {}'.format(self.state.target_index))
-            self.state.target_index += 1
-            logging.debug(
-                '#### target_index after: {}'.format(self.state.target_index))
 
     def __calc_targets(self, spread, h_max, from_balance):
         """Calculate the target spreads and cash positions.
@@ -318,7 +312,7 @@ class FCFStrategy():
             spread_opp (SpreadOpportunity): The spread and price info.
         """
         self.target_tracker.advance_target_index(
-            spread_opp.e1_spread, self.e1_targets)
+            spread_opp.e1_spread, self.state.e1_targets)
         self.__prepare_trade(
             momentum_change,
             self._manager.trader2,
@@ -335,7 +329,7 @@ class FCFStrategy():
             spread_opp (SpreadOpportunity): The spread and price info.
         """
         self.target_tracker.advance_target_index(
-            spread_opp.e2_spread, self.e2_targets)
+            spread_opp.e2_spread, self.state.e2_targets)
         self.__prepare_trade(
             momentum_change,
             self._manager.trader1,
@@ -366,46 +360,49 @@ class FCFStrategy():
         Returns:
             bool: Whether there is a trade opportunity.
         """
-        momentum = self.state.momentum
-        if momentum is Momentum.NEUTRAL:
+        if self.state.momentum is Momentum.NEUTRAL:
             if self.target_tracker.has_hit_targets(
-                    spread_opp.e2_spread, self.e2_targets, True):
+                    spread_opp.e2_spread, self.state.e2_targets, True):
                 self.__evaluate_to_e2_trade(True, spread_opp)
-                momentum = Momentum.TO_E2
+                self.state.momentum = Momentum.TO_E2
                 return True
             elif self.target_tracker.has_hit_targets(
-                    spread_opp.e1_spread, self.e1_targets, True):
+                    spread_opp.e1_spread, self.state.e1_targets, True):
                 self.__evaluate_to_e1_trade(True, spread_opp)
-                momentum = Momentum.TO_E1
+                self.state.momentum = Momentum.TO_E1
                 return True
-        elif momentum is Momentum.TO_E2:
+        elif self.state.momentum is Momentum.TO_E2:
             if self.target_tracker.has_hit_targets(
-                    spread_opp.e2_spread, self.e2_targets, False):
+                    spread_opp.e2_spread, self.state.e2_targets, False):
                 self.__evaluate_to_e2_trade(False, spread_opp)
                 return True
             # Momentum change from TO_E2 to TO_E1.
             elif self.target_tracker.has_hit_targets(
-                    spread_opp.e1_spread, self.e1_targets, True):
+                    spread_opp.e1_spread, self.state.e1_targets, True):
                 self.target_tracker.reset_target_index()
                 logging.debug('#### Momentum changed from TO_E2 to TO_E1')
                 logging.debug('#### TO_E1 spread: {} > First TO_E1 target {}'.
-                              format(spread_opp.e1_spread, self.state.e1_targets[0][0]))
+                              format(
+                                  spread_opp.e1_spread,
+                                  self.state.e1_targets[0][0]))
                 self.__evaluate_to_e1_trade(True, spread_opp)
-                momentum = Momentum.TO_E1
+                self.state.momentum = Momentum.TO_E1
                 return True
-        elif momentum is Momentum.TO_E1:
+        elif self.state.momentum is Momentum.TO_E1:
             # Momentum change from TO_E1 to TO_E2.
             if self.target_tracker.has_hit_targets(
-                    spread_opp.e2_spread, self.e2_targets, True):
+                    spread_opp.e2_spread, self.state.e2_targets, True):
                 self.target_tracker.reset_target_index()
                 logging.debug('#### Momentum changed from TO_E1 to TO_E2')
                 logging.debug('#### TO_E2 spread: {} > First TO_E2 target {}'.
-                              format(spread_opp.e2_spread, self.state.e2_targets[0][0]))
+                              format(
+                                  spread_opp.e2_spread,
+                                  self.state.e2_targets[0][0]))
                 self.__evaluate_to_e2_trade(True, spread_opp)
-                momentum = Momentum.TO_E2
+                self.state.momentum = Momentum.TO_E2
                 return True
             elif self.target_tracker.has_hit_targets(
-                    spread_opp.e1_spread, self.e1_targets, False):
+                    spread_opp.e1_spread, self.state.e1_targets, False):
                 self.__evaluate_to_e1_trade(False, spread_opp)
                 return True
 
@@ -580,15 +577,11 @@ class FCFStrategy():
             logging.debug('#### Initial e2_targets: {}'.format(
                 list(enumerate(self.state.e2_targets))))
 
-            self.state.target_index = 0
-            self.state.last_target_index = 0
             self.state.has_started = True
 
             # Need to save the strategy state even after first poll to ensure
             # resume behaviour works correctly.
             self._manager.checkpoint.strategy_state = self.state
-            self.target_tracker = FCFTargetTracker()
-            self.trade_chunker = FCFTradeChunker(self.max_trade_size)
             self.has_started = True
         else:
             # Save the autotrageur state before proceeding with next algorithm
@@ -610,7 +603,3 @@ class FCFStrategy():
             self.state.h_to_e2_max, spread_opp.e2_spread)
 
         return is_opportunity
-
-    def restore(self):
-        """Rollback to previous saved state."""
-        self.checkpoint.restore(self)

@@ -15,7 +15,6 @@ from dotenv import load_dotenv
 import libs.db.maria_db_handler as db_handler
 from bot.common.config_constants import DB_NAME, DB_USER
 from bot.common.env_var_constants import ENV_VAR_NAMES
-from bot.common.config_constants import POLL_WAIT_DEFAULT
 from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import CCXTTrader
@@ -41,8 +40,8 @@ class Configuration(namedtuple('Configuration', [
         'dryrun_e2_base', 'dryrun_e2_quote', 'email_cfg_path', 'exchange1',
         'exchange1_pair', 'exchange1_test', 'exchange2',
         'exchange2_pair', 'exchange2_test', 'h_to_e1_max', 'h_to_e2_max', 'id',
-        'slippage', 'spread_min', 'start_timestamp', 'twilio_cfg_path',
-        'vol_min'])):
+        'max_trade_size', 'poll_wait_default', 'poll_wait_short', 'slippage',
+        'spread_min', 'start_timestamp', 'twilio_cfg_path', 'vol_min'])):
     """Holds all of the configuration for the autotrageur bot.
 
     Args:
@@ -67,6 +66,11 @@ class Configuration(namedtuple('Configuration', [
         id (str): The unique id tagged to the current configuration and bot
             run.  This is not provided from the config file and set during
             initialization.
+        max_trade_size (float): The maximum USD value of any given trade.
+        poll_wait_default (int): Default waiting time (in seconds) in between
+            polls.
+        poll_wait_short (int): The shortened poll waiting time (in seconds),
+            used when trade is chunked and in progress.
         slippage (float): Percentage downside of limit order slippage tolerable
             for market order emulations.
         spread_min (float): The minimum spread increment for considering trade
@@ -418,7 +422,7 @@ class Autotrageur(ABC):
 
     def _wait(self):
         """Wait for the specified polling interval."""
-        time.sleep(self.config[POLL_WAIT_DEFAULT])
+        time.sleep(self._config.poll_wait_default)
 
     def run_autotrageur(self, arguments, requires_configs=True):
         """Run Autotrageur algorithm.
