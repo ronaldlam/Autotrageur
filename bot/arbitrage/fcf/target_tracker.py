@@ -34,7 +34,7 @@ class FCFTargetTracker():
 
         Args:
             targets (list): The list of targets.
-            is_momentum_change (bool): The momentum change indicator
+            is_momentum_change (bool): The momentum change indicator.
 
         Returns:
             Decimal: The target trade volume in USD.

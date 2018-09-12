@@ -113,6 +113,4 @@ class FCFCheckpoint():
         """
         strategy.state = self.strategy_state
         strategy.target_tracker = strategy.state.target_tracker
-        print(strategy.target_tracker.__dict__)
         strategy.trade_chunker = strategy.state.trade_chunker
-        print(strategy.trade_chunker.__dict__)

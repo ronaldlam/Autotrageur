@@ -360,49 +360,50 @@ class FCFStrategy():
         Returns:
             bool: Whether there is a trade opportunity.
         """
-        if self.state.momentum is Momentum.NEUTRAL:
+        state = self.state
+        if state.momentum is Momentum.NEUTRAL:
             if self.target_tracker.has_hit_targets(
-                    spread_opp.e2_spread, self.state.e2_targets, True):
+                    spread_opp.e2_spread, state.e2_targets, True):
                 self.__evaluate_to_e2_trade(True, spread_opp)
-                self.state.momentum = Momentum.TO_E2
+                state.momentum = Momentum.TO_E2
                 return True
             elif self.target_tracker.has_hit_targets(
-                    spread_opp.e1_spread, self.state.e1_targets, True):
+                    spread_opp.e1_spread, state.e1_targets, True):
                 self.__evaluate_to_e1_trade(True, spread_opp)
-                self.state.momentum = Momentum.TO_E1
+                state.momentum = Momentum.TO_E1
                 return True
-        elif self.state.momentum is Momentum.TO_E2:
+        elif state.momentum is Momentum.TO_E2:
             if self.target_tracker.has_hit_targets(
-                    spread_opp.e2_spread, self.state.e2_targets, False):
+                    spread_opp.e2_spread, state.e2_targets, False):
                 self.__evaluate_to_e2_trade(False, spread_opp)
                 return True
             # Momentum change from TO_E2 to TO_E1.
             elif self.target_tracker.has_hit_targets(
-                    spread_opp.e1_spread, self.state.e1_targets, True):
+                    spread_opp.e1_spread, state.e1_targets, True):
                 self.target_tracker.reset_target_index()
                 logging.debug('#### Momentum changed from TO_E2 to TO_E1')
                 logging.debug('#### TO_E1 spread: {} > First TO_E1 target {}'.
                               format(
                                   spread_opp.e1_spread,
-                                  self.state.e1_targets[0][0]))
+                                  state.e1_targets[0][0]))
                 self.__evaluate_to_e1_trade(True, spread_opp)
-                self.state.momentum = Momentum.TO_E1
+                state.momentum = Momentum.TO_E1
                 return True
-        elif self.state.momentum is Momentum.TO_E1:
+        elif state.momentum is Momentum.TO_E1:
             # Momentum change from TO_E1 to TO_E2.
             if self.target_tracker.has_hit_targets(
-                    spread_opp.e2_spread, self.state.e2_targets, True):
+                    spread_opp.e2_spread, state.e2_targets, True):
                 self.target_tracker.reset_target_index()
                 logging.debug('#### Momentum changed from TO_E1 to TO_E2')
                 logging.debug('#### TO_E2 spread: {} > First TO_E2 target {}'.
                               format(
                                   spread_opp.e2_spread,
-                                  self.state.e2_targets[0][0]))
+                                  state.e2_targets[0][0]))
                 self.__evaluate_to_e2_trade(True, spread_opp)
-                self.state.momentum = Momentum.TO_E2
+                state.momentum = Momentum.TO_E2
                 return True
             elif self.target_tracker.has_hit_targets(
-                    spread_opp.e1_spread, self.state.e1_targets, False):
+                    spread_opp.e1_spread, state.e1_targets, False):
                 self.__evaluate_to_e1_trade(False, spread_opp)
                 return True
 
