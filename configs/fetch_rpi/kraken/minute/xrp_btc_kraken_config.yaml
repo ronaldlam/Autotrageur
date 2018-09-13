@@ -6,7 +6,7 @@
 # (String) The base currency of the trading pair (e.g. "ETH" of "ETH/USD" pair).
 base: xrp
 # (String) The quote currency of the trading pair (e.g. "USD" of "ETH/USD" pair).
-quote: usd
+quote: btc
 # (String) The name of the exchange to obtain historical data (e.g. "Gemini").
 exchange: kraken
 # (String) Time Interval to retrieve historical.  One of 'day', 'hour', 'minute'.
