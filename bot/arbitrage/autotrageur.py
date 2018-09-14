@@ -196,7 +196,16 @@ class Autotrageur(ABC):
                 logging.info("**Dry run: continuing with program")
                 return None
 
-    def __setup_dry_run(self, resume_id):
+    def __setup_dry_run(self, resume_id=None):
+        """Sets up the bot for a dry run.
+
+        If resuming a bot, simply logs and returns without any additional
+        setup.
+
+        Args:
+            resume_id (str, optional): The resume id used when resuming a run.
+                Defaults to None.
+        """
         # Create dry run objects to hold dry run state, if on dry run mode.
         if resume_id and self._config.dryrun:
             fancy_log(
@@ -221,8 +230,6 @@ class Autotrageur(ABC):
                 "DRY RUN mode initiated. Trades will NOT execute on actual "
                 "exchanges.")
         else:
-            dry_e1 = None
-            dry_e2 = None
             self._dry_run_manager = None
 
     def __setup_traders(self, exchange_key_map):
@@ -272,20 +279,27 @@ class Autotrageur(ABC):
             exchange2_configs['password'] = (
                 exchange_key_map[exchange2][PASSWORD])
 
+        if self._config.dryrun:
+            dry_run_exchange1 = self._dry_run_manager.e1
+            dry_run_exchange2 = self._dry_run_manager.e2
+        else:
+            dry_run_exchange1 = None
+            dry_run_exchange2 = None
+
         self.trader1 = CCXTTrader(
             e1_base,
             e1_quote,
             exchange1,
             num_to_decimal(self._config.slippage),
             exchange1_configs,
-            self._dry_run_manager.e1)
+            dry_run_exchange1)
         self.trader2 = CCXTTrader(
             e2_base,
             e2_quote,
             exchange2,
             num_to_decimal(self._config.slippage),
             exchange2_configs,
-            self._dry_run_manager.e2)
+            dry_run_exchange2)
 
         # Set to run against test API, if applicable.
         if not self._config.exchange1_test and not self._config.exchange2_test:
