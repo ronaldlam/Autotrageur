@@ -43,6 +43,8 @@ class FCFTradeChunker():
         Returns:
             Decimal: The next trade target amount in USD.
         """
+        # 5) Is it possible for remaining to become negative here, or is it
+        # implicitly guarded against because finalize_trade will never be hit?
         remaining = self._target - self._current_trade_size
         return min(self._max_trade_size, remaining)
 
@@ -54,6 +56,7 @@ class FCFTradeChunker():
         Args:
             target (Decimal): The total trade target.
         """
+        # 4) Target set to 0.
         self._target = target
         self._current_trade_size = ZERO
         self.trade_completed = False
