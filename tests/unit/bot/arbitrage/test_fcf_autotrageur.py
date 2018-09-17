@@ -520,17 +520,6 @@ def test_import_state(mocker, no_patch_fcf_autotrageur, fcf_checkpoint,
     mock_exec_param_query = mocker.patch.object(
         db_handler, 'execute_parametrized_query', return_value=[(MOCK_RESULT,)])
 
-    # mock_checkpoint = mocker.Mock()
-    # mock_checkpoint_constructor = mocker.patch(
-    #     'bot.arbitrage.fcf_autotrageur.FCFCheckpoint',
-    #     return_value=mock_checkpoint)
-    # mock_setup_wallet_balances = mocker.patch.object(
-    #     no_patch_fcf_autotrageur, '_FCFAutotrageur__setup_wallet_balances')
-    # mocker.patch.object(no_patch_fcf_autotrageur,
-    #                     'trader1', create=True)
-    # mocker.patch.object(no_patch_fcf_autotrageur,
-    #                     'trader2', create=True)
-
     if correct_state_obj_type:
         no_patch_fcf_autotrageur._import_state(FAKE_RESUME_UUID)
         assert no_patch_fcf_autotrageur.checkpoint is fcf_checkpoint

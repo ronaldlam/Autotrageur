@@ -92,7 +92,7 @@ def test_parse_keyfile(mocker, autotrageur, decrypt_success, dryrun):
         mock_decrypt.assert_called_once()
         mock_kf_to_map.assert_called_once()
         assert(key_map)
-    elif dryrun is False:
+    elif not dryrun:
         mock_decrypt.assert_called_once()
         mock_kf_to_map.assert_not_called()
         assert key_map is None
