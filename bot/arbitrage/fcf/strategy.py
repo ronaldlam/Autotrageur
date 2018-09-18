@@ -284,7 +284,6 @@ class FCFStrategy():
         for i in range(1, t_num + 1):
             if self.vol_min >= from_balance:
                 # Min vol will empty from_balance on buying exchange.
-                # 1) All targets will have `from_balance` as volume.
                 position = from_balance
             else:
                 position = self.vol_min * (x ** (num_to_decimal(i) - ONE))
@@ -431,7 +430,6 @@ class FCFStrategy():
             targets, is_momentum_change)
 
         if is_momentum_change or self.trade_chunker.trade_completed:
-            # 3) total_usd_vol is 0 here from the return above.
             self.trade_chunker.reset(total_usd_vol)
 
         next_usd_vol = self.trade_chunker.get_next_trade()

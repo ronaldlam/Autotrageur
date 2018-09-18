@@ -41,8 +41,6 @@ class FCFTargetTracker():
             Decimal: The target trade volume in USD.
         """
         if self._target_index >= 1 and not is_momentum_change:
-            # 2) If vol_min > from_balance, this would return 0 in the case
-            # that momentum hasn't changed.
             return targets[self._target_index][1] - \
                 targets[self._last_target_index][1]
         else:
