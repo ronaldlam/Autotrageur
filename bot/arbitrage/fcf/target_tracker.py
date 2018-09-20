@@ -28,6 +28,7 @@ class FCFTargetTracker():
     def reset_target_index(self):
         """Signal a momentum change, resets target_index."""
         self._target_index = 0
+        self._last_target_index = 0
 
     def get_trade_volume(self, targets, is_momentum_change):
         """Retrieve the target trade volume for the current target.
