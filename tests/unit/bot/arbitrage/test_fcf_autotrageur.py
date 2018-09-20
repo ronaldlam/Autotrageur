@@ -9,7 +9,6 @@ import uuid
 from decimal import Decimal
 from unittest.mock import Mock
 
-import ccxt
 import pytest
 import schedule
 import yaml
@@ -24,8 +23,7 @@ from bot.arbitrage.fcf_autotrageur import (FCFAutotrageur, FCFCheckpoint,
                                            IncompleteArbitrageError,
                                            IncorrectStateObjectTypeError,
                                            arbseeker)
-from bot.common.config_constants import (EMAIL_CFG_PATH,
-                                         TWILIO_RECIPIENT_NUMBERS,
+from bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,

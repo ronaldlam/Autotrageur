@@ -1,3 +1,4 @@
+import copyreg
 import logging
 import os
 import pickle
@@ -13,7 +14,8 @@ import bot.arbitrage.arbseeker as arbseeker
 import libs.db.maria_db_handler as db_handler
 from bot.arbitrage.autotrageur import Autotrageur
 from bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
-from bot.arbitrage.fcf.checkpoint import FCFCheckpoint
+from bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
+from bot.arbitrage.fcf.fcf_checkpoint_utils import pickle_fcf_checkpoint
 from bot.arbitrage.fcf.strategy import FCFStrategyBuilder
 from bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER)
@@ -312,6 +314,11 @@ class FCFAutotrageur(Autotrageur):
         # Set the dry run state, if in dry run mode.
         if self._config.dryrun:
             self.checkpoint.dry_run_manager = self._dry_run_manager
+
+        # Register copyreg.pickle with Checkpoint object and helper function
+        # for better backwards-compatibility in pickling.
+        # (See 'fcf_checkpoint_utils' module for more details)
+        copyreg.pickle(FCFCheckpoint, pickle_fcf_checkpoint)
 
         # The generated ID can be used as the `resume_id` to resume the bot
         # from the saved state.
