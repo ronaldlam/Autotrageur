@@ -15,7 +15,8 @@ def _form_fcf_attr_map(checkpoint):
     """Forms an attribute map for the FCFCheckpoint object.
 
     Args:
-        checkpoint (FCFCheckpoint): [description]
+        checkpoint (FCFCheckpoint): The checkpoint object to extract attributes
+            from.
 
     Returns:
         dict: A map of all of the FCFCheckpoint attribute keys and values.
