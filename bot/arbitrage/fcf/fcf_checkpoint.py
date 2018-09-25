@@ -2,6 +2,10 @@ from bot.arbitrage.autotrageur import Configuration
 from bot.arbitrage.fcf.strategy import FCFStrategyState
 from bot.trader.dry_run import DryRunManager
 
+# Constants
+FCF_CHECKPOINT_V1 = 1
+CURRENT_FCF_CHECKPOINT_VERSION = FCF_CHECKPOINT_V1
+
 
 class FCFCheckpoint():
     """Contains the current autotrageur state.
@@ -10,17 +14,25 @@ class FCFCheckpoint():
     situations.
     """
 
-    def __init__(self, config):
+    def __init__(self, config=None, strategy_state=None, dry_run_manager=None):
         """Constructor.
 
         Initializes all state-related objects and variables.  Persists the
         bot's configuration right upon initialization while the others are
         set when required.
 
+        NOTE: We require default arguments to ensure that FCFCheckpoint objects
+        will always have all attributes after unpickling.  Whenever we add
+        a new parameter, we must ensure that it has a default argument to allow
+        proper construction of the object.  `unpickle_checkpoint` will call
+        the constructor directly.
+
         Args:
             config (Configuration): The current Configuration of the bot.
         """
         self._config = config
+        self._strategy_state = strategy_state
+        self._dry_run_manager = dry_run_manager
 
     @property
     def config(self):
