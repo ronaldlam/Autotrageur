@@ -1,5 +1,17 @@
 # Autotrageur
 The automated arbitrageur
+## Versioning
+We use [setuptools-scm](https://github.com/pypa/setuptools_scm) to automate versioning in code. Once a git tag is made, use this to retrieve the current version:
+```python
+from setuptools_scm import get_version
+version = get_version()
+```
+By default, the working version if changes are made automatically increment the last numeric component of the tag. See [here](https://github.com/pypa/setuptools_scm#default-versioning-scheme) for details. If the current changes do not warrant a change in at least the hotfix number, this can be used to keep the existing last tag as the version prefix:
+```python
+version = get_version(version_scheme='post-release')
+```
+Using this means that version tagging needs to be part of the development branch history, and merging back into staging before branching into development branches will be necessary.
+
 ## Updating dependencies
 ### Third party dependencies
 We have at least one nested dependency that is platform specific. Instead of `pip freeze` to list dependencies, use `pipdeptree -f | grep -P '^[\w0-9\-=.]+'` to get only top level dependencies. To save:
