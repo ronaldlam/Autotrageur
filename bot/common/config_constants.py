@@ -1,5 +1,9 @@
 """Configuration file constants."""
 
+# Database config constants.
+DB_NAME = 'db_name'
+DB_USER = 'db_user'
+
 # Email config file path.
 EMAIL_CFG_PATH = 'email_cfg_path'
 

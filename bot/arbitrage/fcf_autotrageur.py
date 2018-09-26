@@ -1,3 +1,4 @@
+import copyreg
 import logging
 import os
 import pickle
@@ -6,7 +7,6 @@ import time
 import traceback
 import uuid
 
-import ccxt
 import schedule
 import yaml
 
@@ -14,10 +14,10 @@ import bot.arbitrage.arbseeker as arbseeker
 import libs.db.maria_db_handler as db_handler
 from bot.arbitrage.autotrageur import Autotrageur
 from bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
-from bot.arbitrage.fcf.checkpoint import FCFCheckpoint
+from bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
+from bot.arbitrage.fcf.fcf_checkpoint_utils import pickle_fcf_checkpoint
 from bot.arbitrage.fcf.strategy import FCFStrategyBuilder
-from bot.common.config_constants import (EMAIL_CFG_PATH, TWILIO_CFG_PATH,
-                                         TWILIO_RECIPIENT_NUMBERS,
+from bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
@@ -35,12 +35,6 @@ from libs.email_client.simple_email_client import send_all_emails
 from libs.fiat_symbols import FIAT_SYMBOLS
 from libs.twilio.twilio_client import TwilioClient
 from libs.utilities import num_to_decimal
-
-
-class FCFAuthenticationError(Exception):
-    """Incorrect credentials or exchange unavailable when attempting to
-    communicate through an exchange's API."""
-    pass
 
 
 class IncompleteArbitrageError(Exception):
@@ -189,47 +183,19 @@ class FCFAutotrageur(Autotrageur):
 
         db_handler.commit_all()
 
-    def __construct_strategy(self, resume_id=None):
-        """Sets up the algorithm by either initializing or restoring the
-        algorithm's state.
-
-        Args:
-            resume_id (str): The configuration id which links to the
-                autotrageur's previous state.  Defaults to None, in the case
-                that this run is new.
-        """
+    def __construct_strategy(self):
+        """Initializes the Algorithm component."""
         strategy_builder = FCFStrategyBuilder()
-        (strategy_builder
+        return (strategy_builder
             .set_has_started(False)
             .set_h_to_e1_max(num_to_decimal(self._config.h_to_e1_max))
             .set_h_to_e2_max(num_to_decimal(self._config.h_to_e2_max))
+            .set_max_trade_size(num_to_decimal(self._config.max_trade_size))
             .set_spread_min(num_to_decimal(self._config.spread_min))
             .set_vol_min(num_to_decimal(self._config.vol_min))
-            .set_checkpoint(FCFCheckpoint(self._config.id))
-            .set_trader1(self.trader1)
-            .set_trader2(self.trader2))
-
-        # Setup and fetch the wallet balances available for each trader.
-        self.__setup_wallet_balances(strategy_builder)
-
-        if resume_id:
-            logging.debug("#### resume_id: {}".format(resume_id))
-            raw_result = db_handler.execute_parametrized_query(
-                "SELECT state FROM fcf_state where id = %s;",
-                (resume_id,))
-
-            # The raw result comes back as a list of tuples.  We expect only
-            # one result as the `autotrageur_resume_id` is unique per
-            # export.
-            self._import_state(raw_result[0][0], strategy_builder)
-            strategy = strategy_builder.build()
-
-            # Overwrite state set in config.
-            strategy.restore()
-        else:
-            strategy = strategy_builder.build()
-
-        return strategy
+            .set_manager(self)
+            .build()
+        )
 
     def __setup_forex(self):
         """Sets up any forex services for fiat conversion, if necessary."""
@@ -246,27 +212,6 @@ class FCFAutotrageur(Autotrageur):
                 self.__update_forex(trader)
                 # TODO: Adjust interval once real-time forex implemented.
                 schedule.every().hour.do(self.__update_forex, trader)
-
-    def __setup_wallet_balances(self, strategy_builder):
-        """Sets up the balances for each exchange, on each trader.
-
-        Also sets up the FCFBalanceChecker to monitor wallet balances for the
-        algorithm.
-
-        Args:
-            strategy_builder (FCFStrategyBuilder): The builder object to
-                construct the FCFStrategy.
-        """
-        try:
-            # Dry run uses balances set in the configuration files.
-            self.trader1.update_wallet_balances()
-            self.trader2.update_wallet_balances()
-        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
-            logging.error(auth_error)
-            raise FCFAuthenticationError(auth_error)
-
-        strategy_builder.set_balance_checker(
-            FCFBalanceChecker(self.trader1, self.trader2, self._send_email))
 
     def _alert(self, subject, exception):
         """Last ditch effort to alert user on operation failure.
@@ -285,13 +230,13 @@ class FCFAutotrageur(Autotrageur):
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
         actions which may be harmed by previous state."""
-        self.strategy.clean_up()
+        self._strategy.clean_up()
 
     def _execute_trade(self):
         """Execute the arbitrage."""
         buy_response = None
         sell_response = None
-        trade_metadata = self.strategy.get_trade_data()
+        trade_metadata = self._strategy.get_trade_data()
 
         if self._config.dryrun:
             logging.debug("**Dry run - begin fake execution")
@@ -304,8 +249,8 @@ class FCFAutotrageur(Autotrageur):
                 trade_metadata.sell_trader,
                 trade_metadata.sell_price,
                 executed_amount)
-            self.strategy.finalize_trade()
-            self.dry_run.log_balances()
+            self._strategy.finalize_trade(buy_response, sell_response)
+            self._dry_run_manager.log_balances()
             self.__persist_trade_data(
                 buy_response, sell_response, trade_metadata)
             logging.debug("**Dry run - end fake execution")
@@ -318,7 +263,7 @@ class FCFAutotrageur(Autotrageur):
             except Exception as exc:
                 self._send_email("BUY ERROR ALERT - CONTINUING", repr(exc))
                 logging.error(exc, exc_info=True)
-                self.strategy.restore()
+                self._strategy.strategy_state = self.checkpoint.strategy_state
             else:
                 # If an exception is thrown, we want the program to stop on the
                 # second trade.
@@ -351,7 +296,7 @@ class FCFAutotrageur(Autotrageur):
                     logging.error(exc, exc_info=True)
                     raise
                 else:
-                    self.strategy.finalize_trade()
+                    self._strategy.finalize_trade(buy_response, sell_response)
                     self._send_email(
                         "TRADE SUMMARY",
                         "Buy results:\n\n{}\n\nSell results:\n\n{}\n".format(
@@ -366,16 +311,28 @@ class FCFAutotrageur(Autotrageur):
         """Exports the state of the autotrageur to a database."""
         logging.debug("#### Exporting bot's current state")
 
+        # Set the dry run state, if in dry run mode.
+        if self._config.dryrun:
+            self.checkpoint.dry_run_manager = self._dry_run_manager
+
+        # Register copyreg.pickle with Checkpoint object and helper function
+        # for better backwards-compatibility in pickling.
+        # (See 'fcf_checkpoint_utils' module for more details)
+        copyreg.pickle(FCFCheckpoint, pickle_fcf_checkpoint)
+
         # The generated ID can be used as the `resume_id` to resume the bot
         # from the saved state.
         fcf_state_map = {
             'id': str(uuid.uuid4()),
             'autotrageur_config_id': self._config.id,
             'autotrageur_config_start_timestamp': self._config.start_timestamp,
-            'state': pickle.dumps(self.strategy.checkpoint)
+            'state': pickle.dumps(self.checkpoint)
         }
-        logging.debug("#### The exported checkpoint object __dict__ is: {}"
-                      .format(pprint.pformat(self.strategy.checkpoint.__dict__)))
+        logging.debug(
+            "#### The exported checkpoint object is: {0!r}".format(
+                self.checkpoint))
+        logging.info("Exported with resume id: {}".format(
+            fcf_state_map[FCF_STATE_PRIM_KEY_ID]))
         fcf_state_row_obj = InsertRowObject(
             FCF_STATE_TABLE,
             fcf_state_map,
@@ -384,26 +341,32 @@ class FCFAutotrageur(Autotrageur):
         db_handler.commit_all()
 
     # @Override
-    def _import_state(self, previous_state, strategy_builder):
+    def _import_state(self, resume_id):
         """Imports the state of a previous autotrageur run.
 
+        Sets the FCFCheckpoint to be a snapshot of the previous autotrageur's
+        state.
+
         Args:
-            previous_state (bytes): The previous state of the autotrageur run.
-                Expressed as bytes, typically pickled into a database.
-            strategy_builder (FCFStrategyBuilder): The builder object to
-                construct the FCFStrategy.
+            resume_id (str): The unique ID used to resume the bot from a
+                previous run.
         """
         logging.debug("#### Importing bot's previous state")
-        checkpoint = pickle.loads(previous_state)
+        raw_result = db_handler.execute_parametrized_query(
+                "SELECT state FROM fcf_state where id = %s;",
+                (resume_id,))
 
-        if not isinstance(checkpoint, FCFCheckpoint):
+        # The raw result comes back as a list of tuples.  We expect only
+        # one result as the `autotrageur_resume_id` is unique per
+        # export.
+        previous_checkpoint = pickle.loads(raw_result[0][0])
+
+        if not isinstance(previous_checkpoint, FCFCheckpoint):
             raise IncorrectStateObjectTypeError(
                 "FCFCheckpoint is the required type.  {} type was given."
-                    .format(type(checkpoint)))
+                    .format(type(previous_checkpoint)))
 
-        logging.debug("#### The restored checkpoint object __dict__ is now: {}"
-            .format(pprint.pformat(checkpoint.__dict__)))
-        strategy_builder.set_checkpoint(checkpoint)
+        self.checkpoint = previous_checkpoint
 
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
@@ -411,7 +374,38 @@ class FCFAutotrageur(Autotrageur):
         Returns:
             bool: Whether there is an opportunity.
         """
-        return self.strategy.poll_opportunity()
+        return self._strategy.poll_opportunity()
+
+    # @Override
+    def _post_setup(self, arguments):
+        """Initializes any additional components which rely on the core
+        components.
+
+        Components initialized:
+        - Twilio Client
+        - Forex Client
+        - BalanceChecker
+
+        Other responsibilites:
+        - Persists Configuration and Forex in the database.
+
+        Args:
+            arguments (dict): Map of the arguments passed to the program.
+        """
+        super()._post_setup(arguments)
+
+        # Set up Twilio Client.
+        self.__load_twilio(self._config.twilio_cfg_path)
+
+        # Set up Forex client.
+        self.__setup_forex()
+
+        # Persist the configuration.
+        self.__persist_config()
+
+        # Initialize a Balance Checker.
+        self.balance_checker = FCFBalanceChecker(
+            self.trader1, self.trader2, self._send_email)
 
     def _send_email(self, subject, msg):
         """Send email alert to preconfigured emails.
@@ -424,30 +418,54 @@ class FCFAutotrageur(Autotrageur):
 
     # @Override
     def _setup(self, arguments):
-        """Initializes the autotrageur bot for use.
+        """Initializes the autotrageur bot for use by setting up core
+        components which must be set up before any additional components.
 
-        Sets up the algorithm by either initializing or restoring the
-        algorithm's state.
+        In addition to superclass setup, the following core components are
+        initialized:
+        - Checkpoint (for state-related variables)
+        - Algorithm
+        - Dry Run (on resume)
 
-        Other responsibilities include:
-        - Initializing forex services and state for the bot.
-        - Persisting configurations and forex ratio in the database.
+        If starting from resume:
+          - Import the previous Checkpoint, setting a checkpoint object.
+          - Restore any state from the Checkpoint
+        Else:
+          - Initialize the Checkpoint object with the Configuration
+          - Initialize the Algorithm
 
         Args:
             arguments (dict): Map of the arguments passed to the program.
-
-        Raises:
-            FCFAuthenticationError: If not dryrun and authentication fails.
         """
         super()._setup(arguments)
 
-        # Set up the algorithm.
-        self.strategy = self.__construct_strategy(
-            resume_id=arguments['--resume_id'])
-        self.__persist_config()
+        resume_id = arguments['--resume_id']
+        if resume_id:
+            self._import_state(resume_id)
+            self._config = self.checkpoint.config
+            self._strategy = self.__construct_strategy()
+            self.checkpoint.restore_strategy(self._strategy)
+            self._dry_run_manager = self.checkpoint.dry_run_manager
+            logging.debug(
+                '#### Restored State objects: {0!r}\n{1!r}\n{2!r}'.format(
+                    self._config,
+                    self._strategy.state,
+                    self._dry_run_manager))
+        else:
+            # Initialize a Checkpoint object to hold state.
+            self.checkpoint = FCFCheckpoint(self._config)
 
-        # Set up Twilio Client.
-        self.__load_twilio(self._config.twilio_cfg_path)
+            # Set up the Algorithm.
+            self._strategy = self.__construct_strategy()
 
-        # Set up forex service.
-        self.__setup_forex()
+    # @Override
+    def _wait(self):
+        """Wait for the specified polling interval.
+
+        We use the Autotrageur default unless a chunked trade is in
+        progress.
+        """
+        if self._strategy.trade_chunker.trade_completed:
+            super()._wait()
+        else:
+            time.sleep(self._config.poll_wait_short)

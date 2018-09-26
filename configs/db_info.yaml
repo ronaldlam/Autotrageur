@@ -1,5 +1,0 @@
-# ----------------DATABASE SETTINGS--------------------------------------------
-# (String) The database name.
-db_name: minute
-# (String) The database user.
-db_user: root

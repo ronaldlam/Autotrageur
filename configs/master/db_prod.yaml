@@ -1,0 +1,5 @@
+# ----------------PRODUCTION DATABASE SETTINGS---------------------------------
+# (String) The database name.
+db_name: fcf_trade_history
+# (String) The database user.
+db_user: worker1
