@@ -13,12 +13,13 @@ email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to sen
 # Exchange 1
 exchange1: kraken
 exchange1_pair: BTC/USD
-exchange1_test: false
 
 # Exchange 2
 exchange2: bithumb
 exchange2_pair: BTC/KRW
-exchange2_test: false
+
+# Whether to connect to the test exchange APIs of both exchanges.
+use_test_api: false
 
 # Poll intervals in seconds
 poll_wait_default: 5

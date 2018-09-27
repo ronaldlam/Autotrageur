@@ -13,17 +13,24 @@ email_cfg_path: # path/to/email_cfg file.  Used to send e-mails on arb opportuni
 # Exchange 1 - This is the exchange to be used as the default denominator.
 exchange1: # Name of first exchange, eg. binance
 exchange1_pair: # Name of target pair, eg. ETH/USDT
-exchange1_test: # Whether to connect to test API, eg. true
 
 # Exchange 2 - This is the exchange to be used as the default numerator.
 exchange2: # Name of second exchange, eg. bithumb
 exchange2_pair: # Name of target pair, eg. ETH/KRW
-exchange2_test: # Whether to connect to test API, eg. false
+
+# Whether to connect to the test exchange APIs of both exchanges.
+use_test_api:
+
+# Poll intervals in seconds
+poll_wait_default: 5
+poll_wait_short: 2 # Used when trade is chunked and in progress.
 
 # Historical max spread to exchange 1.
 h_to_e1_max:
 # Historical max spread to exchange 2.
 h_to_e2_max:
+# The maximum USD value of any given trade.
+max_trade_size: 1000
 # The minimum spread increment for considering trade targets.
 spread_min:
 # The minimum volume trade in USD.

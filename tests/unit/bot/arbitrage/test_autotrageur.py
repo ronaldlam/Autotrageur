@@ -9,14 +9,12 @@ import yaml
 
 import bot.arbitrage.autotrageur
 import libs.db.maria_db_handler as db_handler
-from bot.arbitrage.autotrageur import (AsymmetricTestExchangeConfigError,
-                                       Autotrageur,
+from bot.arbitrage.autotrageur import (Autotrageur,
                                        AutotrageurAuthenticationError)
 from bot.common.config_constants import DB_NAME, DB_USER
 from bot.trader.dry_run import DryRunExchange, DryRunManager
 from libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from libs.utils.ccxt_utils import RetryableError
-
 
 OpenAndSafeLoad = namedtuple('OpenAndSafeLoad', ['open', 'safe_load'])
 
@@ -190,10 +188,9 @@ def test_setup_dry_run(mocker, autotrageur, resume_id, dryrun):
 
 @pytest.mark.parametrize('exc_type', [ccxt.AuthenticationError, ccxt.ExchangeNotAvailable])
 @pytest.mark.parametrize('balance_check_success', [True, False])
-@pytest.mark.parametrize("ex1_test", [True, False])
-@pytest.mark.parametrize("ex2_test", [True, False])
-@pytest.mark.parametrize("dryrun", [True, False])
-def test_setup_traders(mocker, autotrageur, dryrun, ex1_test, ex2_test,
+@pytest.mark.parametrize('use_test_api', [True, False])
+@pytest.mark.parametrize('dryrun', [True, False])
+def test_setup_traders(mocker, autotrageur, dryrun, use_test_api,
                        balance_check_success, exc_type):
     fake_slippage = 0.25
     fake_pair = 'fake/pair'
@@ -219,8 +216,7 @@ def test_setup_traders(mocker, autotrageur, dryrun, ex1_test, ex2_test,
     mocker.patch.object(autotrageur._config, 'exchange1', placeholder)
     mocker.patch.object(autotrageur._config, 'exchange2', placeholder)
     mocker.patch.object(autotrageur._config, 'slippage', fake_slippage)
-    mocker.patch.object(autotrageur._config, 'exchange1_test', ex1_test)
-    mocker.patch.object(autotrageur._config, 'exchange2_test', ex2_test)
+    mocker.patch.object(autotrageur._config, 'use_test_api', use_test_api)
     mocker.patch.object(autotrageur._config, 'dryrun', dryrun)
     if dryrun:
         mocker.patch.object(
@@ -229,31 +225,25 @@ def test_setup_traders(mocker, autotrageur, dryrun, ex1_test, ex2_test,
             DryRunManager(mocker.Mock(), mocker.Mock()),
             create=True)
 
-    if ex1_test != ex2_test:
-        with pytest.raises(AsymmetricTestExchangeConfigError):
+    # If wallet balance fetch fails, expect either ccxt.AuthenticationError or
+    # ccxt.ExchangeNotAvailable to be raised.
+    if balance_check_success is False:
+        # For testing purposes, only need one trader to throw an exception.
+        mock_trader1.update_wallet_balances.side_effect = exc_type
+        with pytest.raises(AutotrageurAuthenticationError):
             autotrageur._Autotrageur__setup_traders(fake_exchange_key_map)
-        assert(mock_trader1.load_markets.call_count == 0)
-        assert(mock_trader2.load_markets.call_count == 0)
+
+        # Expect called once and encountered exception.
+        mock_trader1.update_wallet_balances.assert_called_once_with()
+        mock_trader2.update_wallet_balances.assert_not_called()
     else:
-        # If wallet balance fetch fails, expect either ccxt.AuthenticationError or
-        # ccxt.ExchangeNotAvailable to be raised.
-        if balance_check_success is False:
-            # For testing purposes, only need one trader to throw an exception.
-            mock_trader1.update_wallet_balances.side_effect = exc_type
-            with pytest.raises(AutotrageurAuthenticationError):
-                autotrageur._Autotrageur__setup_traders(fake_exchange_key_map)
+        autotrageur._Autotrageur__setup_traders(fake_exchange_key_map)
+        mock_trader1.update_wallet_balances.assert_called_once_with()
+        mock_trader2.update_wallet_balances.assert_called_once_with()
+        assert(mock_trader1.load_markets.call_count == 1)
+        assert(mock_trader2.load_markets.call_count == 1)
 
-            # Expect called once and encountered exception.
-            mock_trader1.update_wallet_balances.assert_called_once_with()
-            mock_trader2.update_wallet_balances.assert_not_called()
-        else:
-            autotrageur._Autotrageur__setup_traders(fake_exchange_key_map)
-            mock_trader1.update_wallet_balances.assert_called_once_with()
-            mock_trader2.update_wallet_balances.assert_called_once_with()
-            assert(mock_trader1.load_markets.call_count == 1)
-            assert(mock_trader2.load_markets.call_count == 1)
-
-    if ex1_test and ex2_test:
+    if use_test_api:
         assert(mock_trader1.connect_test_api.call_count == 1)
         assert(mock_trader2.connect_test_api.call_count == 1)
     else:
