@@ -38,10 +38,10 @@ STARS = "*"*20
 class Configuration(namedtuple('Configuration', [
         'dryrun', 'dryrun_e1_base', 'dryrun_e1_quote',
         'dryrun_e2_base', 'dryrun_e2_quote', 'email_cfg_path', 'exchange1',
-        'exchange1_pair', 'exchange1_test', 'exchange2',
-        'exchange2_pair', 'exchange2_test', 'h_to_e1_max', 'h_to_e2_max', 'id',
-        'max_trade_size', 'poll_wait_default', 'poll_wait_short', 'slippage',
-        'spread_min', 'start_timestamp', 'twilio_cfg_path', 'vol_min'])):
+        'exchange1_pair', 'exchange2', 'exchange2_pair', 'use_test_api',
+        'h_to_e1_max', 'h_to_e2_max', 'id', 'max_trade_size',
+        'poll_wait_default', 'poll_wait_short', 'slippage', 'spread_min',
+        'start_timestamp', 'twilio_cfg_path', 'vol_min'])):
     """Holds all of the configuration for the autotrageur bot.
 
     Args:
@@ -55,12 +55,8 @@ class Configuration(namedtuple('Configuration', [
             notifications.
         exchange1 (str): Name of the exchange one.
         exchange1_pair (str): Symbol of the pair to use for exchange one.
-        exchange1_test (bool): If True, will attempt using exchange one's test
-            API.
         exchange2 (str): Name of the exchange two.
         exchange2_pair (str): Symbol of the pair to use for exchange two.
-        exchange2_test (bool): If True, will attempt using exchange two's test
-            API.
         h_to_e1_max (float): The historical max spread going to exchange one.
         h_to_e2_max (float): The historical max spread going to exchange two.
         id (str): The unique id tagged to the current configuration and bot
@@ -80,15 +76,11 @@ class Configuration(namedtuple('Configuration', [
             initialization.
         twilio_cfg_path (str): Path for the twilio config file, used for
             sending notifications.
+        use_test_api (bool): If True, will use the test APIs for both
+            exchanges.
         vol_min (float): The minimum volume trade in USD.
     """
     __slots__ = ()
-
-
-class AsymmetricTestExchangeConfigError(Exception):
-    """Raised when one exchange has enabled trading against a test API and the
-    other has not."""
-    pass
 
 
 class AutotrageurAuthenticationError(Exception):
@@ -302,17 +294,14 @@ class Autotrageur(ABC):
             dry_run_exchange2)
 
         # Set to run against test API, if applicable.
-        if not self._config.exchange1_test and not self._config.exchange2_test:
+        if not self._config.use_test_api:
             fancy_log("Starting bot against LIVE exchanges.")
             self.is_test_run = False
-        elif self._config.exchange1_test and self._config.exchange2_test:
+        else:
             fancy_log("Starting bot against TEST exchanges.")
             self.trader1.connect_test_api()
             self.trader2.connect_test_api()
             self.is_test_run = True
-        else:
-            raise AsymmetricTestExchangeConfigError(
-                "Only one of the exchanges has been set to a test API.")
 
         # Load the available markets for the exchange.
         self.trader1.load_markets()

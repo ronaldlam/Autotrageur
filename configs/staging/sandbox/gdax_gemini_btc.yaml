@@ -13,12 +13,13 @@ email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to sen
 # Exchange 1
 exchange1: gdax
 exchange1_pair: BTC/USD
-exchange1_test: true
 
 # Exchange 2
 exchange2: gemini
 exchange2_pair: BTC/USD
-exchange2_test: true
+
+# Whether to connect to the test exchange APIs of both exchanges.
+use_test_api: true
 
 # Poll intervals in seconds
 poll_wait_default: 5
