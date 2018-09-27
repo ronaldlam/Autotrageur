@@ -24,7 +24,7 @@ import ccxt
 from docopt import docopt
 
 import libs.ccxt_extensions as ccxt_extensions
-from bot.common.ccxt_constants import API_KEY, API_SECRET
+from libs.constants.ccxt_constants import API_KEY, API_SECRET
 from libs.security.encryption import decrypt
 from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
 
