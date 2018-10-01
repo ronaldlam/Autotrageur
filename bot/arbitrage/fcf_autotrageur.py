@@ -213,6 +213,7 @@ class FCFAutotrageur(Autotrageur):
                 # TODO: Adjust interval once real-time forex implemented.
                 schedule.every().hour.do(self.__update_forex, trader)
 
+    # @Override
     def _alert(self, subject, exception):
         """Last ditch effort to alert user on operation failure.
 
@@ -227,11 +228,13 @@ class FCFAutotrageur(Autotrageur):
             self.twilio_config[TWILIO_SENDER_NUMBER],
             is_mock_call=self._config.dryrun or self.is_test_run)
 
+    # @Override
     def _clean_up(self):
         """Cleans up the state of the autotrageur before performing next
         actions which may be harmed by previous state."""
         self._strategy.clean_up()
 
+    # @Override
     def _execute_trade(self):
         """Execute the arbitrage."""
         buy_response = None
@@ -368,6 +371,7 @@ class FCFAutotrageur(Autotrageur):
 
         self.checkpoint = previous_checkpoint
 
+    # @Override
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
 

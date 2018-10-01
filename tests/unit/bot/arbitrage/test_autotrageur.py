@@ -322,7 +322,6 @@ class TestRunAutotrageur:
     @pytest.mark.parametrize("requires_configs", [True, False])
     def test_run_autotrageur(self, mocker, autotrageur, requires_configs, resume_or_new_args):
         self._setup_mocks(mocker, autotrageur)
-        arguments = resume_or_new_args
         mocker.patch.object(autotrageur, '_poll_opportunity', side_effect=[
             True, True, False, True, False
         ])
@@ -330,11 +329,11 @@ class TestRunAutotrageur:
         retry_counter_instance = mock_counter.return_value
 
         with pytest.raises(SystemExit):
-            autotrageur.run_autotrageur(arguments, requires_configs)
+            autotrageur.run_autotrageur(resume_or_new_args, requires_configs)
 
         autotrageur._alert.assert_not_called()
-        autotrageur._setup.assert_called_once_with(arguments)
-        autotrageur._post_setup.assert_called_once_with(arguments)
+        autotrageur._setup.assert_called_once_with(resume_or_new_args)
+        autotrageur._post_setup.assert_called_once_with(resume_or_new_args)
         autotrageur._export_state.assert_not_called()
         assert autotrageur._clean_up.call_count == 5
         assert autotrageur._wait.call_count == 5

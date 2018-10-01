@@ -53,7 +53,7 @@ class Configuration(namedtuple('Configuration', [
         dryrun_e2_quote (str): In dry run, the quote used for exchange two.
         email_cfg_path (str): Path to the email config file, used for sending
             notifications.
-        exchange1 (str): Name of the exchange one.
+        exchange1 (str): Name of exchange one.
         exchange1_pair (str): Symbol of the pair to use for exchange one.
         exchange2 (str): Name of the exchange two.
         exchange2_pair (str): Symbol of the pair to use for exchange two.
@@ -232,8 +232,6 @@ class Autotrageur(ABC):
                 information necessary to connect with the exchange APIs.
 
         Raises:
-            AsymmetricTestExchangeConfigError: Raised when one exchange has
-                enabled trading against a test API and the other has not.
             AutotrageurAuthenticationError: Raised when given incorrect
                 credentials or exchange unavailable when attempting to
                 communicate through an exchange's API.
