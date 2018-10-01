@@ -13,12 +13,13 @@ email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to sen
 # Exchange 1
 exchange1: kraken
 exchange1_pair: ETH/USD
-exchange1_test: false
 
 # Exchange 2
 exchange2: bithumb
 exchange2_pair: ETH/KRW
-exchange2_test: false
+
+# Whether to connect to the test exchange APIs of both exchanges.
+use_test_api: false
 
 # Poll intervals in seconds
 poll_wait_default: 5
@@ -36,12 +37,6 @@ spread_min: 0.5
 vol_min: 25000
 # Percentage downside of limit order slippage tolerable for market order emulations
 slippage: 0 # Important for Gemini, eg. 3
-
-# ----------------DATABASE SETTINGS--------------------------------------------
-# (String) The database name.
-db_name: fcf_trade_history_staging
-# (String) The database user.
-db_user: worker1
 
 # ----------------TWILIO SETTINGS----------------------------------------------
 # Path for the twilio config file.

@@ -9,7 +9,6 @@ import uuid
 from decimal import Decimal
 from unittest.mock import Mock
 
-import ccxt
 import pytest
 import schedule
 import yaml
@@ -20,18 +19,12 @@ import bot.arbitrage.fcf_autotrageur
 import libs.db.maria_db_handler as db_handler
 from bot.arbitrage.arbseeker import SpreadOpportunity
 from bot.arbitrage.fcf.strategy import TradeMetadata
-from bot.arbitrage.fcf_autotrageur import (FCFAuthenticationError,
-                                           FCFAutotrageur, FCFBalanceChecker,
-                                           FCFCheckpoint,
+from bot.arbitrage.fcf_autotrageur import (FCFAutotrageur, FCFCheckpoint,
                                            IncompleteArbitrageError,
                                            IncorrectStateObjectTypeError,
                                            arbseeker)
-from bot.common.config_constants import (DRYRUN, EMAIL_CFG_PATH, H_TO_E1_MAX,
-                                         H_TO_E2_MAX, ID, MAX_TRADE_SIZE,
-                                         POLL_WAIT_SHORT, SPREAD_MIN,
-                                         START_TIMESTAMP, TWILIO_CFG_PATH,
-                                         TWILIO_RECIPIENT_NUMBERS,
-                                         TWILIO_SENDER_NUMBER, VOL_MIN)
+from bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
+                                         TWILIO_SENDER_NUMBER)
 from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS,
@@ -45,6 +38,7 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      TRADES_TABLE)
 from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
+from bot.trader.dry_run import DryRunManager
 from libs.db.maria_db_handler import InsertRowObject
 from libs.utilities import num_to_decimal
 
@@ -88,12 +82,16 @@ FAKE_RESUME_UUID = str(uuid.uuid4())
 FAKE_SPREAD_OPP_ID = 9999
 FAKE_CURR_TIME = time.time()
 FAKE_CONFIG_ROW = { 'fake': 'config_row' }
+FAKE_STRATEGY_STATE_RESTORED = Mock()
 
 
 @pytest.fixture(scope='module')
 def no_patch_fcf_autotrageur():
     fake_logger = Mock()
-    return FCFAutotrageur(fake_logger)
+    fcf_instance = FCFAutotrageur(fake_logger)
+    fcf_instance._config = Mock()
+    fcf_instance._dry_run_manager = DryRunManager(Mock(), Mock())
+    return fcf_instance
 
 
 @pytest.fixture()
@@ -138,8 +136,7 @@ def test_load_twilio(mocker, no_patch_fcf_autotrageur):
     fake_test_connection.assert_called_once_with()
 
 
-def test_persist_configs(mocker, no_patch_fcf_autotrageur):
-    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {}, create=True)
+def test_persist_config(mocker, no_patch_fcf_autotrageur):
     mocker.patch.object(db_handler, 'build_row', return_value=FAKE_CONFIG_ROW)
     mocker.patch.object(db_handler, 'insert_row')
     mocker.patch.object(db_handler, 'commit_all')
@@ -147,7 +144,7 @@ def test_persist_configs(mocker, no_patch_fcf_autotrageur):
     no_patch_fcf_autotrageur._FCFAutotrageur__persist_config()
 
     db_handler.build_row.assert_called_once_with(
-        FCF_AUTOTRAGEUR_CONFIG_COLUMNS, no_patch_fcf_autotrageur.config)
+        FCF_AUTOTRAGEUR_CONFIG_COLUMNS, no_patch_fcf_autotrageur._config._asdict())
     db_handler.insert_row.assert_called_once_with(
         InsertRowObject(
             FCF_AUTOTRAGEUR_CONFIG_TABLE,
@@ -207,10 +204,8 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
         SpreadOpportunity(
             FAKE_SPREAD_OPP_ID, None, None, None, None, None, None, None, None),
         None, None, None, None)
-    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
-        ID: FAKE_CONFIG_UUID,
-        START_TIMESTAMP: FAKE_CURR_TIME
-    }, create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'id', FAKE_CONFIG_UUID)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'start_timestamp', FAKE_CURR_TIME)
     mocker.patch.object(db_handler, 'insert_row')
     mocker.patch.object(db_handler, 'commit_all')
 
@@ -295,105 +290,43 @@ def test_setup_forex(mocker, no_patch_fcf_autotrageur, client_quote_usd):
     schedule.clear()
 
 
-@pytest.mark.parametrize('exc_type', [ccxt.AuthenticationError, ccxt.ExchangeNotAvailable])
-@pytest.mark.parametrize('balance_check_success', [True, False])
-def test_setup_wallet_balances(mocker, no_patch_fcf_autotrageur,
-                               balance_check_success, exc_type):
-    trader1 = mocker.patch.object(no_patch_fcf_autotrageur, 'trader1',
-        create=True)
-    trader2 = mocker.patch.object(no_patch_fcf_autotrageur, 'trader2',
-        create=True)
-    mock_fcf_balance_checker_constructor = mocker.patch.object(
-        FCFBalanceChecker, '__init__', return_value=None)
-    mock_strategy_builder = mocker.Mock()
+def test_construct_strategy(mocker, no_patch_fcf_autotrageur):
+    SPREAD_MIN = 1.3
+    VOL_MIN = 1000
+    H_TO_E1_MAX = 3
+    H_TO_E2_MAX = 50
+    MAX_TRADE_SIZE = 200
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'h_to_e1_max', H_TO_E1_MAX)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'h_to_e2_max', H_TO_E2_MAX)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'max_trade_size', MAX_TRADE_SIZE)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'spread_min', SPREAD_MIN)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'vol_min', VOL_MIN)
 
-    # If wallet balance fetch fails, expect either ccxt.AuthenticationError or
-    # ccxt.ExchangeNotAvailable to be raised.
-    if balance_check_success is False:
-        # For testing purposes, only need one trader to throw an exception.
-        trader1.update_wallet_balances.side_effect = exc_type
-        with pytest.raises(FCFAuthenticationError):
-            no_patch_fcf_autotrageur._FCFAutotrageur__setup_wallet_balances(
-                mock_strategy_builder)
-
-        # Expect called once and encountered exception.
-        trader1.update_wallet_balances.assert_called_once_with()
-        trader2.update_wallet_balances.assert_not_called()
-    else:
-        no_patch_fcf_autotrageur._FCFAutotrageur__setup_wallet_balances(
-            mock_strategy_builder)
-        trader1.update_wallet_balances.assert_called_once_with()
-        trader2.update_wallet_balances.assert_called_once_with()
-        mock_fcf_balance_checker_constructor.assert_called_once_with(
-            trader1, trader2, no_patch_fcf_autotrageur._send_email)
-        mock_strategy_builder.set_balance_checker.assert_called_once()
-
-
-@pytest.mark.parametrize('resume_id', [None, FAKE_RESUME_UUID])
-def test_construct_strategy(mocker, no_patch_fcf_autotrageur, resume_id):
-    MOCK_RESULT = 'MOCK_RESULT'
-    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
-        ID: FAKE_CONFIG_UUID,
-        SPREAD_MIN: 1.3,
-        VOL_MIN: 1000,
-        H_TO_E1_MAX: 3,
-        H_TO_E2_MAX: 50,
-        MAX_TRADE_SIZE: 200
-    }, create=True)
-    mock_exec_param_query = mocker.patch.object(
-        db_handler, 'execute_parametrized_query', return_value=[(MOCK_RESULT,)])
-    mock_import_state = mocker.patch.object(no_patch_fcf_autotrageur, '_import_state')
     mock_strategy = mocker.Mock()
     mock_strategy_builder = mocker.Mock()
     mock_strategy_builder.build.return_value = mock_strategy
     mock_strategy_builder_constructor = mocker.patch(
         'bot.arbitrage.fcf_autotrageur.FCFStrategyBuilder',
         return_value=mock_strategy_builder)
-    mock_checkpoint = mocker.Mock()
-    mock_checkpoint_constructor = mocker.patch(
-        'bot.arbitrage.fcf_autotrageur.FCFCheckpoint',
-        return_value=mock_checkpoint)
-    mock_setup_wallet_balances = mocker.patch.object(
-        no_patch_fcf_autotrageur, '_FCFAutotrageur__setup_wallet_balances')
-    mocker.patch.object(no_patch_fcf_autotrageur,
-                        'trader1', create=True)
-    mocker.patch.object(no_patch_fcf_autotrageur,
-                        'trader2', create=True)
+
     mock_strategy_builder.set_has_started.return_value = mock_strategy_builder
     mock_strategy_builder.set_h_to_e1_max.return_value = mock_strategy_builder
     mock_strategy_builder.set_h_to_e2_max.return_value = mock_strategy_builder
     mock_strategy_builder.set_max_trade_size.return_value = mock_strategy_builder
     mock_strategy_builder.set_spread_min.return_value = mock_strategy_builder
     mock_strategy_builder.set_vol_min.return_value = mock_strategy_builder
-    mock_strategy_builder.set_checkpoint.return_value = mock_strategy_builder
-    mock_strategy_builder.set_trader1.return_value = mock_strategy_builder
-    mock_strategy_builder.set_trader2.return_value = mock_strategy_builder
+    mock_strategy_builder.set_manager.return_value = mock_strategy_builder
 
-    no_patch_fcf_autotrageur._FCFAutotrageur__construct_strategy(resume_id=resume_id)
-
-    if resume_id:
-        mock_exec_param_query.assert_called_once_with(
-            "SELECT state FROM fcf_state where id = %s;", (resume_id,))
-        mock_import_state.assert_called_once_with(
-            MOCK_RESULT, mock_strategy_builder)
-        mock_strategy.restore.assert_called_once_with()
-    else:
-        mock_exec_param_query.assert_not_called()
-        mock_import_state.assert_not_called()
-        mock_strategy.restore.assert_not_called()
+    no_patch_fcf_autotrageur._FCFAutotrageur__construct_strategy()
 
     mock_strategy_builder_constructor.assert_called_once_with()
-    mock_checkpoint_constructor.assert_called_once_with(no_patch_fcf_autotrageur.config[ID])
-    mock_setup_wallet_balances.assert_called_once_with(mock_strategy_builder)
     mock_strategy_builder.set_has_started.assert_called_once_with(False)
     mock_strategy_builder.set_h_to_e1_max.assert_called_once_with(Decimal('3'))
     mock_strategy_builder.set_h_to_e2_max.assert_called_once_with(Decimal('50'))
     mock_strategy_builder.set_max_trade_size.assert_called_once_with(Decimal('200'))
     mock_strategy_builder.set_spread_min.assert_called_once_with(Decimal('1.3'))
     mock_strategy_builder.set_vol_min.assert_called_once_with(Decimal('1000'))
-    mock_strategy_builder.set_checkpoint.assert_called_once_with(mock_checkpoint)
-    mock_strategy_builder.set_trader1.assert_called_once_with(no_patch_fcf_autotrageur.trader1)
-    mock_strategy_builder.set_trader2.assert_called_once_with(no_patch_fcf_autotrageur.trader2)
+    mock_strategy_builder.set_manager.assert_called_once_with(no_patch_fcf_autotrageur)
     mock_strategy_builder.build.assert_called_once_with()
 
 
@@ -405,9 +338,12 @@ class TestExecuteTrade:
         mocker.patch.object(no_patch_fcf_autotrageur, 'trader1', trader1, create=True)
         mocker.patch.object(no_patch_fcf_autotrageur, 'trader2', trader2, create=True)
         mocker.patch.object(
-            no_patch_fcf_autotrageur, 'config', { DRYRUN: dryrun }, create=True)
-        mocker.patch.object(no_patch_fcf_autotrageur, 'strategy', create=True)
-        mocker.patch.object(no_patch_fcf_autotrageur.strategy, 'get_trade_data',
+            no_patch_fcf_autotrageur._config, 'dryrun', dryrun)
+        mocker.patch.object(no_patch_fcf_autotrageur, '_strategy', create=True)
+        mocker.patch.object(no_patch_fcf_autotrageur, 'checkpoint', create=True)
+        mocker.patch.object(
+            no_patch_fcf_autotrageur.checkpoint, 'strategy_state', FAKE_STRATEGY_STATE_RESTORED)
+        mocker.patch.object(no_patch_fcf_autotrageur._strategy, 'get_trade_data',
             return_value=TradeMetadata(
                 spread_opp=None,
                 buy_price=FAKE_BUY_PRICE,
@@ -424,8 +360,8 @@ class TestExecuteTrade:
         mocker.patch.object(no_patch_fcf_autotrageur, '_send_email')
 
         if dryrun:
-            mocker.patch.object(no_patch_fcf_autotrageur, 'dry_run', create=True)
-            mocker.patch.object(no_patch_fcf_autotrageur.dry_run, 'log_balances', create=True)
+            mocker.patch.object(no_patch_fcf_autotrageur, '_dry_run_manager', create=True)
+            mocker.patch.object(no_patch_fcf_autotrageur._dry_run_manager, 'log_balances', create=True)
 
     @pytest.mark.parametrize('dryrun', [True, False])
     def test_execute_trade(self, mocker, fake_ccxt_trader,
@@ -435,7 +371,7 @@ class TestExecuteTrade:
 
         no_patch_fcf_autotrageur._execute_trade()
 
-        trade_metadata = no_patch_fcf_autotrageur.strategy.get_trade_data.return_value
+        trade_metadata = no_patch_fcf_autotrageur._strategy.get_trade_data.return_value
         arbseeker.execute_buy.assert_called_once_with(
             trade_metadata.buy_trader,
             trade_metadata.buy_price)
@@ -445,11 +381,11 @@ class TestExecuteTrade:
             FAKE_UNIFIED_RESPONSE_BUY['post_fee_base'])
         no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data.assert_called_once_with(
             FAKE_UNIFIED_RESPONSE_BUY, FAKE_UNIFIED_RESPONSE_SELL, trade_metadata)
-        no_patch_fcf_autotrageur.strategy.finalize_trade.assert_called_once_with(
+        no_patch_fcf_autotrageur._strategy.finalize_trade.assert_called_once_with(
             FAKE_UNIFIED_RESPONSE_BUY, FAKE_UNIFIED_RESPONSE_SELL)
 
         if dryrun:
-            no_patch_fcf_autotrageur.dry_run.log_balances.assert_called_once_with()
+            no_patch_fcf_autotrageur._dry_run_manager.log_balances.assert_called_once_with()
             no_patch_fcf_autotrageur._send_email.assert_not_called()
         else:
             no_patch_fcf_autotrageur._send_email.assert_called_once()
@@ -466,15 +402,15 @@ class TestExecuteTrade:
 
         no_patch_fcf_autotrageur._execute_trade()
 
-        trade_metadata = no_patch_fcf_autotrageur.strategy.get_trade_data.return_value
+        trade_metadata = no_patch_fcf_autotrageur._strategy.get_trade_data.return_value
         mock_persist_data = no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data
         arbseeker.execute_buy.assert_called_once_with(
             trade_metadata.buy_trader,
             trade_metadata.buy_price)
         arbseeker.execute_sell.assert_not_called()
         mock_persist_data.assert_called_once_with(None, None, trade_metadata)
-        no_patch_fcf_autotrageur.strategy.restore.assert_called_once()
-        no_patch_fcf_autotrageur.strategy.finalize_trade.assert_not_called()
+        assert no_patch_fcf_autotrageur._strategy.strategy_state is FAKE_STRATEGY_STATE_RESTORED
+        no_patch_fcf_autotrageur._strategy.finalize_trade.assert_not_called()
         no_patch_fcf_autotrageur._send_email.assert_called_once()
 
     @pytest.mark.parametrize('exc_type', [
@@ -495,7 +431,7 @@ class TestExecuteTrade:
         with pytest.raises(exc_type):
             no_patch_fcf_autotrageur._execute_trade()
 
-        trade_metadata = no_patch_fcf_autotrageur.strategy.get_trade_data.return_value
+        trade_metadata = no_patch_fcf_autotrageur._strategy.get_trade_data.return_value
         mock_persist_data = no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data
         arbseeker.execute_buy.assert_called_once_with(
             trade_metadata.buy_trader,
@@ -515,32 +451,40 @@ class TestExecuteTrade:
         else:
             mock_persist_data.assert_called_once_with(
                 FAKE_UNIFIED_RESPONSE_BUY, None, trade_metadata)
-        no_patch_fcf_autotrageur.strategy.restore.assert_not_called()
-        no_patch_fcf_autotrageur.strategy.finalize_trade.assert_not_called()
+        no_patch_fcf_autotrageur._strategy.restore.assert_not_called()
+        no_patch_fcf_autotrageur._strategy.finalize_trade.assert_not_called()
         no_patch_fcf_autotrageur._send_email.assert_called_once()
 
 
 def test_clean_up(mocker, no_patch_fcf_autotrageur):
     mock_strategy = mocker.patch.object(
-        no_patch_fcf_autotrageur, 'strategy', create=True)
+        no_patch_fcf_autotrageur, '_strategy', create=True)
 
     no_patch_fcf_autotrageur._clean_up()
 
     mock_strategy.clean_up.assert_called_once_with()
 
 
-def test_export_state(mocker, no_patch_fcf_autotrageur, fcf_checkpoint):
+@pytest.mark.parametrize('dryrun', [True, False])
+def test_export_state(mocker, no_patch_fcf_autotrageur, fcf_checkpoint, dryrun):
     FAKE_NEW_UUID = str(uuid.uuid4())
-    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
-        ID: FAKE_CONFIG_UUID,
-        START_TIMESTAMP: FAKE_CURR_TIME
-    }, create=True)
-    strategy = mocker.patch.object(
-        no_patch_fcf_autotrageur, 'strategy', create=True)
-    strategy.checkpoint = fcf_checkpoint
+    FAKE_DRY_RUN_MANAGER = Mock()
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'dryrun', dryrun)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'id', FAKE_CONFIG_UUID)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'start_timestamp', FAKE_CURR_TIME)
+    mocker.patch.object(no_patch_fcf_autotrageur, 'checkpoint', fcf_checkpoint, create=True)
+
+    # Need to mock out to prevent test dying on logging call.
+    mocker.patch.object(
+        no_patch_fcf_autotrageur.checkpoint, '_strategy_state', create=True)
+    mocker.patch.object(
+        no_patch_fcf_autotrageur.checkpoint, '_dry_run_manager',
+        FAKE_DRY_RUN_MANAGER, create=True)
+
     mocker.patch.object(uuid, 'uuid4', return_value=FAKE_NEW_UUID)
     mocker.patch.object(db_handler, 'insert_row')
     mocker.patch.object(db_handler, 'commit_all')
+    mocker.patch.object(pickle, 'dumps')
     fcf_state_row_obj = InsertRowObject(
         FCF_STATE_TABLE,
         {
@@ -556,87 +500,123 @@ def test_export_state(mocker, no_patch_fcf_autotrageur, fcf_checkpoint):
     db_handler.insert_row.assert_called_once_with(fcf_state_row_obj)
     db_handler.commit_all.assert_called_once_with()
 
+    # Dry run manager is saved to checkpoint's dry_run_manager if on dry run
+    # mode.
+    if dryrun:
+        assert (no_patch_fcf_autotrageur.checkpoint.dry_run_manager
+                == no_patch_fcf_autotrageur._dry_run_manager)
+    else:
+        assert no_patch_fcf_autotrageur.checkpoint.dry_run_manager is FAKE_DRY_RUN_MANAGER
 
 @pytest.mark.parametrize('correct_state_obj_type', [True, False])
 def test_import_state(mocker, no_patch_fcf_autotrageur, fcf_checkpoint,
                       correct_state_obj_type):
-    MOCK_PREVIOUS_STATE = b'hellofakestate'
-    mock_strategy_builder = mocker.Mock()
+    MOCK_RESULT = b'MOCK_RESULT'
+    mocker.patch.object(no_patch_fcf_autotrageur, 'checkpoint', None, create=True)
     mocker.patch.object(pickle, 'loads',
         return_value=fcf_checkpoint if correct_state_obj_type else mocker.Mock())
+    mock_exec_param_query = mocker.patch.object(
+        db_handler, 'execute_parametrized_query', return_value=[(MOCK_RESULT,)])
 
     if correct_state_obj_type:
-        no_patch_fcf_autotrageur._import_state(
-            MOCK_PREVIOUS_STATE, mock_strategy_builder)
-        mock_strategy_builder.set_checkpoint.assert_called_once_with(fcf_checkpoint)
+        no_patch_fcf_autotrageur._import_state(FAKE_RESUME_UUID)
+        assert no_patch_fcf_autotrageur.checkpoint is fcf_checkpoint
     else:
         with pytest.raises(IncorrectStateObjectTypeError):
-            no_patch_fcf_autotrageur._import_state(
-                MOCK_PREVIOUS_STATE, mock_strategy_builder)
-        mock_strategy_builder.set_checkpoint.assert_not_called()
+            no_patch_fcf_autotrageur._import_state(FAKE_RESUME_UUID)
+        assert getattr(no_patch_fcf_autotrageur, 'checkpoint') is None
 
-    pickle.loads.assert_called_once_with(MOCK_PREVIOUS_STATE)
-
-
-def test_load_configs(mocker, no_patch_fcf_autotrageur):
-    mocker.patch.object(builtins, 'super')
-    args = mocker.Mock()
-    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
-        TWILIO_CFG_PATH: 'path/to/config'
-    }, create=True)
-    mocker.patch.object(no_patch_fcf_autotrageur, '_FCFAutotrageur__load_twilio')
-    no_patch_fcf_autotrageur._load_configs(args)
-
-    no_patch_fcf_autotrageur._FCFAutotrageur__load_twilio.assert_called_once_with(
-        no_patch_fcf_autotrageur.config[TWILIO_CFG_PATH])
+    mock_exec_param_query.assert_called_once_with(
+        "SELECT state FROM fcf_state where id = %s;", (FAKE_RESUME_UUID,))
+    pickle.loads.assert_called_once_with(MOCK_RESULT)
 
 
 def test_poll_opportunity(mocker, no_patch_fcf_autotrageur):
     mock_strategy = mocker.patch.object(
-        no_patch_fcf_autotrageur, 'strategy', create=True)
+        no_patch_fcf_autotrageur, '_strategy', create=True)
     no_patch_fcf_autotrageur._poll_opportunity()
     mock_strategy.poll_opportunity.assert_called_once_with()
+
+
+def test_post_setup(mocker, no_patch_fcf_autotrageur):
+    arguments = mocker.MagicMock()
+    FAKE_BALANCE_CHECKER = mocker.Mock()
+    mocker.patch.object(no_patch_fcf_autotrageur, 'trader1', create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur, 'trader2', create=True)
+    mock_send_email = mocker.patch.object(no_patch_fcf_autotrageur, '_send_email')
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'twilio_cfg_path')
+    parent_super = mocker.patch.object(builtins, 'super')
+    mock_load_twilio = mocker.patch.object(
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__load_twilio')
+    mock_setup_forex = mocker.patch.object(
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__setup_forex')
+    mock_persist_config = mocker.patch.object(
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_config')
+    mock_balance_checker_constructor = mocker.patch(
+        'bot.arbitrage.fcf_autotrageur.FCFBalanceChecker',
+        return_value=FAKE_BALANCE_CHECKER)
+
+    no_patch_fcf_autotrageur._post_setup(arguments)
+
+    parent_super.return_value._post_setup.assert_called_once_with(arguments)
+    mock_load_twilio.assert_called_once_with(
+        no_patch_fcf_autotrageur._config.twilio_cfg_path)
+    mock_setup_forex.assert_called_once_with()
+    mock_persist_config.assert_called_once_with()
+    mock_balance_checker_constructor.assert_called_once_with(
+        no_patch_fcf_autotrageur.trader1,
+        no_patch_fcf_autotrageur.trader2,
+        mock_send_email)
+    assert no_patch_fcf_autotrageur.balance_checker == FAKE_BALANCE_CHECKER
 
 
 def test_send_email(mocker, no_patch_fcf_autotrageur):
     FAKE_SUBJECT = 'A FAKE SUBJECT'
     FAKE_MESSAGE = 'A FAKE MESSAGE'
 
-    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
-        EMAIL_CFG_PATH: 'path/to/config'
-    }, create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'email_cfg_path', 'path/to/config')
     mocker.patch('bot.arbitrage.fcf_autotrageur.send_all_emails')
     no_patch_fcf_autotrageur._send_email(FAKE_SUBJECT, FAKE_MESSAGE)
     bot.arbitrage.fcf_autotrageur.send_all_emails.assert_called_once_with(
-        no_patch_fcf_autotrageur.config[EMAIL_CFG_PATH], FAKE_SUBJECT, FAKE_MESSAGE)
+        no_patch_fcf_autotrageur._config.email_cfg_path, FAKE_SUBJECT, FAKE_MESSAGE)
 
 
-def test_setup(mocker, no_patch_fcf_autotrageur, fcf_checkpoint):
+@pytest.mark.parametrize('resume_id', [FAKE_RESUME_UUID, None])
+def test_setup(mocker, no_patch_fcf_autotrageur, fcf_checkpoint, resume_id):
+    arguments = {
+        '--resume_id': resume_id
+    }
     parent_super = mocker.patch.object(builtins, 'super')
-    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {}, create=True)
-    mock_persist_config = mocker.patch.object(
-        no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_config')
     mock_construct_strategy = mocker.patch.object(
         no_patch_fcf_autotrageur, '_FCFAutotrageur__construct_strategy')
-    mock_setup_forex = mocker.patch.object(
-        no_patch_fcf_autotrageur, '_FCFAutotrageur__setup_forex')
-    mocker.patch.object(time, 'time', return_value=FAKE_CURR_TIME)
-    mocker.patch.object(uuid, 'uuid4', return_value=FAKE_CONFIG_UUID)
+    mock_fcf_checkpoint_constructor = mocker.patch('bot.arbitrage.fcf_autotrageur.FCFCheckpoint')
+    mock_import_state = mocker.patch.object(no_patch_fcf_autotrageur, '_import_state')
 
-    no_patch_fcf_autotrageur._setup(FAKE_RESUME_UUID)
+    if resume_id:
+        mocker.patch.object(no_patch_fcf_autotrageur, 'checkpoint', fcf_checkpoint, create=True)
+        mock_checkpoint_config = mocker.patch.object(
+            no_patch_fcf_autotrageur.checkpoint, '_config')
+        mock_checkpoint_dr_manager = mocker.patch.object(
+            no_patch_fcf_autotrageur.checkpoint, '_dry_run_manager', create=True)
+        mock_checkpoint_restore_strategy = mocker.patch.object(
+            no_patch_fcf_autotrageur.checkpoint, 'restore_strategy')
 
-    parent_super.assert_called_once()
-    time.time.assert_called_once_with()
-    uuid.uuid4.assert_called_once_with()
+        no_patch_fcf_autotrageur._setup(arguments)
 
-    assert no_patch_fcf_autotrageur.config[START_TIMESTAMP] == int(FAKE_CURR_TIME)
-    # Only accurate for purposes of testing.  The config[ID] may be changed by
-    # a resumed state.
-    assert no_patch_fcf_autotrageur.config[ID] == str(FAKE_CONFIG_UUID)
+        mock_import_state.assert_called_once_with(resume_id)
+        assert no_patch_fcf_autotrageur._config is mock_checkpoint_config
+        assert no_patch_fcf_autotrageur._strategy is mock_construct_strategy.return_value
+        mock_checkpoint_restore_strategy.assert_called_once_with(no_patch_fcf_autotrageur._strategy)
+        assert no_patch_fcf_autotrageur._dry_run_manager is mock_checkpoint_dr_manager
+    else:
+        no_patch_fcf_autotrageur._setup(arguments)
 
-    mock_construct_strategy.assert_called_once_with(FAKE_RESUME_UUID)
-    mock_persist_config.assert_called_once_with()
-    mock_setup_forex.assert_called_once_with()
+        mock_fcf_checkpoint_constructor.assert_called_once_with(no_patch_fcf_autotrageur._config)
+        assert no_patch_fcf_autotrageur.checkpoint is mock_fcf_checkpoint_constructor.return_value
+        assert no_patch_fcf_autotrageur._strategy is mock_construct_strategy.return_value
+
+    parent_super.return_value._setup.assert_called_once_with(arguments)
+    mock_construct_strategy.assert_called_once_with()
 
 
 @pytest.mark.parametrize('subject', [SUBJECT_DRY_RUN_FAILURE, SUBJECT_LIVE_FAILURE])
@@ -646,9 +626,7 @@ def test_alert(mocker, subject, no_patch_fcf_autotrageur, is_dry_run, is_test_ru
     # FAKE_DRY_RUN = 'fake_dry_run_setting'
     FAKE_RECIPIENT_NUMBERS = ['+12345678', '9101121314']
     FAKE_SENDER_NUMBER = '+15349875'
-    mocker.patch.object(no_patch_fcf_autotrageur, 'config', {
-        DRYRUN: is_dry_run
-    }, create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'dryrun', is_dry_run)
     mocker.patch.object(no_patch_fcf_autotrageur, 'is_test_run', is_test_run, create=True)
     mocker.patch.object(no_patch_fcf_autotrageur, 'twilio_config', {
         TWILIO_RECIPIENT_NUMBERS: FAKE_RECIPIENT_NUMBERS,
@@ -674,17 +652,18 @@ def test_alert(mocker, subject, no_patch_fcf_autotrageur, is_dry_run, is_test_ru
 
 @pytest.mark.parametrize('trade_completed', [True, False])
 def test_wait(mocker, no_patch_fcf_autotrageur, trade_completed):
+    MOCK_POLL_WAIT_SHORT = 2
     mock_super = mocker.patch.object(builtins, 'super')
     mock_sleep = mocker.patch.object(time, 'sleep')
     strategy = mocker.patch.object(
-        no_patch_fcf_autotrageur, 'strategy', create=True)
+        no_patch_fcf_autotrageur, '_strategy', create=True)
     strategy.trade_chunker.trade_completed = trade_completed
     mocker.patch.object(
-        no_patch_fcf_autotrageur, 'config', {POLL_WAIT_SHORT: 2}, create=True)
+        no_patch_fcf_autotrageur._config, 'poll_wait_short', MOCK_POLL_WAIT_SHORT)
 
     no_patch_fcf_autotrageur._wait()
 
     if trade_completed:
         mock_super.return_value._wait.assert_called_once_with()
     else:
-        mock_sleep.assert_called_once_with(2)
+        mock_sleep.assert_called_once_with(MOCK_POLL_WAIT_SHORT)

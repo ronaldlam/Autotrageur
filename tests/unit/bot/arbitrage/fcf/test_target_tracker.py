@@ -42,6 +42,7 @@ def test_advance_target_index(
 def test_reset_target_index(fcf_target_tracker):
     fcf_target_tracker.reset_target_index()
     assert fcf_target_tracker._target_index == 0
+    assert fcf_target_tracker._last_target_index == 0
 
 
 @pytest.mark.parametrize(

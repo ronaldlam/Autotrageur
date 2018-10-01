@@ -204,8 +204,8 @@ class CCXTTrader():
         Raises:
             NotImplementedError: There is no test API support.
         """
-        if "test" in self.ccxt_exchange.urls:
-            self.ccxt_exchange.urls["api"] = self.ccxt_exchange.urls["test"]
+        if 'test' in self.ccxt_exchange.urls:
+            self.ccxt_exchange.urls['api'] = self.ccxt_exchange.urls['test']
         else:
             raise NotImplementedError(
                 "Test connection to %s not implemented." %
