@@ -40,12 +40,12 @@ TEST_FAKE_SELL_RESULT = {
 
 @pytest.fixture(scope='module')
 def buy_trader():
-    return CCXTTrader('ETH', 'USD', 'Gemini', 1)
+    return CCXTTrader('ETH', 'USD', 'Gemini', 'e1', 1)
 
 
 @pytest.fixture(scope='module')
 def sell_trader():
-    return CCXTTrader('ETH', 'KRW', 'Bithumb', 1)
+    return CCXTTrader('ETH', 'KRW', 'Bithumb', 'e2', 1)
 
 
 @pytest.mark.parametrize(

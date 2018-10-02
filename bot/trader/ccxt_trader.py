@@ -105,18 +105,18 @@ class CCXTTrader():
     def __adjust_working_balance(self, is_dry_run):
         """Subtracts reasonable slippage from quote_bal.
 
-        Retrieve trade data and use slippage of executed trades to
+        Retrieves trade data and use slippage of executed trades to
         calculate the desired working quote balance. We assume that the
         slippage follows a normal distribution about mean 0 and we use
         the sample standard deviation for our calculations. This should
         be adjusted every time a trade is executed, since that gives us
         an additional datapoint.
 
-        This is a measure to reduce likelihood of failed trade
-        executions when the quote_target_amount is equal to quote_bal.
-        If there is any orderbook movement driving price up, then the
-        quote_bal will not be sufficient to cover the trade, since it is
-        issued to the exchange in terms of base desired to be purchased.
+        This is a measure to reduce likelihood of failed buy executions
+        when the quote_target_amount is equal to quote_bal. If there is
+        any orderbook movement driving price up, then the quote_bal will
+        not be sufficient to cover the trade, since it is issued to the
+        exchange in terms of base desired to be purchased.
 
         Args:
             is_dry_run (bool): Whether or not the current run is a dry

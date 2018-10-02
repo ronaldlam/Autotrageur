@@ -238,11 +238,11 @@ def test_prepare_trade(mocker, fcf_strategy, is_momentum_change,
     mocker.patch.object(
         fcf_strategy._manager,
         'trader1',
-        CCXTTrader('ETH', 'USD', 'kraken', Decimal('0')))
+        CCXTTrader('ETH', 'USD', 'kraken', 'e1', Decimal('0')))
     mocker.patch.object(
         fcf_strategy._manager,
         'trader2',
-        CCXTTrader('ETH', 'USD', 'bitfinex', Decimal('0')))
+        CCXTTrader('ETH', 'USD', 'bitfinex', 'e2', Decimal('0')))
 
     if to_e1:
         buy_trader = fcf_strategy._manager.trader2
