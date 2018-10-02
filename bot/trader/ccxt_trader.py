@@ -1,11 +1,13 @@
-from collections import namedtuple
 import logging
+from collections import namedtuple
+from statistics import stdev
 
 import ccxt
 
-from libs.constants.decimal_constants import ZERO
 import bot.currencyconverter as currencyconverter
 import libs.ccxt_extensions as ccxt_extensions
+from libs.constants.decimal_constants import HUNDRED, ONE, ZERO
+from libs.db.maria_db_handler import execute_parametrized_query
 from libs.trade.executor.ccxt_executor import CCXTExecutor
 from libs.trade.executor.dryrun_executor import DryRunExecutor
 from libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
@@ -39,7 +41,7 @@ class NoQuoteBalanceException(Exception):
 class CCXTTrader():
     """CCXT Trader for performing trades."""
 
-    def __init__(self, base, quote, exchange_name, slippage,
+    def __init__(self, base, quote, exchange_name, exchange_id, slippage,
         exchange_config={}, dry_run=None):
         """Constructor.
 
@@ -54,6 +56,7 @@ class CCXTTrader():
             quote (str): The quote (second) token/currency of the
                 exchange pair.
             exchange_name (str): Desired exchange to query against.
+            exchange_id (str): The exchange id, either 'e1' or e2'.
             slippage (Decimal): Maximum desired slippage from emulated
                 market trades.
             exchange_config (dict): The exchange's configuration in
@@ -80,6 +83,7 @@ class CCXTTrader():
         self.base = base
         self.quote = quote
         self.exchange_name = exchange_name
+        self.exchange_id = exchange_id
         self.fetcher = CCXTFetcher(self.ccxt_exchange)
         self.slippage = slippage
 
@@ -97,6 +101,75 @@ class CCXTTrader():
         self.forex_id = None
         self.base_bal = None
         self.quote_bal = None
+
+    def __adjust_working_balance(self, is_dry_run):
+        """Subtracts reasonable slippage from quote_bal.
+
+        Retrieve trade data and use slippage of executed trades to
+        calculate the desired working quote balance. We assume that the
+        slippage follows a normal distribution about mean 0 and we use
+        the sample standard deviation for our calculations. This should
+        be adjusted every time a trade is executed, since that gives us
+        an additional datapoint.
+
+        This is a measure to reduce likelihood of failed trade
+        executions when the quote_target_amount is equal to quote_bal.
+        If there is any orderbook movement driving price up, then the
+        quote_bal will not be sufficient to cover the trade, since it is
+        issued to the exchange in terms of base desired to be purchased.
+
+        Args:
+            is_dry_run (bool): Whether or not the current run is a dry
+                run.
+        """
+        # See spreadcalculator.calc_fixed_spread for details.
+        if self.ccxt_exchange.buy_target_includes_fee:
+            buy_op = '/'
+            buy_fee_ratio = ONE - self.get_taker_fee()
+        else:
+            buy_op = '*'
+            buy_fee_ratio = ONE + self.get_taker_fee()
+
+        query = """
+            SELECT
+                IF(
+                    t.side = 'buy',
+                    t_o.{exchange_id}_buy {buy_op} CAST(%s AS DECIMAL(27,8)) / t.true_price,
+                    t_o.{exchange_id}_sell * CAST(%s AS DECIMAL(27,8)) / t.true_price) AS trade_predict_ratio
+            FROM
+                fcf_autotrageur_config AS c,
+                trade_opportunity AS t_o,
+                trades AS t
+            WHERE
+                c.dryrun = %s
+                AND c.id = t.autotrageur_config_id
+                AND c.start_timestamp = t.autotrageur_config_start_timestamp
+                AND t.trade_opportunity_id = t_o.id
+                AND t.exchange = %s
+            ORDER BY
+                t.local_timestamp,
+                t.side ASC
+        """.format(exchange_id=self.exchange_id, buy_op=buy_op)
+        sell_fee_ratio = ONE - self.get_taker_fee()
+        data = execute_parametrized_query(query, (
+            buy_fee_ratio,
+            sell_fee_ratio,
+            1 if is_dry_run else 0,
+            self.exchange_name))
+
+        # Turn ratios into percentages.
+        # TODO: Store fee data with executed trades to take into account
+        # dynamic fee structures and better post-trade analysis.
+        # NOTE: Eventually the number of trades processed should be
+        # limited for performance, but likely not until the hundreds or
+        # thousands.
+        data = [(x[0] - ONE) * HUNDRED for x in data]
+
+        # This requires existing trades; stdev will fail for < 2 trades.
+        if len(data) >= 2:
+            std_dev = stdev(data)
+            buffer_percentage = std_dev * num_to_decimal('1.96')
+            self.quote_bal -= self.quote_bal * (buffer_percentage / 100)
 
     def __calc_vol_by_book(self, orders, quote_target_amount):
         """Calculates the asset volume with which to execute a trade.
@@ -529,18 +602,21 @@ class CCXTTrader():
     def update_wallet_balances(self):
         """Fetches and saves the wallet balances of the base and quote
         currencies on the exchange.
-
-        Note that quote balances are in USD.
         """
+        logging.debug("%s balances:", self.exchange_name)
+
         # TODO: Perhaps create DryRunFetcher to keep reference to
         # DryRunExchange to avoid introspection.
         if isinstance(self.executor, DryRunExecutor):
             self.base_bal = self.executor.dry_run_exchange.base_balance
             self.quote_bal = self.executor.dry_run_exchange.quote_balance
+            logging.debug("%s: %s", self.quote, self.quote_bal)
+            self.__adjust_working_balance(True)
         else:
             self.base_bal, self.quote_bal = self.fetcher.fetch_free_balances(
                 self.base, self.quote)
+            logging.debug("%s: %s", self.quote, self.quote_bal)
+            self.__adjust_working_balance(False)
 
-        logging.debug("%s balances:", self.exchange_name)
         logging.debug("%s: %s", self.base, self.base_bal)
-        logging.debug("%s: %s", self.quote, self.quote_bal)
+        logging.debug("%s after adjustment: %s", self.quote, self.quote_bal)

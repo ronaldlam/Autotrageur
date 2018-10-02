@@ -215,6 +215,7 @@ class Autotrageur(ABC):
             e1_base,
             e1_quote,
             exchange1,
+            'e1',
             num_to_decimal(self.config[SLIPPAGE]),
             self.exchange1_configs,
             dry_e1)
@@ -222,6 +223,7 @@ class Autotrageur(ABC):
             e2_base,
             e2_quote,
             exchange2,
+            'e2',
             num_to_decimal(self.config[SLIPPAGE]),
             self.exchange2_configs,
             dry_e2)
