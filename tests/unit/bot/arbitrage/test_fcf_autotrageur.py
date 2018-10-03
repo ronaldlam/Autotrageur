@@ -19,7 +19,8 @@ import bot.arbitrage.fcf_autotrageur
 import libs.db.maria_db_handler as db_handler
 from bot.arbitrage.arbseeker import SpreadOpportunity
 from bot.arbitrage.fcf.strategy import TradeMetadata
-from bot.arbitrage.fcf_autotrageur import (FCFAutotrageur, FCFCheckpoint,
+from bot.arbitrage.fcf_autotrageur import (FCFAlertError, FCFAutotrageur,
+                                           FCFCheckpoint,
                                            IncompleteArbitrageError,
                                            IncorrectStateObjectTypeError,
                                            arbseeker)
@@ -619,11 +620,13 @@ def test_setup(mocker, no_patch_fcf_autotrageur, fcf_checkpoint, resume_id):
     mock_construct_strategy.assert_called_once_with()
 
 
-@pytest.mark.parametrize('subject', [SUBJECT_DRY_RUN_FAILURE, SUBJECT_LIVE_FAILURE])
+@pytest.mark.parametrize('twilio_exception', [Exception, None])
+@pytest.mark.parametrize('email_exception', [Exception, None])
 @pytest.mark.parametrize('is_dry_run', [True, False])
 @pytest.mark.parametrize('is_test_run', [True, False])
-def test_alert(mocker, subject, no_patch_fcf_autotrageur, is_dry_run, is_test_run):
-    # FAKE_DRY_RUN = 'fake_dry_run_setting'
+def test_alert(mocker, no_patch_fcf_autotrageur, is_dry_run, is_test_run,
+               email_exception, twilio_exception):
+    subject = SUBJECT_LIVE_FAILURE
     FAKE_RECIPIENT_NUMBERS = ['+12345678', '9101121314']
     FAKE_SENDER_NUMBER = '+15349875'
     mocker.patch.object(no_patch_fcf_autotrageur._config, 'dryrun', is_dry_run)
@@ -633,14 +636,22 @@ def test_alert(mocker, subject, no_patch_fcf_autotrageur, is_dry_run, is_test_ru
         TWILIO_SENDER_NUMBER: FAKE_SENDER_NUMBER
     }, create=True)
     send_email = mocker.patch.object(no_patch_fcf_autotrageur, '_send_email')
-    exception = mocker.Mock()
-
     fake_twilio_client = mocker.Mock()
     mocker.patch.object(
         no_patch_fcf_autotrageur, 'twilio_client', fake_twilio_client, create=True)
-    mocker.patch.object(fake_twilio_client, 'phone')
+    twilio_phone = mocker.patch.object(fake_twilio_client, 'phone')
 
-    no_patch_fcf_autotrageur._alert(subject, exception)
+    # Set side effects if testing exceptions.
+    if email_exception:
+        send_email.side_effect = email_exception
+    if twilio_exception:
+        twilio_phone.side_effect = twilio_exception
+
+    if email_exception or twilio_exception:
+        with pytest.raises(FCFAlertError):
+            no_patch_fcf_autotrageur._alert(subject)
+    else:
+        no_patch_fcf_autotrageur._alert(subject)
 
     send_email.assert_called_once_with(subject, traceback.format_exc())
     fake_twilio_client.phone.assert_called_once_with(
