@@ -37,6 +37,11 @@ from libs.twilio.twilio_client import TwilioClient
 from libs.utilities import num_to_decimal
 
 
+class FCFAlertError(Exception):
+    """Error indicating that one or more methods of communication for `_alert`
+    failed."""
+    pass
+
 class IncompleteArbitrageError(Exception):
     """Error indicating an uneven buy/sell base amount."""
     pass
@@ -214,19 +219,34 @@ class FCFAutotrageur(Autotrageur):
                 schedule.every().hour.do(self.__update_forex, trader)
 
     # @Override
-    def _alert(self, subject, exception):
+    def _alert(self, subject):
         """Last ditch effort to alert user on operation failure.
 
         Args:
             subject (str): The subject/topic for the alert.
-            exception (Exception): The exception to alert about.
         """
-        self._send_email(subject, traceback.format_exc())
-        self.twilio_client.phone(
-            [subject, traceback.format_exc()],
-            self.twilio_config[TWILIO_RECIPIENT_NUMBERS],
-            self.twilio_config[TWILIO_SENDER_NUMBER],
-            is_mock_call=self._config.dryrun or self.is_test_run)
+        alert_error = False
+        try:
+            self._send_email(subject, traceback.format_exc())
+        except Exception as exc:
+            alert_error = True
+            logging.debug("An error occurred trying to send an email.")
+            logging.error(exc, exc_info=True)
+        finally:
+            try:
+                self.twilio_client.phone(
+                    [subject, traceback.format_exc()],
+                    self.twilio_config[TWILIO_RECIPIENT_NUMBERS],
+                    self.twilio_config[TWILIO_SENDER_NUMBER],
+                    is_mock_call=self._config.dryrun or self.is_test_run)
+            except Exception as exc:
+                alert_error = True
+                logging.debug("An error occurred trying to phone with twilio.")
+                logging.error(exc, exc_info=True)
+
+        if alert_error:
+            raise FCFAlertError("One or more methods of communication have"
+                " failed.  Check the logs for more detail.")
 
     # @Override
     def _clean_up(self):

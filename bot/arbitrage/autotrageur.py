@@ -378,12 +378,11 @@ class Autotrageur(ABC):
         self.__init_db(arguments[DBCONFIGFILE])
 
     @abstractmethod
-    def _alert(self, subject, exception):
+    def _alert(self, subject):
         """Last ditch effort to alert user on operation failure.
 
         Args:
             subject (str): The subject/topic for the alert.
-            exception (Exception): The exception to alert about.
         """
         pass
 
@@ -494,9 +493,9 @@ class Autotrageur(ABC):
             if not self._config.dryrun:
                 logging.critical("Falling back to dry run, error encountered:")
                 logging.critical(e)
-                self._alert(SUBJECT_LIVE_FAILURE, e)
+                self._alert(SUBJECT_LIVE_FAILURE)
                 self._config.dryrun = True
                 self.run_autotrageur(arguments, False)
             else:
-                self._alert(SUBJECT_DRY_RUN_FAILURE, e)
+                self._alert(SUBJECT_DRY_RUN_FAILURE)
                 raise
