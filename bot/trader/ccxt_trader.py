@@ -168,6 +168,8 @@ class CCXTTrader():
         # This requires existing trades; stdev will fail for < 2 trades.
         if len(data) >= 2:
             std_dev = stdev(data)
+            # We use 1.96 standard deviations to make 97.5% of samples
+            # be within the true balance, assuming a normal distribution.
             buffer_percentage = std_dev * num_to_decimal('1.96')
             self.quote_bal -= self.quote_bal * (buffer_percentage / 100)
 
