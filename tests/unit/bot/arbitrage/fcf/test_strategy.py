@@ -254,7 +254,7 @@ def test_prepare_trade(mocker, fcf_strategy, is_momentum_change,
     mock_get_quote_from_usd = mocker.patch.object(
         buy_trader, 'get_quote_from_usd', return_value=next_quote_vol)
 
-    buy_trader.quote_bal = buy_quote_balance
+    buy_trader.adjusted_quote_bal = buy_quote_balance
     sell_trader.base_bal = sell_base_balance
 
     if result_quote_target_amount is None:
@@ -302,8 +302,8 @@ def test_update_trade_targets(mocker, fcf_strategy, is_trader1_buy):
         ), create=True)
     mocker.patch.object(fcf_strategy.state, 'h_to_e1_max')
     mocker.patch.object(fcf_strategy.state, 'h_to_e2_max')
-    mocker.patch.object(fcf_strategy._manager.trader1, 'get_usd_balance')
-    mocker.patch.object(fcf_strategy._manager.trader2, 'get_usd_balance')
+    mocker.patch.object(fcf_strategy._manager.trader1, 'get_adjusted_usd_balance')
+    mocker.patch.object(fcf_strategy._manager.trader2, 'get_adjusted_usd_balance')
 
     fcf_strategy._FCFStrategy__update_trade_targets()
 
@@ -311,13 +311,13 @@ def test_update_trade_targets(mocker, fcf_strategy, is_trader1_buy):
         fcf_strategy._FCFStrategy__calc_targets.assert_called_with(
             mock_spread_opp.e1_spread,
             fcf_strategy.state.h_to_e1_max,
-            fcf_strategy._manager.trader2.get_usd_balance())
+            fcf_strategy._manager.trader2.get_adjusted_usd_balance())
         assert fcf_strategy.state.e1_targets == mock_targets
     else:
         fcf_strategy._FCFStrategy__calc_targets.assert_called_with(
             mock_spread_opp.e2_spread,
             fcf_strategy.state.h_to_e2_max,
-            fcf_strategy._manager.trader1.get_usd_balance())
+            fcf_strategy._manager.trader1.get_adjusted_usd_balance())
         assert fcf_strategy.state.e2_targets == mock_targets
 
 
@@ -396,9 +396,9 @@ def test_poll_opportunity(mocker, fcf_strategy, vol_min, e1_quote_balance,
     mocker.patch.object(
         fcf_strategy._manager, 'trader2', trader2)
     mocker.patch.object(
-        fcf_strategy._manager.trader1, 'get_usd_balance', return_value=e1_quote_balance)
+        fcf_strategy._manager.trader1, 'get_adjusted_usd_balance', return_value=e1_quote_balance)
     mocker.patch.object(
-        fcf_strategy._manager.trader2, 'get_usd_balance', return_value=e2_quote_balance)
+        fcf_strategy._manager.trader2, 'get_adjusted_usd_balance', return_value=e2_quote_balance)
     mocker.patch.object(
         fcf_strategy._manager.trader1, 'set_target_amounts')
     mocker.patch.object(

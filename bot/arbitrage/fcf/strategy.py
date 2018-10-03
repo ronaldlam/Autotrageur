@@ -438,7 +438,7 @@ class FCFStrategy():
         # NOTE: Trader's `quote_target_amount` is updated here.  We need to use
         # the quote balance in case of intra-day forex fluctuations which
         # would result in an inaccurate USD balance.
-        target_quote_amount = min(next_quote_vol, buy_trader.quote_bal)
+        target_quote_amount = min(next_quote_vol, buy_trader.adjusted_quote_bal)
         buy_trader.set_target_amounts(target_quote_amount, is_usd=False)
 
         if buy_trader is self._manager.trader1:
@@ -483,14 +483,14 @@ class FCFStrategy():
             self.state.e2_targets = self.__calc_targets(
                 self.trade_metadata.spread_opp.e2_spread,
                 self.state.h_to_e2_max,
-                self._manager.trader1.get_usd_balance())
+                self._manager.trader1.get_adjusted_usd_balance())
             logging.debug("#### New calculated e2_targets: {}".format(
                 list(enumerate(self.state.e2_targets))))
         else:
             self.state.e1_targets = self.__calc_targets(
                 self.trade_metadata.spread_opp.e1_spread,
                 self.state.h_to_e1_max,
-                self._manager.trader2.get_usd_balance())
+                self._manager.trader2.get_adjusted_usd_balance())
             logging.debug("#### New calculated e1_targets: {}".format(
                 list(enumerate(self.state.e1_targets))))
 
@@ -549,9 +549,9 @@ class FCFStrategy():
         """
         # Set trader target amounts based on strategy.
         self._manager.trader1.set_target_amounts(
-            max(self.vol_min, self._manager.trader1.get_usd_balance()))
+            max(self.vol_min, self._manager.trader1.get_adjusted_usd_balance()))
         self._manager.trader2.set_target_amounts(
-            max(self.vol_min, self._manager.trader2.get_usd_balance()))
+            max(self.vol_min, self._manager.trader2.get_adjusted_usd_balance()))
 
         try:
             spread_opp = arbseeker.get_spreads_by_ob(
@@ -569,12 +569,12 @@ class FCFStrategy():
 
             self.state.e1_targets = self.__calc_targets(
                 spread_opp.e1_spread, self.state.h_to_e1_max,
-                self._manager.trader2.get_usd_balance())
+                self._manager.trader2.get_adjusted_usd_balance())
             logging.debug('#### Initial e1_targets: {}'.format(
                 list(enumerate(self.state.e1_targets))))
             self.state.e2_targets = self.__calc_targets(
                 spread_opp.e2_spread, self.state.h_to_e2_max,
-                self._manager.trader1.get_usd_balance())
+                self._manager.trader1.get_adjusted_usd_balance())
             logging.debug('#### Initial e2_targets: {}'.format(
                 list(enumerate(self.state.e2_targets))))
 

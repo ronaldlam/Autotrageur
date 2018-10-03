@@ -101,6 +101,7 @@ class CCXTTrader():
         self.forex_id = None
         self.base_bal = None
         self.quote_bal = None
+        self.adjusted_quote_bal = None
 
     def __adjust_working_balance(self, is_dry_run):
         """Subtracts reasonable slippage from quote_bal.
@@ -165,13 +166,15 @@ class CCXTTrader():
         # thousands.
         data = [(x[0] - ONE) * HUNDRED for x in data]
 
+        self.adjusted_quote_bal = self.quote_bal
+
         # This requires existing trades; stdev will fail for < 2 trades.
         if len(data) >= 2:
             std_dev = stdev(data)
             # We use 1.96 standard deviations to make 97.5% of samples
             # be within the true balance, assuming a normal distribution.
             buffer_percentage = std_dev * num_to_decimal('1.96')
-            self.quote_bal -= self.quote_bal * (buffer_percentage / 100)
+            self.adjusted_quote_bal -= self.quote_bal * (buffer_percentage / 100)
 
     def __calc_vol_by_book(self, orders, quote_target_amount):
         """Calculates the asset volume with which to execute a trade.
@@ -480,23 +483,24 @@ class CCXTTrader():
         else:
             return usd_amount
 
-    def get_usd_balance(self):
-        """Gets the balance in terms of US Dollars (USD).
+    def get_adjusted_usd_balance(self):
+        """Gets the slippage adjusted balance in terms of US Dollars.
 
-        If the quote balance is in a different fiat other than USD (e.g. KRW),
-        we will have to use a forex ratio to convert the dollar amount to USD.
+        If the quote balance is in a different fiat other than USD (e.g.
+        KRW), we will have to use a forex ratio to convert the dollar
+        amount to USD.
 
-        NOTE: The `quote_bal` and `forex_ratio` will need to be set
-        appropriately in order for the function to work as expected.
+        NOTE: The `adjusted_quote_bal` and `forex_ratio` will need to be
+        set appropriately in order for the function to work as expected.
 
         Raises:
             NoForexQuoteException: If forex_ratio is needed and not set.
-            NoQuoteBalanceException: If quote_bal is not set.
+            NoQuoteBalanceException: If adjusted_quote_bal is not set.
 
         Returns:
             Decimal: The balance in terms of USD.
         """
-        if self.quote_bal is None:
+        if self.adjusted_quote_bal is None:
             raise NoQuoteBalanceException(
                 "Unable to retrieve USD balance as a quote balance has not "
                 "been set yet.")
@@ -504,9 +508,9 @@ class CCXTTrader():
             if self.forex_ratio is None:
                 raise NoForexQuoteException(
                     "Forex ratio not set. Conversion not available.")
-            return self.quote_bal / self.forex_ratio
+            return self.adjusted_quote_bal / self.forex_ratio
         else:
-            return self.quote_bal
+            return self.adjusted_quote_bal
 
     def get_usd_from_quote(self, quote_amount):
         """Get converted USD amount from quote amount.

@@ -77,6 +77,9 @@ class TestCCXTTraderInit:
         assert trader.conversion_needed is False
         assert trader.forex_ratio is None
         assert trader.forex_id is None
+        assert trader.base_bal is None
+        assert trader.quote_bal is None
+        assert trader.adjusted_quote_bal is None
 
         if dry_run:
             assert trader.executor is fake_dryrun_executor
@@ -111,7 +114,8 @@ def test_adjust_working_balance(mocker, fake_ccxt_trader, is_dry_run,
     query = execute_query.call_args[0][0]
     assert buy_op_result in query
     assert exchange_id in query
-    assert fake_ccxt_trader.quote_bal == result_quote_bal
+    assert fake_ccxt_trader.quote_bal == Decimal('1000')
+    assert fake_ccxt_trader.adjusted_quote_bal == result_quote_bal
 
 class TestCalcVolByBook:
     """For tests regarding ccxt_trader::_CCXTTrader__calc_vol_by_book."""
@@ -715,7 +719,7 @@ def test_get_quote_from_usd_error(mocker, fake_ccxt_trader):
         fake_ccxt_trader.get_quote_from_usd(fake_amount)
 
 
-@pytest.mark.parametrize('conversion_needed, quote_bal, forex_ratio, expected_result', [
+@pytest.mark.parametrize('conversion_needed, adjusted_quote_bal, forex_ratio, expected_result', [
     (True, Decimal('100'), Decimal('10'), Decimal('10')),
     (True, Decimal('1000'), Decimal('10'), Decimal('100')),
     (False, Decimal('1234567'), Decimal('10'), Decimal('1234567')),
@@ -725,30 +729,30 @@ def test_get_quote_from_usd_error(mocker, fake_ccxt_trader):
     (False, Decimal('1234.567'), Decimal('10'), Decimal('1234.567')),
     (False, Decimal('1234.567'), None, Decimal('1234.567')),
 ])
-def test_get_usd_balance(mocker, fake_ccxt_trader, conversion_needed, quote_bal, forex_ratio, expected_result):
+def test_get_adjusted_usd_balance(mocker, fake_ccxt_trader, conversion_needed, adjusted_quote_bal, forex_ratio, expected_result):
     mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
-    mocker.patch.object(fake_ccxt_trader, 'quote_bal', quote_bal)
+    mocker.patch.object(fake_ccxt_trader, 'adjusted_quote_bal', adjusted_quote_bal)
     mocker.patch.object(fake_ccxt_trader, 'forex_ratio', forex_ratio)
 
-    result = fake_ccxt_trader.get_usd_balance()
+    result = fake_ccxt_trader.get_adjusted_usd_balance()
 
     assert(result == expected_result)
 
 
-@pytest.mark.parametrize('conversion_needed, quote_bal, forex_ratio, expected_error', [
+@pytest.mark.parametrize('conversion_needed, adjusted_quote_bal, forex_ratio, expected_error', [
     (True, None, None, ccxt_trader.NoQuoteBalanceException),
     (True, None, Decimal('10'), ccxt_trader.NoQuoteBalanceException),
     (False, None, None, ccxt_trader.NoQuoteBalanceException),
     (False, None, Decimal('10'), ccxt_trader.NoQuoteBalanceException),
     (True, Decimal('10'), None, ccxt_trader.NoForexQuoteException),
 ])
-def test_get_usd_balance_error(mocker, fake_ccxt_trader, conversion_needed, quote_bal, forex_ratio, expected_error):
+def test_get_adjusted_usd_balance_error(mocker, fake_ccxt_trader, conversion_needed, adjusted_quote_bal, forex_ratio, expected_error):
     mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
-    mocker.patch.object(fake_ccxt_trader, 'quote_bal', quote_bal)
+    mocker.patch.object(fake_ccxt_trader, 'adjusted_quote_bal', adjusted_quote_bal)
     mocker.patch.object(fake_ccxt_trader, 'forex_ratio', forex_ratio)
 
     with pytest.raises(expected_error):
-        fake_ccxt_trader.get_usd_balance()
+        fake_ccxt_trader.get_adjusted_usd_balance()
 
 
 @pytest.mark.parametrize('quote_amount, conversion_needed, forex_ratio, expected_result', [
