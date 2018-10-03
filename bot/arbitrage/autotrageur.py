@@ -280,6 +280,7 @@ class Autotrageur(ABC):
             e1_base,
             e1_quote,
             exchange1,
+            'e1',
             num_to_decimal(self._config.slippage),
             exchange1_configs,
             dry_run_exchange1)
@@ -287,6 +288,7 @@ class Autotrageur(ABC):
             e2_base,
             e2_quote,
             exchange2,
+            'e2',
             num_to_decimal(self._config.slippage),
             exchange2_configs,
             dry_run_exchange2)

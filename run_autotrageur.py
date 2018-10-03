@@ -15,6 +15,7 @@ Description:
     DBCONFIGFILE                        The config file for the database.
 """
 from docopt import docopt
+from setuptools_scm import get_version
 
 from bot.arbitrage.fcf_autotrageur import FCFAutotrageur
 from libs.logging import bot_logging
@@ -51,5 +52,5 @@ def main(arguments):
         autotrageur.logger.queue_listener.stop()
 
 if __name__ == "__main__":
-    arguments = docopt(__doc__, version="Autotrageur 0.1")
+    arguments = docopt(__doc__, version=get_version())
     main(arguments)
