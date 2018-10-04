@@ -385,26 +385,20 @@ def test_poll_opportunity(mocker, fcf_strategy, vol_min, e1_quote_balance,
     trader1 = mocker.Mock()
     trader2 = mocker.Mock()
     balance_checker = mocker.Mock()
-    mocker.patch.object(
-        fcf_strategy._manager, 'balance_checker', balance_checker)
-    mocker.patch.object(
-        fcf_strategy._manager, 'checkpoint')
-    mocker.patch.object(
-        fcf_strategy._manager.checkpoint, 'strategy_state')
-    mocker.patch.object(
-        fcf_strategy._manager, 'trader1', trader1)
-    mocker.patch.object(
-        fcf_strategy._manager, 'trader2', trader2)
+    max_trade_size = Decimal('200')
+    mocker.patch.object(fcf_strategy, '_max_trade_size', max_trade_size)
+    mocker.patch.object(fcf_strategy._manager, 'balance_checker', balance_checker)
+    mocker.patch.object(fcf_strategy._manager, 'checkpoint')
+    mocker.patch.object(fcf_strategy._manager.checkpoint, 'strategy_state')
+    mocker.patch.object(fcf_strategy._manager, 'trader1', trader1)
+    mocker.patch.object(fcf_strategy._manager, 'trader2', trader2)
     mocker.patch.object(
         fcf_strategy._manager.trader1, 'get_adjusted_usd_balance', return_value=e1_quote_balance)
     mocker.patch.object(
         fcf_strategy._manager.trader2, 'get_adjusted_usd_balance', return_value=e2_quote_balance)
-    mocker.patch.object(
-        fcf_strategy._manager.trader1, 'set_target_amounts')
-    mocker.patch.object(
-        fcf_strategy._manager.trader2, 'set_target_amounts')
-    mocker.patch.object(
-        fcf_strategy, '_vol_min', vol_min)
+    mocker.patch.object(fcf_strategy._manager.trader1, 'set_target_amounts')
+    mocker.patch.object(fcf_strategy._manager.trader2, 'set_target_amounts')
+    mocker.patch.object(fcf_strategy, '_vol_min', vol_min)
     mocker.patch.object(fcf_strategy.state, 'has_started', has_started)
     mocker.patch.object(fcf_strategy.state, 'h_to_e1_max', h_to_e1_max)
     mocker.patch.object(fcf_strategy.state, 'h_to_e2_max', h_to_e2_max)
@@ -429,9 +423,9 @@ def test_poll_opportunity(mocker, fcf_strategy, vol_min, e1_quote_balance,
     is_opportunity_result = fcf_strategy.poll_opportunity()
 
     fcf_strategy._manager.trader1.set_target_amounts.assert_called_once_with(
-        max(vol_min, e1_quote_balance))
+        min(max_trade_size, max(vol_min, e1_quote_balance)))
     fcf_strategy._manager.trader2.set_target_amounts.assert_called_once_with(
-        max(vol_min, e2_quote_balance))
+        min(max_trade_size, max(vol_min, e2_quote_balance)))
 
     if exc_type:
         assert is_opportunity_result is False
