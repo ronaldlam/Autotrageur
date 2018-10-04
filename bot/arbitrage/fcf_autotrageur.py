@@ -42,6 +42,7 @@ class FCFAlertError(Exception):
     failed."""
     pass
 
+
 class IncompleteArbitrageError(Exception):
     """Error indicating an uneven buy/sell base amount."""
     pass
@@ -410,7 +411,7 @@ class FCFAutotrageur(Autotrageur):
         - Forex Client
         - BalanceChecker
 
-        Other responsibilites:
+        Other responsibilities:
         - Persists Configuration and Forex in the database.
 
         Args:

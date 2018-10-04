@@ -198,6 +198,7 @@ class FCFStrategy():
         self._manager = manager
         self._spread_min = spread_min
         self._vol_min = vol_min
+        self._max_trade_size = max_trade_size
 
         self.target_tracker = FCFTargetTracker()
         self.trade_chunker = FCFTradeChunker(max_trade_size)
@@ -548,10 +549,12 @@ class FCFStrategy():
             bool: Whether there is an opportunity.
         """
         # Set trader target amounts based on strategy.
+        trader1_balance = self._manager.trader1.get_adjusted_usd_balance()
+        trader2_balance = self._manager.trader2.get_adjusted_usd_balance()
         self._manager.trader1.set_target_amounts(
-            max(self.vol_min, self._manager.trader1.get_adjusted_usd_balance()))
+            min(self._max_trade_size, max(self.vol_min, trader1_balance)))
         self._manager.trader2.set_target_amounts(
-            max(self.vol_min, self._manager.trader2.get_adjusted_usd_balance()))
+            min(self._max_trade_size, max(self.vol_min, trader2_balance)))
 
         try:
             spread_opp = arbseeker.get_spreads_by_ob(
