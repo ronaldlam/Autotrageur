@@ -2,7 +2,9 @@ import getpass
 import logging
 import os
 import time
+import uuid
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from pathlib import Path
 
 import ccxt
@@ -11,30 +13,80 @@ import yaml
 from dotenv import load_dotenv
 
 import libs.db.maria_db_handler as db_handler
-from bot.common.ccxt_constants import API_KEY, API_SECRET, PASSWORD
-from bot.common.config_constants import (DB_NAME, DB_USER, DRYRUN,
-                                         DRYRUN_E1_BASE, DRYRUN_E1_QUOTE,
-                                         DRYRUN_E2_BASE, DRYRUN_E2_QUOTE,
-                                         ENV_VAR_NAMES, EXCHANGE1,
-                                         EXCHANGE1_PAIR, EXCHANGE1_TEST,
-                                         EXCHANGE2, EXCHANGE2_PAIR,
-                                         EXCHANGE2_TEST, SLIPPAGE)
+from bot.common.config_constants import DB_NAME, DB_USER
+from bot.common.env_var_constants import ENV_VAR_NAMES
 from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import CCXTTrader
-from bot.trader.dry_run import DryRun, DryRunExchange
+from bot.trader.dry_run import DryRunManager, DryRunExchange
+from libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from libs.security.encryption import decrypt
-from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
+from libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
+                            to_bytes, to_str)
 from libs.utils.ccxt_utils import RetryableError, RetryCounter
 
 # Program argument constants.
-CONFIGFILE = "CONFIGFILE"
-KEYFILE = "KEYFILE"
+CONFIGFILE = 'CONFIGFILE'
+DBCONFIGFILE = 'DBCONFIGFILE'
+KEYFILE = 'KEYFILE'
 
 # Logging constants
 START_END_FORMAT = "{} {:^15} {}"
 STARS = "*"*20
 
+
+class Configuration(namedtuple('Configuration', [
+        'dryrun', 'dryrun_e1_base', 'dryrun_e1_quote',
+        'dryrun_e2_base', 'dryrun_e2_quote', 'email_cfg_path', 'exchange1',
+        'exchange1_pair', 'exchange2', 'exchange2_pair', 'use_test_api',
+        'h_to_e1_max', 'h_to_e2_max', 'id', 'max_trade_size',
+        'poll_wait_default', 'poll_wait_short', 'slippage', 'spread_min',
+        'start_timestamp', 'twilio_cfg_path', 'vol_min'])):
+    """Holds all of the configuration for the autotrageur bot.
+
+    Args:
+        dryrun (bool): If True, this bot's run is considered to be a dry run
+            against fake exchange objects and no real trades are performed.
+        dryrun_e1_base (str): In dry run, the base used for exchange one.
+        dryrun_e1_quote (str): In dry run, the quote used for exchange one.
+        dryrun_e2_base (str): In dry run, the base used for exchange two.
+        dryrun_e2_quote (str): In dry run, the quote used for exchange two.
+        email_cfg_path (str): Path to the email config file, used for sending
+            notifications.
+        exchange1 (str): Name of exchange one.
+        exchange1_pair (str): Symbol of the pair to use for exchange one.
+        exchange2 (str): Name of the exchange two.
+        exchange2_pair (str): Symbol of the pair to use for exchange two.
+        use_test_api (bool): If True, will use the test APIs for both
+            exchanges.
+        h_to_e1_max (float): The historical max spread going to exchange one.
+        h_to_e2_max (float): The historical max spread going to exchange two.
+        id (str): The unique id tagged to the current configuration and bot
+            run.  This is not provided from the config file and set during
+            initialization.
+        max_trade_size (float): The maximum USD value of any given trade.
+        poll_wait_default (int): Default waiting time (in seconds) in between
+            polls.
+        poll_wait_short (int): The shortened poll waiting time (in seconds),
+            used when trade is chunked and in progress.
+        slippage (float): Percentage downside of limit order slippage tolerable
+            for market order emulations.
+        spread_min (float): The minimum spread increment for considering trade
+            targets.
+        start_timestamp (float): The unix timestamp tagged against the current
+            bot run.  This is not provided from the config file and set during
+            initialization.
+        twilio_cfg_path (str): Path for the twilio config file, used for
+            sending notifications.
+        vol_min (float): The minimum volume trade in USD.
+    """
+    __slots__ = ()
+
+
+class AutotrageurAuthenticationError(Exception):
+    """Incorrect credentials or exchange unavailable when attempting to
+    communicate through an exchange's API."""
+    pass
 
 def fancy_log(title):
     """Log title surrounded by stars."""
@@ -53,23 +105,34 @@ class Autotrageur(ABC):
     configurations.
     """
 
-    def __load_config_file(self, file_name):
-        """Load the given config file.
+    def __parse_config_file(self, file_name):
+        """Parses the given config file into a dict.
 
         Args:
             file_name (str): The name of the file.
-        """
-        with open(file_name, "r") as ymlfile:
-            self.config = yaml.safe_load(ymlfile)
 
-    def __load_db(self):
-        """Initializes and connects to the database."""
+        Returns:
+            dict: The configuration file represented as a dict.
+        """
+        with open(file_name, 'r') as ymlfile:
+            return yaml.safe_load(ymlfile)
+
+    def __init_db(self, db_config_path):
+        """Initializes and connects to the database.
+
+        Args:
+            db_config_path (str): Path to the database configuration file.
+        """
         db_password = getpass.getpass(
             prompt="Enter database password:")
+
+        with open(db_config_path, 'r') as db_file:
+            db_info = yaml.safe_load(db_file)
+
         db_handler.start_db(
-            self.config[DB_USER],
+            db_info[DB_USER],
             db_password,
-            self.config[DB_NAME])
+            db_info[DB_NAME])
         schedule.every(7).hours.do(db_handler.ping_db)
 
     def __load_env_vars(self):
@@ -89,13 +152,15 @@ class Autotrageur(ABC):
                     env_vars_loaded = False
         return env_vars_loaded
 
-    def __load_keyfile(self, arguments):
-        """Load the keyfile given in the arguments.
+    def __parse_keyfile(self, keyfile_path, pi_mode=False):
+        """Parses the keyfile given in the arguments.
 
         Prompts user for a passphrase to decrypt the encrypted keyfile.
 
         Args:
-            arguments (dict): Map of the arguments passed to the program.
+            keyfile_path (str): The path to the keyfile.
+            pi_mode (bool): Whether to decrypt with memory limitations to
+                accommodate raspberry pi.  Default is False.
 
         Raises:
             IOError: If the encrypted keyfile does not open, and not in
@@ -107,133 +172,216 @@ class Autotrageur(ABC):
         """
         try:
             pw = getpass.getpass(prompt="Enter keyfile password:")
-            with open(arguments[KEYFILE], "rb") as in_file:
+            with open(keyfile_path, "rb") as in_file:
                 keys = decrypt(
                     in_file.read(),
                     to_bytes(pw),
-                    arguments['--pi_mode'])
+                    pi_mode=pi_mode)
 
             str_keys = to_str(keys)
             return keyfile_to_map(str_keys)
         except Exception:
             logging.error("Unable to load keyfile.", exc_info=True)
-            if not self.config[DRYRUN]:
-                raise IOError("Unable to open file. %s" % arguments)
+            if not self._config.dryrun:
+                raise IOError("Unable to open file: %s" % keyfile_path)
             else:
                 logging.info("**Dry run: continuing with program")
                 return None
 
+    def __setup_dry_run(self, resume_id=None):
+        """Sets up the bot for a dry run.
 
-    def _load_configs(self, arguments):
+        If resuming a bot, simply logs and returns without any additional
+        setup.
+
+        Args:
+            resume_id (str, optional): The resume id used when resuming a run.
+                Defaults to None.
+        """
+        # Create dry run objects to hold dry run state, if on dry run mode.
+        if resume_id and self._config.dryrun:
+            fancy_log(
+                "Resumed - DRY RUN mode. Trades will NOT execute on actual "
+                "exchanges.")
+            return
+        elif self._config.dryrun:
+            e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
+            e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
+            exchange1 = self._config.exchange1
+            exchange2 = self._config.exchange2
+            e1_base_balance = self._config.dryrun_e1_base
+            e1_quote_balance = self._config.dryrun_e1_quote
+            e2_base_balance = self._config.dryrun_e2_base
+            e2_quote_balance = self._config.dryrun_e2_quote
+            dry_e1 = DryRunExchange(exchange1, e1_base, e1_quote,
+                                    e1_base_balance, e1_quote_balance)
+            dry_e2 = DryRunExchange(exchange2, e2_base, e2_quote,
+                                    e2_base_balance, e2_quote_balance)
+            self._dry_run_manager = DryRunManager(dry_e1, dry_e2)
+            fancy_log(
+                "DRY RUN mode initiated. Trades will NOT execute on actual "
+                "exchanges.")
+        else:
+            self._dry_run_manager = None
+
+    def __setup_traders(self, exchange_key_map):
+        """Sets up the Traders to interface with exchanges.
+
+        Args:
+            exchange_key_map (dict): A map containing authentication
+                information necessary to connect with the exchange APIs.
+
+        Raises:
+            AutotrageurAuthenticationError: Raised when given incorrect
+                credentials or exchange unavailable when attempting to
+                communicate through an exchange's API.
+        """
+        # TODO: Looks suitable for a design pattern here to create the Traders
+        # as their creation is complex enough.
+
+        # Extract the pairs.
+        e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
+        e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
+
+        exchange1 = self._config.exchange1
+        exchange2 = self._config.exchange2
+
+        # Get exchange configuration settings.
+        exchange1_configs = {
+            "nonce": ccxt.Exchange.milliseconds
+        }
+        exchange2_configs = {
+            "nonce": ccxt.Exchange.milliseconds
+        }
+
+        if exchange_key_map:
+            exchange1_configs['apiKey'] = (
+                exchange_key_map[exchange1][API_KEY])
+            exchange1_configs['secret'] = (
+                exchange_key_map[exchange1][API_SECRET])
+            exchange1_configs['password'] = (
+                exchange_key_map[exchange1][PASSWORD])
+            exchange2_configs['apiKey'] = (
+                exchange_key_map[exchange2][API_KEY])
+            exchange2_configs['secret'] = (
+                exchange_key_map[exchange2][API_SECRET])
+            exchange2_configs['password'] = (
+                exchange_key_map[exchange2][PASSWORD])
+
+        if self._config.dryrun:
+            dry_run_exchange1 = self._dry_run_manager.e1
+            dry_run_exchange2 = self._dry_run_manager.e2
+        else:
+            dry_run_exchange1 = None
+            dry_run_exchange2 = None
+
+        self.trader1 = CCXTTrader(
+            e1_base,
+            e1_quote,
+            exchange1,
+            'e1',
+            num_to_decimal(self._config.slippage),
+            exchange1_configs,
+            dry_run_exchange1)
+        self.trader2 = CCXTTrader(
+            e2_base,
+            e2_quote,
+            exchange2,
+            'e2',
+            num_to_decimal(self._config.slippage),
+            exchange2_configs,
+            dry_run_exchange2)
+
+        # Set to run against test API, if applicable.
+        if not self._config.use_test_api:
+            fancy_log("Starting bot against LIVE exchanges.")
+            self.is_test_run = False
+        else:
+            fancy_log("Starting bot against TEST exchanges.")
+            self.trader1.connect_test_api()
+            self.trader2.connect_test_api()
+            self.is_test_run = True
+
+        # Load the available markets for the exchange.
+        self.trader1.load_markets()
+        self.trader2.load_markets()
+
+        try:
+            # Dry run uses balances set in the configuration files.
+            self.trader1.update_wallet_balances()
+            self.trader2.update_wallet_balances()
+        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
+            logging.error(auth_error)
+            raise AutotrageurAuthenticationError(auth_error)
+
+
+    def _load_configs(self, config_file_path):
         """Load the configurations of the Autotrageur run.
 
         Args:
-            arguments (dict): Map of the arguments passed to the program.
+            config_file_path (str): Path to the configuration file used for the
+                current autotrageur run.
 
         Raises:
             IOError: If the encrypted keyfile does not open, and not in
                 dryrun mode.
+        """
+        # Set up the configuration.
+        config_map = self.__parse_config_file(config_file_path)
+        self._config = Configuration(
+            id=str(uuid.uuid4()),
+            start_timestamp=int(time.time()),
+            **config_map)
+
+    def _post_setup(self, arguments):
+        """Initializes any additional components which rely on the core
+        components.
+
+        Components initialized:
+        - setting up traders to interface with exchange APIs (parses the
+            keyfile for relevant authentication first)
+
+        Args:
+            arguments (dict): Map of the arguments passed to the program.
+        """
+        # Parse keyfile into a dict.
+        exchange_key_map = self.__parse_keyfile(
+            arguments[KEYFILE], arguments['--pi_mode'])
+
+        # Initialize dry run component.
+        self.__setup_dry_run(arguments['--resume_id'])
+
+        # Set up the Traders for interfacing with exchange APIs.
+        self.__setup_traders(exchange_key_map)
+
+    def _setup(self, arguments):
+        """Initializes the autotrageur bot for use by setting up core
+        components which must be set up before any additional components.
+
+        Core components initialized:
+        - loading environment variables
+        - initializing and connecting to the DB
+
+        * Override this method to set up any additional core components for the
+        bot's implementation.
+
+        Args:
+            arguments (dict): Map of the arguments passed to the program.
         """
         # Load environment variables.
         if not self.__load_env_vars():
             raise EnvironmentError('Failed to load all of the necessary'
                                    ' environment variables.')
 
-        # Load arb configuration.
-        self.__load_config_file(arguments[CONFIGFILE])
-
         # Initialize and connect to the database.
-        self.__load_db()
-
-        # Load keyfile.
-        exchange_key_map = self.__load_keyfile(arguments)
-
-        # Get exchange configuration settings.
-        self.exchange1_configs = {
-            "nonce": ccxt.Exchange.milliseconds
-        }
-        self.exchange2_configs = {
-            "nonce": ccxt.Exchange.milliseconds
-        }
-
-        if exchange_key_map:
-            self.exchange1_configs['apiKey'] = (
-                exchange_key_map[self.config[EXCHANGE1]][API_KEY])
-            self.exchange1_configs['secret'] = (
-                exchange_key_map[self.config[EXCHANGE1]][API_SECRET])
-            self.exchange1_configs['password'] = (
-                exchange_key_map[self.config[EXCHANGE1]][PASSWORD])
-            self.exchange2_configs['apiKey'] = (
-                exchange_key_map[self.config[EXCHANGE2]][API_KEY])
-            self.exchange2_configs['secret'] = (
-                exchange_key_map[self.config[EXCHANGE2]][API_SECRET])
-            self.exchange2_configs['password'] = (
-                exchange_key_map[self.config[EXCHANGE2]][PASSWORD])
-
-    def _setup(self, resume_id=None):
-        """Initializes the autotrageur bot for use.
-
-        Args:
-            resume_id (str): The configuration id which links to the
-                autotrageur's previous state.  Defaults to None, in the case
-                that this run is new.
-        """
-        # Extract the pairs and compare them to see if conversion needed to
-        # USD.
-        e1_base, e1_quote = self.config[EXCHANGE1_PAIR].upper().split("/")
-        e2_base, e2_quote = self.config[EXCHANGE2_PAIR].upper().split("/")
-
-        exchange1 = self.config[EXCHANGE1]
-        exchange2 = self.config[EXCHANGE2]
-
-        # Create dry run objects to hold dry run state.
-        if self.config[DRYRUN]:
-            e1_base_balance = self.config[DRYRUN_E1_BASE]
-            e1_quote_balance = self.config[DRYRUN_E1_QUOTE]
-            e2_base_balance = self.config[DRYRUN_E2_BASE]
-            e2_quote_balance = self.config[DRYRUN_E2_QUOTE]
-            dry_e1 = DryRunExchange(exchange1, e1_base, e1_quote,
-                                    e1_base_balance, e1_quote_balance)
-            dry_e2 = DryRunExchange(exchange2, e2_base, e2_quote,
-                                    e2_base_balance, e2_quote_balance)
-            self.dry_run = DryRun(dry_e1, dry_e2)
-        else:
-            dry_e1 = None
-            dry_e2 = None
-            self.dry_run = None
-
-        self.trader1 = CCXTTrader(
-            e1_base,
-            e1_quote,
-            exchange1,
-            num_to_decimal(self.config[SLIPPAGE]),
-            self.exchange1_configs,
-            dry_e1)
-        self.trader2 = CCXTTrader(
-            e2_base,
-            e2_quote,
-            exchange2,
-            num_to_decimal(self.config[SLIPPAGE]),
-            self.exchange2_configs,
-            dry_e2)
-
-        # Connect to test API's if required
-        if self.config[EXCHANGE1_TEST]:
-            self.trader1.connect_test_api()
-        if self.config[EXCHANGE2_TEST]:
-            self.trader2.connect_test_api()
-
-        # Load the available markets for the exchange.
-        self.trader1.load_markets()
-        self.trader2.load_markets()
+        self.__init_db(arguments[DBCONFIGFILE])
 
     @abstractmethod
-    def _alert(self, subject, exception):
+    def _alert(self, subject):
         """Last ditch effort to alert user on operation failure.
 
         Args:
             subject (str): The subject/topic for the alert.
-            exception (Exception): The exception to alert about.
         """
         pass
 
@@ -263,20 +411,19 @@ class Autotrageur(ABC):
         pass
 
     @abstractmethod
-    def _import_state(self, previous_state):
+    def _import_state(self, *args):
         """Imports the state of a previous autotrageur run. Normally imported
         from a file or a database.
 
         Args:
-            previous_state (bytes): The previous state of the autotrageur run.
-                Expressed as bytes, typically retrieved as a pickled object
-                from a database.
+            *args: Arbitrary amount of arguments representing objects required
+                to retrieve previous state.
         """
         pass
 
     def _wait(self):
         """Wait for the specified polling interval."""
-        time.sleep(5)
+        time.sleep(self._config.poll_wait_default)
 
     def run_autotrageur(self, arguments, requires_configs=True):
         """Run Autotrageur algorithm.
@@ -296,10 +443,16 @@ class Autotrageur(ABC):
             requires_configs (bool, optional): Defaults to True. Whether
                 the call requires the config file to be loaded.
         """
-        if requires_configs:
-            self._load_configs(arguments)
+        # If not resuming a run, must load configs first.
+        if requires_configs and not arguments['--resume_id']:
+            self._load_configs(arguments[CONFIGFILE])
 
-        self._setup(arguments['--resume_id'])
+        # Initialize core components of the bot.
+        self._setup(arguments)
+
+        # Set up the rest of the bot.
+        self._post_setup(arguments)
+
         retry_counter = RetryCounter()
 
         try:
@@ -326,22 +479,22 @@ class Autotrageur(ABC):
         except KeyboardInterrupt:
             self._export_state()
 
-            if self.config[DRYRUN]:
+            if self._config.dryrun:
                 logging.critical("Keyboard Interrupt")
                 fancy_log("Summary")
-                self.dry_run.log_all()
+                self._dry_run_manager.log_all()
                 fancy_log("End")
             else:
                 raise
         except Exception as e:
             self._export_state()
 
-            if not self.config[DRYRUN]:
+            if not self._config.dryrun:
                 logging.critical("Falling back to dry run, error encountered:")
                 logging.critical(e)
-                self._alert(SUBJECT_LIVE_FAILURE, e)
-                self.config[DRYRUN] = True
+                self._alert(SUBJECT_LIVE_FAILURE)
+                self._config.dryrun = True
                 self.run_autotrageur(arguments, False)
             else:
-                self._alert(SUBJECT_DRY_RUN_FAILURE, e)
+                self._alert(SUBJECT_DRY_RUN_FAILURE)
                 raise

@@ -3,7 +3,7 @@
 Executes trades based on simple arbitrage strategy
 
 Usage:
-    run_autotrageur.py KEYFILE CONFIGFILE [--pi_mode] [--resume_id=FCF_STATE_ID]
+    run_autotrageur.py KEYFILE (--resume_id=FCF_STATE_ID | CONFIGFILE) DBCONFIGFILE [--pi_mode]
 
 Options:
     --pi_mode                           Whether this is to be used with the raspberry pi or on a full desktop.
@@ -12,8 +12,10 @@ Options:
 Description:
     KEYFILE                             The encrypted Keyfile containing relevant api keys.
     CONFIGFILE                          The config file, modeled under configs/arb_config_sample.yaml for use with the bot.
+    DBCONFIGFILE                        The config file for the database.
 """
 from docopt import docopt
+from setuptools_scm import get_version
 
 from bot.arbitrage.fcf_autotrageur import FCFAutotrageur
 from libs.logging import bot_logging
@@ -50,5 +52,5 @@ def main(arguments):
         autotrageur.logger.queue_listener.stop()
 
 if __name__ == "__main__":
-    arguments = docopt(__doc__, version="Autotrageur 0.1")
+    arguments = docopt(__doc__, version=get_version())
     main(arguments)

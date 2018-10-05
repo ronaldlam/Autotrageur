@@ -1,7 +1,6 @@
 import logging
-from decimal import Decimal
 
-from bot.common.decimal_constants import ZERO
+from libs.constants.decimal_constants import ZERO
 from libs.utilities import num_to_decimal
 
 
@@ -80,8 +79,8 @@ class DryRunExchange():
         self.trade_count += 1
 
 
-class DryRun():
-    """An object to hold the dry run state of the bot."""
+class DryRunManager():
+    """An object to manage and hold the dry run state of the bot."""
 
     def __init__(self, exchange1, exchange2):
         """Constructor.
@@ -94,6 +93,12 @@ class DryRun():
         """
         self.e1 = exchange1
         self.e2 = exchange2
+
+    def __repr__(self):
+        """Printable representation of the DryRunManager, for debugging."""
+        return "E1: {}\nE2: {}".format(
+            str(self.e1.__dict__),
+            str(self.e2.__dict__))
 
     def log_balances(self):
         """Log the current balances of the run."""

@@ -2,7 +2,7 @@
 
 # Dry Run functionality.
 dryrun: false # If True, will log trades instead of executing them.
-dryrun_e1_base: 0
+dryrun_e1_base: 10
 dryrun_e1_quote: 20000
 dryrun_e2_base: 50
 dryrun_e2_quote: 0
@@ -13,29 +13,30 @@ email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to sen
 # Exchange 1
 exchange1: kraken
 exchange1_pair: ETH/USD
-exchange1_test: false
 
 # Exchange 2
 exchange2: gdax
 exchange2_pair: ETH/USD
-exchange2_test: false
+
+# Whether to connect to the test exchange APIs of both exchanges.
+use_test_api: false
+
+# Poll intervals in seconds
+poll_wait_default: 5
+poll_wait_short: 2 # Used when trade is chunked and in progress.
 
 # Historical max spread to exchange 1.
 h_to_e1_max: 5
 # Historical max spread to exchange 2.
 h_to_e2_max: 5
+# The maximum USD value of any given trade.
+max_trade_size: 20
 # The minimum spread increment for considering trade targets.
 spread_min: 1.20
 # The minimum volume trade in USD.
 vol_min: 100
 # Percentage downside of limit order slippage tolerable for market order emulations
 slippage: 0 # Important for Gemini, eg. 3
-
-# ----------------DATABASE SETTINGS--------------------------------------------
-# (String) The database name.
-db_name: fcf_trade_history_staging
-# (String) The database user.
-db_user: worker1
 
 # ----------------TWILIO SETTINGS----------------------------------------------
 # Path for the twilio config file.

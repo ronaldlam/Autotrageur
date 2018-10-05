@@ -81,3 +81,7 @@ scratch/
 
 # environment variables
 .env
+
+# DB Configs
+configs/minute_db_info.yaml
+configs/orderbook_db_info.yaml

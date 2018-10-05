@@ -1,7 +1,6 @@
 import logging
 
-from bot.common.decimal_constants import ZERO, ONE, NEGATIVE_ONE, HUNDRED
-from libs.utilities import num_to_decimal
+from libs.constants.decimal_constants import ZERO, ONE, HUNDRED
 
 
 def _is_invalid_price(exc2_num_price, exc1_denom_price):
