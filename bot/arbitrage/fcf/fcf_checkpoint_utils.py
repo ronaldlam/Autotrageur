@@ -37,7 +37,7 @@ def pickle_fcf_checkpoint(checkpoint):
     still function.
 
     Instructions when changing checkpoint versions:
-    - In fcf_checkpoint.py, point `CURRENT_FCF_CHECKPOINT_VERSION` to the
+    - In fcf_checkpoint.py, make sure `CURRENT_FCF_CHECKPOINT_VERSION` is the
     new version.
     - Make changes to `unpickle_fcf_checkpoint`
 

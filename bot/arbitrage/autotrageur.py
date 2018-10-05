@@ -57,6 +57,8 @@ class Configuration(namedtuple('Configuration', [
         exchange1_pair (str): Symbol of the pair to use for exchange one.
         exchange2 (str): Name of the exchange two.
         exchange2_pair (str): Symbol of the pair to use for exchange two.
+        use_test_api (bool): If True, will use the test APIs for both
+            exchanges.
         h_to_e1_max (float): The historical max spread going to exchange one.
         h_to_e2_max (float): The historical max spread going to exchange two.
         id (str): The unique id tagged to the current configuration and bot
@@ -76,8 +78,6 @@ class Configuration(namedtuple('Configuration', [
             initialization.
         twilio_cfg_path (str): Path for the twilio config file, used for
             sending notifications.
-        use_test_api (bool): If True, will use the test APIs for both
-            exchanges.
         vol_min (float): The minimum volume trade in USD.
     """
     __slots__ = ()
@@ -239,8 +239,7 @@ class Autotrageur(ABC):
         # TODO: Looks suitable for a design pattern here to create the Traders
         # as their creation is complex enough.
 
-        # Extract the pairs and compare them to see if conversion needed to
-        # USD.
+        # Extract the pairs.
         e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
         e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
 

@@ -17,16 +17,17 @@ class FCFTargetTracker():
             spread (Decimal): The calculated spread.
             targets (list): The list of targets.
         """
+        logging.debug(
+                '#### target_index before: {}'.format(self._target_index))
         while (self._target_index + 1 < len(targets) and
                 spread >= targets[self._target_index + 1][0]):
-            logging.debug(
-                '#### target_index before: {}'.format(self._target_index))
             self._target_index += 1
             logging.debug(
                 '#### target_index after: {}'.format(self._target_index))
 
     def reset_target_index(self):
-        """Signal a momentum change, resets target_index."""
+        """Signal a momentum change, resets target_index and last_target_index.
+        """
         self._target_index = 0
         self._last_target_index = 0
 

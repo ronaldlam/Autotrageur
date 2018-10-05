@@ -147,9 +147,6 @@ class CCXTTrader():
                 AND c.start_timestamp = t.autotrageur_config_start_timestamp
                 AND t.trade_opportunity_id = t_o.id
                 AND t.exchange = %s
-            ORDER BY
-                t.local_timestamp,
-                t.side ASC
         """.format(exchange_id=self.exchange_id, buy_op=buy_op)
         sell_fee_ratio = ONE - self.get_taker_fee()
         data = execute_parametrized_query(query, (

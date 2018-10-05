@@ -500,7 +500,8 @@ class FCFStrategy():
         self.trade_metadata = None
 
     def finalize_trade(self, buy_response, sell_response):
-        """Do cleanup after trade is executed.
+        """After an executed trade, updates any state to reflect the completed
+        trade.
 
         NOTE: The strategy interface takes the whole responses for
         processing in case any state within the algorithm needs to
