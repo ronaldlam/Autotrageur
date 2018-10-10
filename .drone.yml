@@ -1,0 +1,6 @@
+pipeline:
+  build:
+    image: python:3.6
+    commands:
+      - pip install -r requirements.txt
+      - python -m pytest tests/unit
