@@ -3,4 +3,5 @@ pipeline:
     image: python:3.6
     commands:
       - pip install -r requirements-drone.txt
-      - python -m pytest tests/unit
+  unit-test:
+    - python -m pytest tests/unit
