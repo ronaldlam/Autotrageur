@@ -4,7 +4,7 @@ from statistics import stdev
 
 import ccxt
 
-import libs.trade.fetcher.forex_fetcher as forex
+import libs.forex.currency_converter as forex
 import libs.ccxt_extensions as ccxt_extensions
 from libs.constants.decimal_constants import HUNDRED, ONE, ZERO
 from libs.db.maria_db_handler import execute_parametrized_query

@@ -11,7 +11,7 @@ from pprint import pformat
 
 import libs.db.maria_db_handler as db_handler
 from libs.constants.decimal_constants import ONE
-from libs.trade.fetcher.forex_fetcher import convert_currencies
+from libs.forex.currency_converter import convert_currencies
 
 
 def _get_conversion(pair):
