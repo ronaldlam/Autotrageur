@@ -1,0 +1,5 @@
+# Pairs are formatted [base, quote]
+pairs:
+  - [USD, CAD]
+  - [KRW, CAD]
+  - [KRW, USD]

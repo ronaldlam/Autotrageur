@@ -4,7 +4,7 @@ from statistics import stdev
 
 import ccxt
 
-import bot.currencyconverter as currencyconverter
+import libs.trade.fetcher.forex_fetcher as forex
 import libs.ccxt_extensions as ccxt_extensions
 from libs.constants.decimal_constants import HUNDRED, ONE, ZERO
 from libs.db.maria_db_handler import execute_parametrized_query
@@ -563,7 +563,7 @@ class CCXTTrader():
 
         `forex_ratio` is set when the quote currency is not USD.
         """
-        self.forex_ratio = currencyconverter.convert_currencies(
+        self.forex_ratio = forex.convert_currencies(
             'USD', self.quote, num_to_decimal(1))
         logging.info("forex_ratio set to {}".format(self.forex_ratio))
 
