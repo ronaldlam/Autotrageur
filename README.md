@@ -19,6 +19,11 @@ We have at least one nested dependency that is platform specific. Instead of `pi
 pipdeptree -f | grep -P '^[\w0-9\-=.]+' > requirements.txt
 ```
 See [pipdeptree docs](https://github.com/naiquevin/pipdeptree#using-pipdeptree-to-write-requirementstxt-file) for more details.
+#### OSX instructions
+By default, BSD `grep` does not have the `-P` flag. See [here](https://stackoverflow.com/questions/16658333/grep-p-no-longer-works-how-can-i-rewrite-my-searches) and use this instead:
+```
+pipdeptree -f | perl -nle 'print if m{^[\w0-9\-=.]+}' > requirements.txt
+```
 ### First party dependencies
 In order to install directly from `pip`, the desired package must either be available through the default package index or specified directly. We access our internal libraries through the `requirements.txt` file by replacing `firstpartylibs-<version>` with:
 ```

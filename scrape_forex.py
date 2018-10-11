@@ -1,7 +1,7 @@
 """Scrape forex data and insert into db.
 
 Usage:
-    spawn_ohlcv_minute.py DBINFOFILE FOREXINFOFILE
+    scrape_forex.py DBINFOFILE FOREXINFOFILE
 
 Description:
     DBINFOFILE          Database details, including database name and user.
