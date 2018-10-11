@@ -4,10 +4,10 @@ Updates database with current spot prices of a trading pair.
 """
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pprint import pformat
 from time import time
 
 import yaml
-from pprint import pformat
 
 import libs.db.maria_db_handler as db_handler
 from libs.constants.decimal_constants import ONE
@@ -102,6 +102,7 @@ def persist_to_db(currency_pairs):
                 logging.info('{}/{} fetch complete.'.format(base, quote))
     db_handler.commit_all()
     logging.info('Committed.')
+
 
 def start_db(db_user, db_password, db_name):
     """Proxy to maria_db_handler.start_db.
