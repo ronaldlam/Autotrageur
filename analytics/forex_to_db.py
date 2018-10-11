@@ -11,27 +11,26 @@ from pprint import pformat
 
 import libs.db.maria_db_handler as db_handler
 from libs.constants.decimal_constants import ONE
-from libs.forex.currency_converter import convert_currencies
+from libs.forex.currency_converter import convert_currencies_primary
 
 
 def _get_conversion(pair):
-    """Fetches token history.
+    """Fetches forex conversion for pair.
 
     NOTE: For use with a multithreading executor.
 
     Args:
-        fetcher (HistoryFetcher): The fetcher used to interface with and
-            retrieve historical data.
+        pair (tuple(str, str)): The forex pair to fetch data for.
 
     Returns:
         list[dict]: The historical data received from an API.
     """
     base, quote = pair
-    return convert_currencies(base, quote, ONE)
+    return convert_currencies_primary(base, quote, ONE)
 
 
 def get_pairs(config_file):
-    """Creates a list of HistoryFetchers.
+    """Retrieves list of pairs from the given file.
 
     Args:
         config_file (str): A config filepath containing the list of
