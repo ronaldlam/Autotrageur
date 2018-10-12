@@ -17,12 +17,99 @@ E2_SELL = 3
 # Structure for data required to retrieve price data for one side on one
 # exchange.
 PriceEntry = namedtuple(
-    'PriceEntry', ['price_type', 'side', 'trader', 'bids_or_asks'])
+    'PriceEntry', ['price_type', 'side', 'trader', 'quote_target_amount',
+                   'usd_target_amount', 'bids_or_asks'])
 # Structure containing spread and price info for an arbitrage opportunity.
 SpreadOpportunity = namedtuple(
     'SpreadOpportunity',
     ['id', 'e1_spread', 'e2_spread', 'e1_buy', 'e2_buy', 'e1_sell', 'e2_sell',
         'e1_forex_rate_id', 'e2_forex_rate_id'])
+
+
+class AsymmetricConvertOpError(Exception):
+    """Thrown when only one trader has a sell_side_convert_op."""
+    pass
+
+def _convert_sell_amounts(trader1, trader2):
+    """Performs necessary conversions for sell-side trade amounts.
+
+    Args:
+        trader1 (CCXTTrader): The trading client for exchange 1.
+        trader2 (CCXTTrader): The trading client for exchange 2.
+
+    Raises:
+        AsymmetricConvertOpError: When only one trader has a
+            sell_side_convert_op.
+
+    Returns:
+        tuple(Decimal, Decimal): Both of the traders sell side amounts either
+            converted or unconverted.
+    """
+    if trader1.sell_side_convert_op and trader2.sell_side_convert_op:
+        forex_ratio = (trader1.forex_ratio if trader1.conversion_needed
+            else trader2.forex_ratio)
+        trader2_converted_amount = (trader1.sell_side_convert_op(
+            trader2.quote_target_amount,
+            forex_ratio))
+        trader1_converted_amount = (trader2.sell_side_convert_op(
+            trader1.quote_target_amount,
+            forex_ratio))
+    elif not trader1.sell_side_convert_op and not trader2.sell_side_convert_op:
+        trader2_converted_amount = trader2.quote_target_amount
+        trader1_converted_amount = trader1.quote_target_amount
+    else:
+        # This should never happen.
+        raise AsymmetricConvertOpError("Only one trader has a "
+            "sell_side_convert_op.  Either both or neither should have it.")
+
+    return (trader1_converted_amount, trader2_converted_amount)
+
+
+def _form_price_data(trader1, trader2, ex1_orderbook, ex2_orderbook):
+    """Creates a collection of price data to use for calculating spread.
+
+    Args:
+        trader1 (CCXTTrader): The trading client for exchange 1.
+        trader2 (CCXTTrader): The trading client for exchange 2.
+        ex1_orderbook (dict]): The orderbook data for exchange 1.
+        ex2_orderbook (dict]): The orderbook data for exchange 2.
+
+    Returns:
+        list[PriceEntry]: A list of PriceEntry used for calculating spread.
+    """
+    trader1_converted_amount, trader2_converted_amount = _convert_sell_amounts(
+        trader1, trader2)
+
+    return [
+        PriceEntry(
+            price_type=E1_BUY,
+            side=BUY_SIDE,
+            trader=trader1,
+            quote_target_amount=trader1.quote_target_amount,
+            usd_target_amount=trader1.usd_target_amount,
+            bids_or_asks=ex1_orderbook[ASKS]),
+        PriceEntry(
+            price_type=E1_SELL,
+            side=SELL_SIDE,
+            trader=trader1,
+            quote_target_amount=trader2_converted_amount,
+            usd_target_amount=trader2.usd_target_amount,
+            bids_or_asks=ex1_orderbook[BIDS]),
+        PriceEntry(
+            price_type=E2_BUY,
+            side=BUY_SIDE,
+            trader=trader2,
+            quote_target_amount=trader2.quote_target_amount,
+            usd_target_amount=trader2.usd_target_amount,
+            bids_or_asks=ex2_orderbook[ASKS]),
+        PriceEntry(
+            price_type=E2_SELL,
+            side=SELL_SIDE,
+            trader=trader2,
+            quote_target_amount=trader1_converted_amount,
+            usd_target_amount=trader1.usd_target_amount,
+            bids_or_asks=ex2_orderbook[BIDS]),
+    ]
 
 
 def get_spreads_by_ob(trader1, trader2):
@@ -46,23 +133,22 @@ def get_spreads_by_ob(trader1, trader2):
     ex1_orderbook, ex2_orderbook = wrap_ccxt_retry(      #pylint: disable=E0632
         [trader1.get_full_orderbook, trader2.get_full_orderbook])
 
-    prices = [None] * 4
-    price_data = [
-        PriceEntry(E1_BUY, BUY_SIDE, trader1, ex1_orderbook[ASKS]),
-        PriceEntry(E1_SELL, SELL_SIDE, trader1, ex1_orderbook[BIDS]),
-        PriceEntry(E2_BUY, BUY_SIDE, trader2, ex2_orderbook[ASKS]),
-        PriceEntry(E2_SELL, SELL_SIDE, trader2, ex2_orderbook[BIDS])
-    ]
+    price_data = _form_price_data(trader1, trader2, ex1_orderbook,
+        ex2_orderbook)
 
     # Exceptions are caught here because we want all the data regardless.
+    # TODO: ^ Is this comment outdated?
+    prices = [None] * 4
     for item in price_data:
         prices[item.price_type] = item.trader.get_prices_from_orderbook(
+            item.quote_target_amount,
+            item.usd_target_amount,
             item.bids_or_asks)
 
         logging.info("Price - %10s %4s of %30s %s of %s: %30s USD",
                         item.trader.exchange_name,
                         item.side,
-                        item.trader.quote_target_amount,
+                        item.quote_target_amount,
                         item.trader.quote,
                         item.trader.base,
                         prices[item.price_type].usd_price)

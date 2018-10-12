@@ -1,5 +1,6 @@
 import copyreg
 import logging
+import operator
 import os
 import pickle
 import pprint
@@ -205,6 +206,9 @@ class FCFAutotrageur(Autotrageur):
 
     def __setup_forex(self):
         """Sets up any forex services for fiat conversion, if necessary."""
+        # TODO: This function will have to change when supporting two different
+        # fiat currencies which are not USD. The bot will not support two
+        # different forex exchanges with this implementation.
         # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
         # to USD fiat.
         for trader in (self.trader1, self.trader2):
@@ -218,6 +222,20 @@ class FCFAutotrageur(Autotrageur):
                 self.__update_forex(trader)
                 # TODO: Adjust interval once real-time forex implemented.
                 schedule.every().hour.do(self.__update_forex, trader)
+
+        # Trader1 is a foreign exchange.  Trader2 is a USD exchange.
+        if self.trader1.conversion_needed and not self.trader2.conversion_needed:
+            self.trader1.sell_side_convert_op = operator.mul
+            self.trader2.sell_side_convert_op = operator.truediv
+        # Trader1 is a USD exchange.  Trader2 is a foreign exchange.
+        elif self.trader2.conversion_needed and not self.trader1.conversion_needed:
+            self.trader1.sell_side_convert_op = operator.truediv
+            self.trader2.sell_side_convert_op = operator.mul
+        # Both traders are assumed to be USD exchanges or same type of foreign
+        # exchange.
+        else:
+            self.trader1.sell_side_convert_op = None
+            self.trader2.sell_side_convert_op = None
 
     # @Override
     def _alert(self, subject):

@@ -1,6 +1,7 @@
 # pylint: disable=E1101
 import builtins
 import copy
+import operator
 import os
 import pickle
 import time
@@ -261,22 +262,51 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
     db_handler.commit_all.assert_called_once_with()
 
 
-@pytest.mark.parametrize("client_quote_usd", [True, False])
-def test_setup_forex(mocker, no_patch_fcf_autotrageur, client_quote_usd):
+@pytest.mark.parametrize("trader1_usd", [True, False])
+@pytest.mark.parametrize("trader2_usd", [True, False])
+def test_setup_forex(mocker, no_patch_fcf_autotrageur, trader1_usd, trader2_usd):
     trader1 = mocker.patch.object(no_patch_fcf_autotrageur, 'trader1',
         create=True)
     trader2 = mocker.patch.object(no_patch_fcf_autotrageur, 'trader2',
         create=True)
+    mocker.patch.object(trader1, 'conversion_needed', False)
+    mocker.patch.object(trader2, 'conversion_needed', False)
     mock_update_forex = mocker.patch.object(no_patch_fcf_autotrageur, '_FCFAutotrageur__update_forex')
     mocker.spy(schedule, 'every')
 
-    if client_quote_usd:
+    if trader1_usd and trader2_usd:
         trader1.quote = 'USD'
         trader2.quote = 'USD'
         no_patch_fcf_autotrageur._FCFAutotrageur__setup_forex()
+        assert trader1.conversion_needed is False
+        assert trader2.conversion_needed is False
         assert(schedule.every.call_count == 0)          # pylint: disable=E1101
         assert len(schedule.jobs) == 0
         assert(mock_update_forex.call_count == 0)
+        assert trader1.sell_side_convert_op is None
+        assert trader2.sell_side_convert_op is None
+    elif trader1_usd and not trader2_usd:
+        trader1.quote = 'USD'
+        trader2.quote = 'KRW'
+        no_patch_fcf_autotrageur._FCFAutotrageur__setup_forex()
+        assert trader1.conversion_needed is False
+        assert trader2.conversion_needed is True
+        assert(schedule.every.call_count == 1)          # pylint: disable=E1101
+        assert len(schedule.jobs) == 1
+        assert(mock_update_forex.call_count == 1)
+        assert trader1.sell_side_convert_op is operator.truediv
+        assert trader2.sell_side_convert_op is operator.mul
+    elif trader2_usd and not trader1_usd:
+        trader1.quote = 'KRW'
+        trader2.quote = 'USD'
+        no_patch_fcf_autotrageur._FCFAutotrageur__setup_forex()
+        assert trader1.conversion_needed is True
+        assert trader2.conversion_needed is False
+        assert(schedule.every.call_count == 1)          # pylint: disable=E1101
+        assert len(schedule.jobs) == 1
+        assert(mock_update_forex.call_count == 1)
+        assert trader1.sell_side_convert_op is operator.mul
+        assert trader2.sell_side_convert_op is operator.truediv
     else:
         # Set a fiat quote pair that is not USD to trigger conversion calls.
         trader1.quote = 'KRW'
@@ -287,6 +317,8 @@ def test_setup_forex(mocker, no_patch_fcf_autotrageur, client_quote_usd):
         assert(schedule.every.call_count == 2)          # pylint: disable=E1101
         assert len(schedule.jobs) == 2
         assert(mock_update_forex.call_count == 2)
+        assert trader1.sell_side_convert_op is None
+        assert trader2.sell_side_convert_op is None
 
     schedule.clear()
 
