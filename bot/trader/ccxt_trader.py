@@ -97,7 +97,6 @@ class CCXTTrader():
         self.quote_target_amount = ZERO
         self.usd_target_amount = ZERO
         self.conversion_needed = False
-        self.sell_side_convert_op = None
         self.forex_ratio = None
         self.forex_id = None
         self.base_bal = None
@@ -422,13 +421,13 @@ class CCXTTrader():
         return num_to_decimal(
             self.ccxt_exchange.markets[symbol]['limits']['amount']['min'])
 
-    def get_prices_from_orderbook(self, quote_target_amount, usd_target_amount,
-                                  bids_or_asks):
+    def get_prices_from_orderbook(self, bids_or_asks):
         """Get market buy or sell price in USD and quote currency.
 
         Return adjusted market buy or sell prices given bids or asks and
         amount to be sold. The market price is adjusted based on
-        orderbook depth and the provided quote_target_amount/usd_target_amount.
+        orderbook depth and the quote_target_amount/usd_target_amount
+        set by set_target_amounts().
 
         Input of bids will retrieve market sell price; input of asks
         will retrieve market buy price.
@@ -436,10 +435,6 @@ class CCXTTrader():
         Args:
             bids_or_asks (list[list(float)]): The bids or asks in the
                 form of (price, volume).
-            quote_target_amount (Decimal): The quote target amount to use for
-                calculating the required asset_volume.
-            usd_target_amount (Decimal): The usd target amount to use for
-                calculating the returned usd_price.
 
         Raises:
             OrderbookException: If the orderbook is not deep enough.
@@ -448,10 +443,10 @@ class CCXTTrader():
             PricePair (Decimal, Decimal): Prospective USD and quote
                 prices of a market buy or sell.
         """
-        asset_volume = self.__calc_vol_by_book(
-            bids_or_asks, quote_target_amount)
-        usd_price = usd_target_amount / asset_volume
-        quote_price = quote_target_amount / asset_volume
+        target_amount = self.quote_target_amount
+        asset_volume = self.__calc_vol_by_book(bids_or_asks, target_amount)
+        usd_price = self.usd_target_amount / asset_volume
+        quote_price = target_amount / asset_volume
         return PricePair(usd_price, quote_price)
 
     def get_taker_fee(self):

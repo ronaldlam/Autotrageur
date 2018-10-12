@@ -75,7 +75,6 @@ class TestCCXTTraderInit:
         assert trader.quote_target_amount == num_to_decimal(0.0)
         assert trader.usd_target_amount == num_to_decimal(0.0)
         assert trader.conversion_needed is False
-        assert trader.sell_side_convert_op is None
         assert trader.forex_ratio is None
         assert trader.forex_id is None
         assert trader.base_bal is None
@@ -629,7 +628,7 @@ def test_get_min_base_limit(mocker, fake_ccxt_trader, limit, expected_result):
     assert result == expected_result
 
 
-class TestGetPricesFromOrderbook:
+class TestGetAdjustedMarketPriceFromOrderbook:
     fake_bids_or_asks = [['fake', 'bids', 'asks']]
     fake_quote_target_amount = Decimal('100')
     fake_usd_target_amount = Decimal('150')
@@ -644,12 +643,16 @@ class TestGetPricesFromOrderbook:
                                        usd_target_amount, quote_target_amount,
                                        asset_volume, result_usd_price,
                                        result_quote_price):
+        mocker.patch.object(fake_ccxt_trader, 'usd_target_amount',
+                            usd_target_amount)
+        mocker.patch.object(fake_ccxt_trader, 'quote_target_amount',
+                            quote_target_amount)
         calc_vol = mocker.patch.object(fake_ccxt_trader,
                                        '_CCXTTrader__calc_vol_by_book',
                                        return_value=asset_volume)
 
         usd_price, quote_price = fake_ccxt_trader.get_prices_from_orderbook(
-            quote_target_amount, usd_target_amount, self.fake_bids_or_asks)
+            self.fake_bids_or_asks)
 
         calc_vol.assert_called_once_with(
             self.fake_bids_or_asks, quote_target_amount)
@@ -670,14 +673,10 @@ class TestGetPricesFromOrderbook:
             calc_volume.side_effect = ccxt_trader.OrderbookException
             with pytest.raises(ccxt_trader.OrderbookException):
                 fake_ccxt_trader.get_prices_from_orderbook(
-                    self.fake_quote_target_amount,
-                    self.fake_usd_target_amount,
                     self.fake_bids_or_asks)
         else:
             with pytest.raises(ZeroDivisionError):
                 fake_ccxt_trader.get_prices_from_orderbook(
-                    self.fake_quote_target_amount,
-                    self.fake_usd_target_amount,
                     self.fake_bids_or_asks)
 
 
