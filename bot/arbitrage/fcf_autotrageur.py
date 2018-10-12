@@ -37,6 +37,10 @@ from libs.twilio.twilio_client import TwilioClient
 from libs.utilities import num_to_decimal
 
 
+# Default error message for phone call.
+DEFAULT_PHONE_MESSAGE = "Please check logs and e-mail for full stack trace."
+
+
 class FCFAlertError(Exception):
     """Error indicating that one or more methods of communication for `_alert`
     failed."""
@@ -236,7 +240,7 @@ class FCFAutotrageur(Autotrageur):
         finally:
             try:
                 self.twilio_client.phone(
-                    [subject, traceback.format_exc()],
+                    [subject, DEFAULT_PHONE_MESSAGE],
                     self.twilio_config[TWILIO_RECIPIENT_NUMBERS],
                     self.twilio_config[TWILIO_SENDER_NUMBER],
                     is_mock_call=self._config.dryrun or self.is_test_run)
