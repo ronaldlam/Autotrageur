@@ -805,9 +805,9 @@ def test_set_forex_ratio(mocker, fake_ccxt_trader, forex_quote):
 
     if forex_quote in FIAT_SYMBOLS:
         is_forex = True
-        mocker.patch.object(ccxt_trader.currencyconverter, 'convert_currencies', return_value=FAKE_FOREX_RATIO)
+        mocker.patch.object(ccxt_trader.forex, 'convert_currencies', return_value=FAKE_FOREX_RATIO)
     else:
-        mocker.patch.object(ccxt_trader.currencyconverter, 'convert_currencies', return_value=None)
+        mocker.patch.object(ccxt_trader.forex, 'convert_currencies', return_value=None)
 
     mocker.patch.object(fake_ccxt_trader, 'quote', forex_quote)
     fake_ccxt_trader.set_forex_ratio()
