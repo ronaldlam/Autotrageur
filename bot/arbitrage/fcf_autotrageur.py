@@ -30,6 +30,7 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      TRADES_PRIM_KEY_SIDE,
                                      TRADES_PRIM_KEY_TRADE_OPP_ID,
                                      TRADES_TABLE)
+from libs.constants.decimal_constants import TEN, ZERO
 from libs.db.maria_db_handler import InsertRowObject
 from libs.email_client.simple_email_client import send_all_emails
 from libs.fiat_symbols import FIAT_SYMBOLS
@@ -219,6 +220,46 @@ class FCFAutotrageur(Autotrageur):
                 # TODO: Adjust interval once real-time forex implemented.
                 schedule.every().hour.do(self.__update_forex, trader)
 
+    def __verify_sold_amount(
+            self, bought_amount, sell_trader, buy_response, sell_response):
+        """Ensure that the sold amount is within tolerance.
+
+        Args:
+            bought_amount (Decimal): The base amount bought.
+            sell_trader (CCXTTrader): The sell side trader.
+            buy_response (dict): The buy response.
+            sell_response (dict): The sell response.
+
+        Raises:
+            IncompleteArbitrageError: If the sold amount is not within
+                the prescribed tolerance.
+        """
+        rounded_sell_amount = sell_trader.round_exchange_precision(
+            bought_amount)
+        amount_precision = sell_trader.get_amount_precision()
+        difference = rounded_sell_amount - sell_response['pre_fee_base']
+
+        if amount_precision is None:
+            # Exchange has arbitrary precision.
+            tolerance = ZERO
+        else:
+            tolerance = TEN ** num_to_decimal(-amount_precision)
+
+        if abs(difference) > tolerance:
+            msg = ("The purchased base amount does not match with "
+                    "the sold amount. Normal execution has "
+                    "terminated.\nBought amount: {}\n, Expected "
+                    "sell amount: {}\nSold amount:"
+                    " {}\n\nBuy results:\n\n{}\n\nSell results:\n\n"
+                    "{}\n").format(
+                bought_amount,
+                rounded_sell_amount,
+                sell_response['pre_fee_base'],
+                pprint.pformat(buy_response),
+                pprint.pformat(sell_response))
+
+            raise IncompleteArbitrageError(msg)
+
     # @Override
     def _alert(self, subject):
         """Last ditch effort to alert user on operation failure.
@@ -296,25 +337,11 @@ class FCFAutotrageur(Autotrageur):
                         trade_metadata.sell_trader,
                         trade_metadata.sell_price,
                         bought_amount)
-
-                    sell_trader = trade_metadata.sell_trader
-                    rounded_sell_amount = sell_trader.round_exchange_precision(
-                        bought_amount)
-
-                    if rounded_sell_amount != sell_response['pre_fee_base']:
-                        msg = ("The purchased base amount does not match with "
-                               "the sold amount. Normal execution has "
-                               "terminated.\nBought amount: {}\n, Expected "
-                               "sell amount: {}\nSold amount:"
-                               " {}\n\nBuy results:\n\n{}\n\nSell results:\n\n"
-                               "{}\n").format(
-                                    bought_amount,
-                                    rounded_sell_amount,
-                                    sell_response['pre_fee_base'],
-                                    pprint.pformat(buy_response),
-                                    pprint.pformat(sell_response))
-
-                        raise IncompleteArbitrageError(msg)
+                    self.__verify_sold_amount(
+                        bought_amount,
+                        trade_metadata.sell_trader,
+                        buy_response,
+                        sell_response)
                 except Exception as exc:
                     self._send_email("SELL ERROR ALERT - ABORT", repr(exc))
                     logging.error(exc, exc_info=True)

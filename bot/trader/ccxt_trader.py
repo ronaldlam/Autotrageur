@@ -388,6 +388,23 @@ class CCXTTrader():
 
         return result
 
+    def get_amount_precision(self):
+        """Gets the base amount precision for the current market.
+
+        NOTE: The `None` value represents arbitrary precision, currently
+        only for future proofing.
+
+        Returns:
+            int: The precision.
+        """
+        symbol = "%s/%s" % (self.base, self.quote)
+        precision = self.ccxt_exchange.markets[symbol]['precision']
+
+        if 'amount' in precision and precision['amount'] is not None:
+            return precision['amount']
+        else:
+            return None
+
     def get_buy_target_includes_fee(self):
         """Gets whether the exchange includes fees in its buy orders.
 

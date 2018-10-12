@@ -693,6 +693,26 @@ def test_get_taker_fee(mocker, fake_ccxt_trader):
     fake_ccxt_trader.fetcher.fetch_taker_fees.assert_called_with()
 
 
+@pytest.mark.parametrize('precision, expected_result', [
+    ({'amount': 5}, 5),
+    ({'amount': -3}, -3),
+    ({'amount': 0}, 0),
+    ({'amount': None}, None),
+    ({'something_else': 5}, None),
+])
+def test_get_amount_precision(mocker, fake_ccxt_trader, precision, expected_result):
+    fake_markets = {
+        'BTC/USD': {
+            'precision': precision
+        }
+    }
+    mocker.patch.object(fake_ccxt_trader.ccxt_exchange, 'markets', fake_markets)
+
+    result = fake_ccxt_trader.get_amount_precision()
+
+    assert result == expected_result
+
+
 @pytest.mark.parametrize('usd_amount, conversion_needed, forex_ratio, expected_result', [
     (Decimal('100'), True, Decimal('10'), Decimal('1000')),
     (Decimal('100'), False, Decimal('10'), Decimal('100')),
