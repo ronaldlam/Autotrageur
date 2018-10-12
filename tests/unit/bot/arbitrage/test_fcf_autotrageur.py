@@ -19,7 +19,8 @@ import bot.arbitrage.fcf_autotrageur
 import libs.db.maria_db_handler as db_handler
 from bot.arbitrage.arbseeker import SpreadOpportunity
 from bot.arbitrage.fcf.strategy import TradeMetadata
-from bot.arbitrage.fcf_autotrageur import (FCFAlertError, FCFAutotrageur,
+from bot.arbitrage.fcf_autotrageur import (DEFAULT_PHONE_MESSAGE,
+                                           FCFAlertError, FCFAutotrageur,
                                            FCFCheckpoint,
                                            IncompleteArbitrageError,
                                            IncorrectStateObjectTypeError,
@@ -655,7 +656,7 @@ def test_alert(mocker, no_patch_fcf_autotrageur, is_dry_run, is_test_run,
 
     send_email.assert_called_once_with(subject, traceback.format_exc())
     fake_twilio_client.phone.assert_called_once_with(
-        [subject, traceback.format_exc()],
+        [subject, DEFAULT_PHONE_MESSAGE],
         FAKE_RECIPIENT_NUMBERS,
         FAKE_SENDER_NUMBER,
         is_mock_call=is_dry_run or is_test_run)
