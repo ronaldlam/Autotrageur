@@ -637,24 +637,49 @@ def test_get_taker_fee(mocker, fake_ccxt_trader):
     fake_ccxt_trader.fetcher.fetch_taker_fees.assert_called_with()
 
 
-@pytest.mark.parametrize('precision, expected_result', [
-    ({'amount': 5}, 5),
-    ({'amount': -3}, -3),
-    ({'amount': 0}, 0),
-    ({'amount': None}, None),
-    ({'something_else': 5}, None),
-])
-def test_get_amount_precision(mocker, fake_ccxt_trader, precision, expected_result):
-    fake_markets = {
-        'BTC/USD': {
-            'precision': precision
+class TestGetAmountPrecision:
+    @pytest.mark.parametrize('precision, expected_result', [
+        ({'amount': 5}, 5),
+        ({'amount': -3}, -3),
+        ({'amount': 0}, 0),
+        ({'amount': None}, None),
+        ({'something_else': 5}, None),
+    ])
+    def test_get_amount_precision(self, mocker, fake_ccxt_trader, precision, expected_result):
+        fake_markets = {
+            'BTC/USD': {
+                'precision': precision
+            }
         }
-    }
-    mocker.patch.object(fake_ccxt_trader.ccxt_exchange, 'markets', fake_markets)
+        mocker.patch.object(fake_ccxt_trader.ccxt_exchange, 'markets', fake_markets)
 
-    result = fake_ccxt_trader.get_amount_precision()
+        result = fake_ccxt_trader.get_amount_precision()
 
-    assert result == expected_result
+        assert result == expected_result
+
+
+    @pytest.mark.parametrize('markets', [
+        # Bad, no symbol, expect KeyError exception.
+        pytest.param({
+            'precision': {
+                'amount': 8
+            }
+        },
+        marks=xfail(raises=KeyError, reason="Missing symbol key", strict=True)),
+        # Bad, typo precision key, expect KeyError exception.
+        pytest.param({
+            BTC_USD: {
+                'precisionn': {
+                    'amount': 8
+                }
+            }
+        },
+        marks=xfail(raises=KeyError, reason="Typo precision key", strict=True))
+    ])
+    def test_get_amount_precision_bad(self, mocker, fake_ccxt_trader, markets):
+        mocker.patch.object(fake_ccxt_trader.ccxt_exchange, 'markets', markets)
+
+        fake_ccxt_trader.get_amount_precision()
 
 
 @pytest.mark.parametrize('usd_amount, conversion_needed, forex_ratio, expected_result', [
