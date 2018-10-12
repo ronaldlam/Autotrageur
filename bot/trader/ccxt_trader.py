@@ -248,14 +248,13 @@ class CCXTTrader():
                                 % (measure[0], measure[1], self.base, limit,
                                    self.base))
 
-    def __round_exchange_precision(self, market_order, symbol, asset_amount):
+    def __round_exchange_precision(self, market_order, asset_amount):
         """Rounds the asset amount by a precision provided by the exchange.
 
         Args:
             market_order (bool or string): Is one of: True, False,
                 'emulated' to specify if market order is supported, not
                 supported, or emulated.
-            symbol (string): The token pair symbol. E.g. 'ETH/USD'
             asset_amount (Decimal): The amount that is to be rounded.
 
         Returns:
@@ -265,11 +264,11 @@ class CCXTTrader():
         """
         if market_order is True:
             # Rounding is required for direct ccxt call.
-            precision = self.ccxt_exchange.markets[symbol]['precision']
+            precision = self.get_amount_precision()
 
             # In the case the exchange supports arbitrary precision.
-            if 'amount' in precision and precision['amount'] is not None:
-                asset_amount = round(asset_amount, precision['amount'])
+            if precision is not None:
+                asset_amount = round(asset_amount, precision)
 
         return asset_amount
 
@@ -318,7 +317,7 @@ class CCXTTrader():
             quote_target_amount /= fee_ratio
 
         asset_amount = self.__round_exchange_precision(
-            market_order, symbol, asset_amount)
+            market_order, asset_amount)
 
         # For 'emulated', We check before rounding which is not strictly
         # correct, but it is likely larger issues are at hand if the error is
@@ -362,8 +361,8 @@ class CCXTTrader():
         """
         symbol = "%s/%s" % (self.base, self.quote)
         market_order = self.ccxt_exchange.has['createMarketOrder']
-        asset_amount = self.__round_exchange_precision(market_order, symbol,
-                                                 asset_amount)
+        asset_amount = self.__round_exchange_precision(
+            market_order, asset_amount)
 
         # For 'emulated', We check before rounding which is not strictly
         # correct, but it is likely larger issues are at hand if the error is
@@ -572,8 +571,7 @@ class CCXTTrader():
                 return the original amount if the exchange supports arbitrary
                 precision.
         """
-        symbol = "%s/%s" % (self.base, self.quote)
-        return self.__round_exchange_precision(True, symbol, amount)
+        return self.__round_exchange_precision(True, amount)
 
     def set_forex_ratio(self):
         """Get foreign currency per USD.
