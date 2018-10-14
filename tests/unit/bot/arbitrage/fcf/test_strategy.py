@@ -253,8 +253,8 @@ def test_prepare_trade(mocker, fcf_strategy, is_momentum_change,
 
     mock_get_quote_from_usd = mocker.patch.object(
         buy_trader, 'get_quote_from_usd', return_value=next_quote_vol)
-    mock_set_buy_target_amounts = mocker.spy(
-        buy_trader, 'set_buy_target_amounts')
+    mock_set_buy_target_amount = mocker.spy(
+        buy_trader, 'set_buy_target_amount')
 
     buy_trader.adjusted_quote_bal = buy_quote_balance
     sell_trader.base_bal = sell_base_balance
@@ -276,7 +276,7 @@ def test_prepare_trade(mocker, fcf_strategy, is_momentum_change,
     mock_chunker.get_next_trade.assert_called_once_with()
     mock_get_quote_from_usd.assert_called_once_with(
         mock_chunker.get_next_trade.return_value)
-    mock_set_buy_target_amounts.assert_called_once_with(
+    mock_set_buy_target_amount.assert_called_once_with(
         min(next_quote_vol, buy_trader.adjusted_quote_bal), is_usd=False)
 
 
@@ -398,8 +398,8 @@ def test_poll_opportunity(mocker, fcf_strategy, vol_min, e1_quote_balance,
         fcf_strategy._manager.trader1, 'get_adjusted_usd_balance', return_value=e1_quote_balance)
     mocker.patch.object(
         fcf_strategy._manager.trader2, 'get_adjusted_usd_balance', return_value=e2_quote_balance)
-    mocker.patch.object(fcf_strategy._manager.trader1, 'set_buy_target_amounts')
-    mocker.patch.object(fcf_strategy._manager.trader2, 'set_buy_target_amounts')
+    mocker.patch.object(fcf_strategy._manager.trader1, 'set_buy_target_amount')
+    mocker.patch.object(fcf_strategy._manager.trader2, 'set_buy_target_amount')
     mocker.patch.object(fcf_strategy._manager.trader1, 'set_rough_sell_amount')
     mocker.patch.object(fcf_strategy._manager.trader2, 'set_rough_sell_amount')
     mocker.patch.object(fcf_strategy, '_vol_min', vol_min)
@@ -428,9 +428,9 @@ def test_poll_opportunity(mocker, fcf_strategy, vol_min, e1_quote_balance,
 
     trader1_buy_target_amount = min(max_trade_size, max(vol_min, e1_quote_balance))
     trader2_buy_target_amount = min(max_trade_size, max(vol_min, e2_quote_balance))
-    fcf_strategy._manager.trader1.set_buy_target_amounts.assert_called_once_with(
+    fcf_strategy._manager.trader1.set_buy_target_amount.assert_called_once_with(
         trader1_buy_target_amount)
-    fcf_strategy._manager.trader2.set_buy_target_amounts.assert_called_once_with(
+    fcf_strategy._manager.trader2.set_buy_target_amount.assert_called_once_with(
         trader2_buy_target_amount)
     fcf_strategy._manager.trader1.set_rough_sell_amount.assert_called_once_with(
         trader2_buy_target_amount)

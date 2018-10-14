@@ -428,7 +428,7 @@ class CCXTTrader():
         Return adjusted market buy or sell prices given bids or asks and
         amount to be sold. The market price is adjusted based on
         orderbook depth and the `quote_target_amount`, `rough_sell_amount`
-        set by `set_buy_target_amounts` and `set_rough_sell_amount`.
+        set by `set_buy_target_amount` and `set_rough_sell_amount`.
 
         Input of bids will retrieve market sell price; input of asks
         will retrieve market buy price.
@@ -563,8 +563,8 @@ class CCXTTrader():
         symbol = "%s/%s" % (self.base, self.quote)
         return self.__round_exchange_precision(True, symbol, amount)
 
-    def set_buy_target_amounts(self, buy_target_amount, is_usd=True):
-        """Sets the internal buy amounts which are used for the trading
+    def set_buy_target_amount(self, buy_target_amount, is_usd=True):
+        """Sets the internal buy amount which is used for the trading
         algorithm.
 
         `quote_target_amount` is used for calculating spreads and setting an
@@ -583,11 +583,9 @@ class CCXTTrader():
         Raises:
             NoForexQuoteException: If forex_ratio is needed and not set.
         """
-        if self.conversion_needed and is_usd:
-            if self.forex_ratio is None:
-                raise NoForexQuoteException(
-                    "Forex ratio not set. Conversion not available.")
-            self.quote_target_amount = buy_target_amount * self.forex_ratio
+        if is_usd and self.conversion_needed:
+            self.quote_target_amount = self.get_quote_from_usd(
+                buy_target_amount)
         else:
             self.quote_target_amount = buy_target_amount
 
@@ -626,12 +624,9 @@ class CCXTTrader():
         Raises:
             NoForexQuoteException: If forex_ratio is needed and not set.
         """
-        if self.conversion_needed and is_usd:
-            if self.forex_ratio is None:
-                raise NoForexQuoteException(
-                    "Forex ratio not set. Conversion not available.")
-            self.quote_rough_sell_amount = (
-                rough_sell_amount * self.forex_ratio)
+        if is_usd and self.conversion_needed:
+            self.quote_rough_sell_amount = self.get_quote_from_usd(
+                rough_sell_amount)
         else:
             self.quote_rough_sell_amount = rough_sell_amount
 

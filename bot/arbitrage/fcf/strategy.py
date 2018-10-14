@@ -441,7 +441,7 @@ class FCFStrategy():
         # would result in an inaccurate USD balance.
         target_quote_amount = min(
             next_quote_vol, buy_trader.adjusted_quote_bal)
-        buy_trader.set_buy_target_amounts(target_quote_amount, is_usd=False)
+        buy_trader.set_buy_target_amount(target_quote_amount, is_usd=False)
 
         if buy_trader is self._manager.trader1:
             buy_price = spread_opp.e1_buy
@@ -556,16 +556,14 @@ class FCFStrategy():
 
         trader1_buy_target_amount = min(
             self._max_trade_size,
-            max(self.vol_min,
-                trader1_balance))
+            max(self.vol_min, trader1_balance))
         trader2_buy_target_amount = min(
             self._max_trade_size,
-            max(self.vol_min,
-                trader2_balance))
+            max(self.vol_min,trader2_balance))
 
-        self._manager.trader1.set_buy_target_amounts(trader1_buy_target_amount)
+        self._manager.trader1.set_buy_target_amount(trader1_buy_target_amount)
         self._manager.trader1.set_rough_sell_amount(trader2_buy_target_amount)
-        self._manager.trader2.set_buy_target_amounts(trader2_buy_target_amount)
+        self._manager.trader2.set_buy_target_amount(trader2_buy_target_amount)
         self._manager.trader2.set_rough_sell_amount(trader1_buy_target_amount)
 
         try:

@@ -852,9 +852,14 @@ class TestSetBuyTargetAmounts:
                                    is_usd, conversion_needed, result_quote):
         mocker.patch.object(fake_ccxt_trader, 'forex_ratio', FAKE_FOREX_RATIO)
         mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
+        mocker.spy(fake_ccxt_trader, 'get_quote_from_usd')
 
-        fake_ccxt_trader.set_buy_target_amounts(target_amount, is_usd)
+        fake_ccxt_trader.set_buy_target_amount(target_amount, is_usd)
 
+        if is_usd and fake_ccxt_trader.conversion_needed:
+            fake_ccxt_trader.get_quote_from_usd.assert_called_once_with(target_amount)
+        else:
+            fake_ccxt_trader.get_quote_from_usd.assert_not_called()
         assert fake_ccxt_trader.quote_target_amount == result_quote
 
     @pytest.mark.parametrize('is_usd', [True, False])
@@ -864,15 +869,15 @@ class TestSetBuyTargetAmounts:
 
         if is_usd:
             with pytest.raises(ccxt_trader.NoForexQuoteException):
-                fake_ccxt_trader.set_buy_target_amounts(self.fake_target_amount, is_usd)
+                fake_ccxt_trader.set_buy_target_amount(self.fake_target_amount, is_usd)
         else:
-            fake_ccxt_trader.set_buy_target_amounts(self.fake_target_amount, is_usd)
+            fake_ccxt_trader.set_buy_target_amount(self.fake_target_amount, is_usd)
             assert fake_ccxt_trader.quote_target_amount == self.fake_target_amount
 
     def test_set_buy_target_amount_zero_forex_quote(self, mocker, fake_ccxt_trader):
         mocker.patch.object(fake_ccxt_trader, 'forex_ratio', Decimal('0'))
         mocker.patch.object(fake_ccxt_trader, 'conversion_needed', True)
-        fake_ccxt_trader.set_buy_target_amounts(self.fake_target_amount, True)
+        fake_ccxt_trader.set_buy_target_amount(self.fake_target_amount, True)
 
         # TODO: Should 0 as a forex_ratio be considered an exceptional case? Or rather
         # anything <= 0?
@@ -896,9 +901,14 @@ class TestSetRoughSellAmount:
                                    is_usd, conversion_needed, result_quote):
         mocker.patch.object(fake_ccxt_trader, 'forex_ratio', FAKE_FOREX_RATIO)
         mocker.patch.object(fake_ccxt_trader, 'conversion_needed', conversion_needed)
+        mocker.spy(fake_ccxt_trader, 'get_quote_from_usd')
 
         fake_ccxt_trader.set_rough_sell_amount(target_amount, is_usd)
 
+        if is_usd and fake_ccxt_trader.conversion_needed:
+            fake_ccxt_trader.get_quote_from_usd.assert_called_once_with(target_amount)
+        else:
+            fake_ccxt_trader.get_quote_from_usd.assert_not_called()
         assert fake_ccxt_trader.quote_rough_sell_amount == result_quote
 
     @pytest.mark.parametrize('is_usd', [True, False])
