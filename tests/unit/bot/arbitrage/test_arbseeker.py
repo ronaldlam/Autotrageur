@@ -1,14 +1,12 @@
 # pylint: disable=E1101
 import pytest
 
-from bot.arbitrage.arbseeker import (get_spreads_by_ob,
-                                     execute_buy,
-                                     execute_sell,
-                                     SpreadOpportunity)
 import bot.arbitrage.spreadcalculator as spreadcalculator
+from bot.arbitrage.arbseeker import (SpreadOpportunity, execute_buy,
+                                     execute_sell, get_spreads_by_ob)
 from bot.trader.ccxt_trader import CCXTTrader, OrderbookException, PricePair
+from libs.constants.ccxt_constants import BUY_SIDE, SELL_SIDE
 from libs.utilities import num_to_decimal
-
 
 BIDS = "bids"
 ASKS = "asks"
@@ -47,14 +45,10 @@ def buy_trader():
 def sell_trader():
     return CCXTTrader('ETH', 'KRW', 'Bithumb', 'e2', 1)
 
-
-@pytest.mark.parametrize(
-    "has_bad_orderbook", [
-        True, False
-    ]
-)
+@pytest.mark.parametrize('side', [BUY_SIDE, SELL_SIDE])
+@pytest.mark.parametrize('has_bad_orderbook', [True, False])
 def test_get_spreads_by_ob(
-        mocker, buy_trader, sell_trader, has_bad_orderbook):
+        mocker, side, buy_trader, sell_trader, has_bad_orderbook):
     if has_bad_orderbook:
         mocker.patch.object(
             buy_trader,
