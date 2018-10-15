@@ -879,8 +879,6 @@ class TestSetBuyTargetAmounts:
         mocker.patch.object(fake_ccxt_trader, 'conversion_needed', True)
         fake_ccxt_trader.set_buy_target_amount(self.fake_target_amount, True)
 
-        # TODO: Should 0 as a forex_ratio be considered an exceptional case? Or rather
-        # anything <= 0?
         assert fake_ccxt_trader.quote_target_amount == Decimal('0')
 
 class TestSetRoughSellAmount:

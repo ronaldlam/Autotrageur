@@ -54,8 +54,6 @@ def get_spreads_by_ob(trader1, trader2):
         PriceEntry(E2_SELL, SELL_SIDE, trader2, ex2_orderbook[BIDS])
     ]
 
-    # Exceptions are caught here because we want all the data regardless.
-    # ^ TODO: Is this message outdated?
     for item in price_data:
         prices[item.price_type] = item.trader.get_prices_from_orderbook(
             item.side,
