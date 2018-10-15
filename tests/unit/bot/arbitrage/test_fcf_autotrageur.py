@@ -38,8 +38,7 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      TRADES_PRIM_KEY_SIDE,
                                      TRADES_PRIM_KEY_TRADE_OPP_ID,
                                      TRADES_TABLE)
-from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
-                                               SUBJECT_LIVE_FAILURE)
+from bot.common.notification_constants import (SUBJECT_LIVE_FAILURE)
 from bot.trader.dry_run import DryRunManager
 from libs.db.maria_db_handler import InsertRowObject
 from libs.utilities import num_to_decimal
@@ -290,6 +289,57 @@ def test_setup_forex(mocker, no_patch_fcf_autotrageur, client_quote_usd):
         assert(mock_update_forex.call_count == 2)
 
     schedule.clear()
+
+
+class TestVerifySoldAmount:
+
+    @pytest.mark.parametrize('rounded_sell_amount, amount_precision, sold_base', [
+        (Decimal('1.24'), 2, Decimal('1.24')),
+        (Decimal('1.24'), 2, Decimal('1.23')),
+        (Decimal('1.24'), 2, Decimal('1.25')),
+        (Decimal('1.2415235242'), 10, Decimal('1.2415235242')),
+        (Decimal('1.2415235241'), 10, Decimal('1.2415235242')),
+        (Decimal('1.2415235243'), 10, Decimal('1.2415235242')),
+        (Decimal('1.241523524312'), None, Decimal('1.241523524312')),
+    ])
+    def test_verify_sold_amount(self, mocker, no_patch_fcf_autotrageur,
+                                rounded_sell_amount, amount_precision,
+                                sold_base):
+        bought_amount = mocker.Mock()
+        sell_trader = mocker.Mock()
+        buy_response = mocker.Mock()
+        sell_response = {'pre_fee_base': sold_base}
+
+        sell_trader.round_exchange_precision.return_value = rounded_sell_amount
+        sell_trader.get_amount_precision.return_value = amount_precision
+
+        no_patch_fcf_autotrageur._FCFAutotrageur__verify_sold_amount(
+            bought_amount, sell_trader, buy_response, sell_response)
+
+    @pytest.mark.parametrize('rounded_sell_amount, amount_precision, sold_base', [
+        (Decimal('1.23'), 2, Decimal('1.25')),
+        (Decimal('1.26'), 2, Decimal('1.23')),
+        (Decimal('2.24'), 2, Decimal('1.25')),
+        (Decimal('1.2415235242'), 10, Decimal('1.2415235244')),
+        (Decimal('1.2415235242'), 10, Decimal('1.2415235240')),
+        (Decimal('1.2415235242'), 10, Decimal('1.2416235242')),
+        (Decimal('1.241523524312'), None, Decimal('1.241523524311')),
+        (Decimal('1.241523524312'), None, Decimal('1.241523524313')),
+    ])
+    def test_verify_sold_amount_err(self, mocker, no_patch_fcf_autotrageur,
+                                    rounded_sell_amount, amount_precision,
+                                    sold_base):
+        bought_amount = mocker.Mock()
+        sell_trader = mocker.Mock()
+        buy_response = mocker.Mock()
+        sell_response = {'pre_fee_base': sold_base}
+
+        sell_trader.round_exchange_precision.return_value = rounded_sell_amount
+        sell_trader.get_amount_precision.return_value = amount_precision
+
+        with pytest.raises(IncompleteArbitrageError):
+            no_patch_fcf_autotrageur._FCFAutotrageur__verify_sold_amount(
+                bought_amount, sell_trader, buy_response, sell_response)
 
 
 def test_construct_strategy(mocker, no_patch_fcf_autotrageur):

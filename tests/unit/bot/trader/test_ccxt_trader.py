@@ -353,87 +353,32 @@ class TestRoundExchangePrecisionPrivate:
 
     @pytest.mark.parametrize('precision, asset_amount, rounded_amount', [
         # Good, but 0 amount.
-        ({
-            BTC_USD: {
-                'precision': {
-                    'amount': 8
-                }
-            }
-        }, 0, 0),
+        (8, 0, 0),
         # Good, 8 precision.
-        ({
-            BTC_USD: {
-                'precision': {
-                    'amount': 8
-                }
-            }
-        }, Decimal('1.123456789'), Decimal('1.12345678')),
+        (8, Decimal('1.123456789'), Decimal('1.12345678')),
         # Good, 8 precision, large number.
-        ({
-            BTC_USD: {
-                'precision': {
-                    'amount': 8
-                }
-            }
-        }, Decimal('10000000.123456789'), Decimal('10000000.12345678')),
+        (8, Decimal('10000000.123456789'), Decimal('10000000.12345678')),
         # Good, 8 precision, rounding with float ending in 5.
-        ({
-            BTC_USD: {
-                'precision': {
-                    'amount': 8
-                }
-            }
-        }, Decimal('1.123456785'), Decimal('1.12345678')),    # NOTE: Does not round "up" to  1.12345679
-        # Bad, 8 precision, typo, should remain unchanged.
-        ({
-            BTC_USD: {
-                'precision': {
-                    'amountt': 8
-                }
-            }
-        }, Decimal('1.123456789'), Decimal('1.123456789'))
+        (8, Decimal('1.123456785'), Decimal('1.12345678')),    # NOTE: Does not round "up" to  1.12345679
+        # Arbitrary precision, should remain unchanged.
+        (None, Decimal('1.123456789'), Decimal('1.123456789')),
+        # Good, zero precision.
+        (0, Decimal('1234567.89'), Decimal('1234567')),
+        # Good, negative precision.
+        (-2, Decimal('1234567.89'), Decimal('1234500')),
     ])
     @pytest.mark.parametrize('market_order', [True, 'emulated', False])
     def test_round_exchange_precision_private(self, mocker, fake_ccxt_trader, precision,
                                               market_order, asset_amount, rounded_amount):
-        fake_ccxt_trader.ccxt_exchange.markets = {}
-        mocker.patch.dict(fake_ccxt_trader.ccxt_exchange.markets, precision)
+        mocker.patch.object(
+            fake_ccxt_trader, 'get_amount_precision', return_value=precision)
         result = fake_ccxt_trader._CCXTTrader__round_exchange_precision(
-            market_order, BTC_USD, asset_amount)
+            market_order, asset_amount)
 
         if market_order is True:
             assert result == rounded_amount
         else:
             assert result == asset_amount
-
-    @pytest.mark.parametrize('precision, asset_amount, rounded_amount', [
-        # Bad, no symbol, expect KeyError exception.
-        pytest.param({
-            'precision': {
-                'amount': 8
-            }
-        }, Decimal('1.123456789'), Decimal('1.123456789'),
-        marks=xfail(raises=KeyError, reason="Missing symbol key", strict=True)),
-        # Bad, typo precision key, expect KeyError exception.
-        pytest.param({
-            BTC_USD: {
-                'precisionn': {
-                    'amount': 8
-                }
-            }
-        }, Decimal('1.123456789'), Decimal('1.123456789'),
-        marks=xfail(raises=KeyError, reason="Typo precision key", strict=True))
-    ])
-    def test_round_exchange_precision_private_bad(self, mocker, fake_ccxt_trader,
-                                                  precision, asset_amount, rounded_amount):
-        market_order = True
-
-        fake_ccxt_trader.ccxt_exchange.markets = {}
-        mocker.patch.dict(fake_ccxt_trader.ccxt_exchange.markets, precision)
-        result = fake_ccxt_trader._CCXTTrader__round_exchange_precision(
-            market_order, BTC_USD, asset_amount)
-
-        assert result == rounded_amount
 
 
 class TestExecuteMarketOrder:
@@ -461,7 +406,6 @@ class TestExecuteMarketOrder:
                 fake_quote_target_amount /= fee_ratio
             round_exchange_precision_params = [
                 create_market_order['createMarketOrder'],
-                BTC_USD,
                 fake_asset_amount
             ]
 
@@ -475,7 +419,7 @@ class TestExecuteMarketOrder:
         else:
             market_order_function = 'execute_market_sell'
             market_order_function_params = [self.fake_asset_price, self.fake_rounded_amount]
-            round_exchange_precision_params = [create_market_order['createMarketOrder'], BTC_USD,
+            round_exchange_precision_params = [create_market_order['createMarketOrder'],
                 self.fake_rounded_amount]
 
             if create_market_order == self.fake_normal_market_order:
@@ -693,6 +637,51 @@ def test_get_taker_fee(mocker, fake_ccxt_trader):
     fake_ccxt_trader.fetcher.fetch_taker_fees.assert_called_with()
 
 
+class TestGetAmountPrecision:
+    @pytest.mark.parametrize('precision, expected_result', [
+        ({'amount': 5}, 5),
+        ({'amount': -3}, -3),
+        ({'amount': 0}, 0),
+        ({'amount': None}, None),
+        ({'something_else': 5}, None),
+    ])
+    def test_get_amount_precision(self, mocker, fake_ccxt_trader, precision, expected_result):
+        fake_markets = {
+            'BTC/USD': {
+                'precision': precision
+            }
+        }
+        mocker.patch.object(fake_ccxt_trader.ccxt_exchange, 'markets', fake_markets)
+
+        result = fake_ccxt_trader.get_amount_precision()
+
+        assert result == expected_result
+
+
+    @pytest.mark.parametrize('markets', [
+        # Bad, no symbol, expect KeyError exception.
+        pytest.param({
+            'precision': {
+                'amount': 8
+            }
+        },
+        marks=xfail(raises=KeyError, reason="Missing symbol key", strict=True)),
+        # Bad, typo precision key, expect KeyError exception.
+        pytest.param({
+            BTC_USD: {
+                'precisionn': {
+                    'amount': 8
+                }
+            }
+        },
+        marks=xfail(raises=KeyError, reason="Typo precision key", strict=True))
+    ])
+    def test_get_amount_precision_bad(self, mocker, fake_ccxt_trader, markets):
+        mocker.patch.object(fake_ccxt_trader.ccxt_exchange, 'markets', markets)
+
+        fake_ccxt_trader.get_amount_precision()
+
+
 @pytest.mark.parametrize('usd_amount, conversion_needed, forex_ratio, expected_result', [
     (Decimal('100'), True, Decimal('10'), Decimal('1000')),
     (Decimal('100'), False, Decimal('10'), Decimal('100')),
@@ -786,7 +775,7 @@ def test_round_exchange_precision_public(mocker, fake_ccxt_trader):
     mocker.patch.object(fake_ccxt_trader, '_CCXTTrader__round_exchange_precision')
     fake_ccxt_trader.round_exchange_precision(FAKE_AMOUNT_TO_ROUND)
     fake_ccxt_trader._CCXTTrader__round_exchange_precision.assert_called_once_with(
-        True, 'BTC/USD', FAKE_AMOUNT_TO_ROUND)
+        True, FAKE_AMOUNT_TO_ROUND)
 
 
 @pytest.mark.parametrize('forex_quote', [
