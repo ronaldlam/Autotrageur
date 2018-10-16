@@ -30,8 +30,8 @@ class ExchangeLimitException(Exception):
     pass
 
 
-class NoForexQuoteException(Exception):
-    """Exception when requiring a forex quote target but none present."""
+class MalformedForexRatioException(Exception):
+    """Exception when the forex ratio is malformed, or not present."""
     pass
 
 
@@ -98,11 +98,36 @@ class CCXTTrader():
         self.quote_target_amount = ZERO
         self.quote_rough_sell_amount = ZERO
         self.conversion_needed = False
-        self.forex_ratio = None
+        self._forex_ratio = None
         self.forex_id = None
         self.base_bal = None
         self.quote_bal = None
         self.adjusted_quote_bal = None
+
+    @property
+    def forex_ratio(self):
+        """Property getter for the ccxt_trader's forex_ratio.
+
+        Raises:
+            MalformedForexRatioException: Exception when the forex ratio is
+                malformed, or not present.
+
+        Returns:
+            Decimal: The forex ratio of [FOREX_QUOTE_CURR]/USD.
+        """
+        if self._forex_ratio is None or self._forex_ratio <= ZERO:
+            raise MalformedForexRatioException(
+                "The forex_ratio is either malformed or non-existant.")
+        return self._forex_ratio
+
+    @forex_ratio.setter
+    def forex_ratio(self, forex_ratio):
+        """Property setter for the ccxt_trader's forex_ratio.
+
+        Args:
+            forex_ratio (Decimal): The forex ratio to be set.
+        """
+        self._forex_ratio = forex_ratio
 
     def __adjust_working_balance(self, is_dry_run):
         """Subtracts reasonable slippage from quote_bal.
@@ -494,9 +519,6 @@ class CCXTTrader():
             Decimal: The quote amount.
         """
         if self.conversion_needed:
-            if self.forex_ratio is None:
-                raise NoForexQuoteException(
-                    "Forex ratio not set. Conversion not available.")
             return usd_amount * self.forex_ratio
         else:
             return usd_amount
@@ -523,9 +545,6 @@ class CCXTTrader():
                 "Unable to retrieve USD balance as a quote balance has not "
                 "been set yet.")
         if self.conversion_needed:
-            if self.forex_ratio is None:
-                raise NoForexQuoteException(
-                    "Forex ratio not set. Conversion not available.")
             return self.adjusted_quote_bal / self.forex_ratio
         else:
             return self.adjusted_quote_bal
@@ -543,9 +562,6 @@ class CCXTTrader():
             Decimal: The USD amount.
         """
         if self.conversion_needed:
-            if self.forex_ratio is None:
-                raise NoForexQuoteException(
-                    "Forex ratio not set. Conversion not available.")
             return quote_amount / self.forex_ratio
         else:
             return quote_amount
@@ -613,8 +629,8 @@ class CCXTTrader():
 
         `forex_ratio` is set when the quote currency is not USD.
         """
-        self.forex_ratio = forex.convert_currencies(
-            'USD', self.quote, num_to_decimal(1))
+        self._forex_ratio = forex.convert_currencies(
+            'USD', self.quote, num_to_decimal('1'))
         logging.info("forex_ratio set to {}".format(self.forex_ratio))
 
     def set_rough_sell_amount(self, rough_sell_amount, is_usd=True):
