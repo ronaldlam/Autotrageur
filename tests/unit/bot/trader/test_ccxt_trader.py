@@ -77,7 +77,7 @@ class TestCCXTTraderInit:
         assert trader.quote_target_amount == num_to_decimal(0.0)
         assert trader.quote_rough_sell_amount == num_to_decimal(0.0)
         assert trader.conversion_needed is False
-        assert trader._forex_ratio is None
+        assert trader._forex_ratio == num_to_decimal('1')
         assert trader.forex_id is None
         assert trader.base_bal is None
         assert trader.quote_bal is None
@@ -809,7 +809,7 @@ def test_set_forex_ratio(mocker, fake_ccxt_trader, forex_quote):
         is_forex = True
         mocker.patch.object(ccxt_trader.forex, 'convert_currencies', return_value=FAKE_FOREX_RATIO)
     else:
-        mocker.patch.object(ccxt_trader.forex, 'convert_currencies', return_value=None)
+        mocker.patch.object(ccxt_trader.forex, 'convert_currencies', return_value=num_to_decimal('1'))
 
     mocker.patch.object(fake_ccxt_trader, 'quote', forex_quote)
     fake_ccxt_trader.set_forex_ratio()

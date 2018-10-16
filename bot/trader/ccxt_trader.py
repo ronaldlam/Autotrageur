@@ -95,10 +95,10 @@ class CCXTTrader():
             self.executor = CCXTExecutor(self.ccxt_exchange)
 
         # Initialized variables not from config.
+        self._forex_ratio = ONE
         self.quote_target_amount = ZERO
         self.quote_rough_sell_amount = ZERO
         self.conversion_needed = False
-        self._forex_ratio = None
         self.forex_id = None
         self.base_bal = None
         self.quote_bal = None
@@ -117,7 +117,7 @@ class CCXTTrader():
         """
         if self._forex_ratio is None or self._forex_ratio <= ZERO:
             raise MalformedForexRatioException(
-                "The forex_ratio is either malformed or non-existant.")
+                "The forex_ratio is either malformed or non-existent.")
         return self._forex_ratio
 
     @forex_ratio.setter
@@ -629,8 +629,8 @@ class CCXTTrader():
 
         `forex_ratio` is set when the quote currency is not USD.
         """
-        self._forex_ratio = forex.convert_currencies(
-            'USD', self.quote, num_to_decimal('1'))
+        self.forex_ratio = forex.convert_currencies(
+            'USD', self.quote, ONE)
         logging.info("forex_ratio set to {}".format(self.forex_ratio))
 
     def set_rough_sell_amount(self, rough_sell_amount, is_usd=True):
