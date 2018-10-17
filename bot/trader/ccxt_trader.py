@@ -4,8 +4,9 @@ from statistics import stdev
 
 import ccxt
 
-import bot.currencyconverter as currencyconverter
+import libs.forex.currency_converter as forex
 import libs.ccxt_extensions as ccxt_extensions
+from libs.constants.ccxt_constants import BUY_SIDE
 from libs.constants.decimal_constants import HUNDRED, ONE, ZERO
 from libs.db.maria_db_handler import execute_parametrized_query
 from libs.trade.executor.ccxt_executor import CCXTExecutor
@@ -29,8 +30,8 @@ class ExchangeLimitException(Exception):
     pass
 
 
-class NoForexQuoteException(Exception):
-    """Exception when requiring a forex quote target but none present."""
+class MalformedForexRatioException(Exception):
+    """Exception when the forex ratio is malformed, or not present."""
     pass
 
 
@@ -94,14 +95,39 @@ class CCXTTrader():
             self.executor = CCXTExecutor(self.ccxt_exchange)
 
         # Initialized variables not from config.
+        self._forex_ratio = ONE
         self.quote_target_amount = ZERO
-        self.usd_target_amount = ZERO
+        self.quote_rough_sell_amount = ZERO
         self.conversion_needed = False
-        self.forex_ratio = None
         self.forex_id = None
         self.base_bal = None
         self.quote_bal = None
         self.adjusted_quote_bal = None
+
+    @property
+    def forex_ratio(self):
+        """Property getter for the ccxt_trader's forex_ratio.
+
+        Raises:
+            MalformedForexRatioException: Exception when the forex ratio is
+                malformed, or not present.
+
+        Returns:
+            Decimal: The forex ratio of [FOREX_QUOTE_CURR]/USD.
+        """
+        if self._forex_ratio is None or self._forex_ratio <= ZERO:
+            raise MalformedForexRatioException(
+                "The forex_ratio is either malformed or non-existent.")
+        return self._forex_ratio
+
+    @forex_ratio.setter
+    def forex_ratio(self, forex_ratio):
+        """Property setter for the ccxt_trader's forex_ratio.
+
+        Args:
+            forex_ratio (Decimal): The forex ratio to be set.
+        """
+        self._forex_ratio = forex_ratio
 
     def __adjust_working_balance(self, is_dry_run):
         """Subtracts reasonable slippage from quote_bal.
@@ -248,14 +274,13 @@ class CCXTTrader():
                                 % (measure[0], measure[1], self.base, limit,
                                    self.base))
 
-    def __round_exchange_precision(self, market_order, symbol, asset_amount):
+    def __round_exchange_precision(self, market_order, asset_amount):
         """Rounds the asset amount by a precision provided by the exchange.
 
         Args:
             market_order (bool or string): Is one of: True, False,
                 'emulated' to specify if market order is supported, not
                 supported, or emulated.
-            symbol (string): The token pair symbol. E.g. 'ETH/USD'
             asset_amount (Decimal): The amount that is to be rounded.
 
         Returns:
@@ -265,11 +290,11 @@ class CCXTTrader():
         """
         if market_order is True:
             # Rounding is required for direct ccxt call.
-            precision = self.ccxt_exchange.markets[symbol]['precision']
+            precision = self.get_amount_precision()
 
             # In the case the exchange supports arbitrary precision.
-            if 'amount' in precision and precision['amount'] is not None:
-                asset_amount = round(asset_amount, precision['amount'])
+            if precision is not None:
+                asset_amount = round(asset_amount, precision)
 
         return asset_amount
 
@@ -318,7 +343,7 @@ class CCXTTrader():
             quote_target_amount /= fee_ratio
 
         asset_amount = self.__round_exchange_precision(
-            market_order, symbol, asset_amount)
+            market_order, asset_amount)
 
         # For 'emulated', We check before rounding which is not strictly
         # correct, but it is likely larger issues are at hand if the error is
@@ -362,8 +387,8 @@ class CCXTTrader():
         """
         symbol = "%s/%s" % (self.base, self.quote)
         market_order = self.ccxt_exchange.has['createMarketOrder']
-        asset_amount = self.__round_exchange_precision(market_order, symbol,
-                                                 asset_amount)
+        asset_amount = self.__round_exchange_precision(
+            market_order, asset_amount)
 
         # For 'emulated', We check before rounding which is not strictly
         # correct, but it is likely larger issues are at hand if the error is
@@ -387,6 +412,23 @@ class CCXTTrader():
                 self.ccxt_exchange.id)
 
         return result
+
+    def get_amount_precision(self):
+        """Gets the base amount precision for the current market.
+
+        NOTE: The `None` value represents arbitrary precision, currently
+        only for future proofing.
+
+        Returns:
+            int: The precision.
+        """
+        symbol = "%s/%s" % (self.base, self.quote)
+        precision = self.ccxt_exchange.markets[symbol]['precision']
+
+        if 'amount' in precision and precision['amount'] is not None:
+            return precision['amount']
+        else:
+            return None
 
     def get_buy_target_includes_fee(self):
         """Gets whether the exchange includes fees in its buy orders.
@@ -421,18 +463,20 @@ class CCXTTrader():
         return num_to_decimal(
             self.ccxt_exchange.markets[symbol]['limits']['amount']['min'])
 
-    def get_prices_from_orderbook(self, bids_or_asks):
+    def get_prices_from_orderbook(self, side, bids_or_asks):
         """Get market buy or sell price in USD and quote currency.
 
         Return adjusted market buy or sell prices given bids or asks and
         amount to be sold. The market price is adjusted based on
-        orderbook depth and the quote_target_amount/usd_target_amount
-        set by set_target_amounts().
+        orderbook depth and the `quote_target_amount`, `rough_sell_amount`
+        set by `set_buy_target_amount` and `set_rough_sell_amount`.
 
         Input of bids will retrieve market sell price; input of asks
         will retrieve market buy price.
 
         Args:
+            side (str): Which side of the orderbook is used.  One of BUY_SIDE
+                or SELL_SIDE.
             bids_or_asks (list[list(float)]): The bids or asks in the
                 form of (price, volume).
 
@@ -443,9 +487,11 @@ class CCXTTrader():
             PricePair (Decimal, Decimal): Prospective USD and quote
                 prices of a market buy or sell.
         """
-        target_amount = self.quote_target_amount
+        target_amount = (self.quote_target_amount
+            if side is BUY_SIDE
+            else self.quote_rough_sell_amount)
         asset_volume = self.__calc_vol_by_book(bids_or_asks, target_amount)
-        usd_price = self.usd_target_amount / asset_volume
+        usd_price = self.get_usd_from_quote(target_amount) / asset_volume
         quote_price = target_amount / asset_volume
         return PricePair(usd_price, quote_price)
 
@@ -473,9 +519,6 @@ class CCXTTrader():
             Decimal: The quote amount.
         """
         if self.conversion_needed:
-            if self.forex_ratio is None:
-                raise NoForexQuoteException(
-                    "Forex ratio not set. Conversion not available.")
             return usd_amount * self.forex_ratio
         else:
             return usd_amount
@@ -502,9 +545,6 @@ class CCXTTrader():
                 "Unable to retrieve USD balance as a quote balance has not "
                 "been set yet.")
         if self.conversion_needed:
-            if self.forex_ratio is None:
-                raise NoForexQuoteException(
-                    "Forex ratio not set. Conversion not available.")
             return self.adjusted_quote_bal / self.forex_ratio
         else:
             return self.adjusted_quote_bal
@@ -522,9 +562,6 @@ class CCXTTrader():
             Decimal: The USD amount.
         """
         if self.conversion_needed:
-            if self.forex_ratio is None:
-                raise NoForexQuoteException(
-                    "Forex ratio not set. Conversion not available.")
             return quote_amount / self.forex_ratio
         else:
             return quote_amount
@@ -555,52 +592,78 @@ class CCXTTrader():
                 return the original amount if the exchange supports arbitrary
                 precision.
         """
-        symbol = "%s/%s" % (self.base, self.quote)
-        return self.__round_exchange_precision(True, symbol, amount)
+        return self.__round_exchange_precision(True, amount)
 
-    def set_forex_ratio(self):
-        """Get foreign currency per USD.
+    def set_buy_target_amount(self, buy_target_amount, is_usd=True):
+        """Sets the internal buy amount which is used for the trading
+        algorithm.
 
-        `forex_ratio` is set when the quote currency is not USD.
-        """
-        self.forex_ratio = currencyconverter.convert_currencies(
-            'USD', self.quote, num_to_decimal(1))
-        logging.info("forex_ratio set to {}".format(self.forex_ratio))
-
-    def set_target_amounts(self, target_amount, is_usd=True):
-        """Set the quote_target_amount and usd_target_amount.
+        `quote_target_amount` is used for calculating spreads and setting an
+        amount to purchase a buy order with.
 
         NOTE: This is only valid for fiat currency with support for the
         currencies supported by the forex_python API. Will fail for
         crypto pairs.
 
         Args:
-            target_amount (Decimal): The amount, can be USD or quote
-                currency.
+            buy_target_amount (Decimal): The amount to use for calculating buy
+                targets.  Can be USD or quote currency.
             is_usd (bool, optional): Defaults to True. Whether
-                target_amount is USD or quote currency.
+                buy_target_amount is USD or quote currency.
 
         Raises:
             NoForexQuoteException: If forex_ratio is needed and not set.
         """
-        if self.conversion_needed:
-            if self.forex_ratio is None:
-                raise NoForexQuoteException(
-                    "Forex ratio not set. Conversion not available.")
-            if is_usd:
-                self.usd_target_amount = target_amount
-                self.quote_target_amount = target_amount * self.forex_ratio
-            else:
-                self.usd_target_amount = target_amount / self.forex_ratio
-                self.quote_target_amount = target_amount
+        if is_usd and self.conversion_needed:
+            self.quote_target_amount = self.get_quote_from_usd(
+                buy_target_amount)
         else:
-            self.usd_target_amount = target_amount
-            self.quote_target_amount = target_amount
+            self.quote_target_amount = buy_target_amount
 
-        logging.debug('{} usd_target_amount updated to: {}'.format(
-            self.exchange_name, self.usd_target_amount))
         logging.debug('{} quote_target_amount updated to: {}'.format(
             self.exchange_name, self.quote_target_amount))
+
+    def set_forex_ratio(self):
+        """Get foreign currency per USD.
+
+        `forex_ratio` is set when the quote currency is not USD.
+        """
+        self.forex_ratio = forex.convert_currencies(
+            'USD', self.quote, ONE)
+        logging.info("forex_ratio set to {}".format(self.forex_ratio))
+
+    def set_rough_sell_amount(self, rough_sell_amount, is_usd=True):
+        """Sets the internal sell amount which is used for calculating
+        the spread.
+
+        `rough_sell_amount` is only used for the spread calculation. The
+        actual sell amount will be determined after the buy order has
+        executed.
+
+        NOTE: This is only valid for fiat currency with support for the
+        currencies supported by the forex_python API. Will fail for
+        crypto pairs.
+
+        Args:
+            rough_sell_amount (Decimal): The amount to use as a sell
+                amount when calculating spreads. Only used for
+                calculations, not to be used for actually executing sell
+                orders.
+            is_usd (bool, optional): Defaults to True. Whether
+                buy_target_amount and rough_sell_amount is USD or quote
+                currency.
+
+        Raises:
+            NoForexQuoteException: If forex_ratio is needed and not set.
+        """
+        if is_usd and self.conversion_needed:
+            self.quote_rough_sell_amount = self.get_quote_from_usd(
+                rough_sell_amount)
+        else:
+            self.quote_rough_sell_amount = rough_sell_amount
+
+        logging.debug('{} quote_rough_sell_amount updated to: {}'.format(
+            self.exchange_name, self.quote_rough_sell_amount))
 
     def update_wallet_balances(self):
         """Fetches and saves the wallet balances of the base and quote
