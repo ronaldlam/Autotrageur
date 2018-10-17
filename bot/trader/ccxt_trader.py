@@ -623,7 +623,6 @@ class CCXTTrader():
         logging.debug('{} quote_target_amount updated to: {}'.format(
             self.exchange_name, self.quote_target_amount))
 
-
     def set_forex_ratio(self):
         """Get foreign currency per USD.
 
@@ -634,20 +633,22 @@ class CCXTTrader():
         logging.info("forex_ratio set to {}".format(self.forex_ratio))
 
     def set_rough_sell_amount(self, rough_sell_amount, is_usd=True):
-        """Sets the internal sell amount which is used for the calculating
-        spread.
+        """Sets the internal sell amount which is used for calculating
+        the spread.
 
-        `rough_sell_amount` is only used in for the spread calculation.  The
-        actual sell amount will be determined after the buy order has executed.
+        `rough_sell_amount` is only used for the spread calculation. The
+        actual sell amount will be determined after the buy order has
+        executed.
 
         NOTE: This is only valid for fiat currency with support for the
         currencies supported by the forex_python API. Will fail for
         crypto pairs.
 
         Args:
-            rough_sell_amount (Decimal): The amount to use as a sell amount
-                when calculating spreads.  Only used for calculations, not to
-                be used for actually executing sell orders.
+            rough_sell_amount (Decimal): The amount to use as a sell
+                amount when calculating spreads. Only used for
+                calculations, not to be used for actually executing sell
+                orders.
             is_usd (bool, optional): Defaults to True. Whether
                 buy_target_amount and rough_sell_amount is USD or quote
                 currency.

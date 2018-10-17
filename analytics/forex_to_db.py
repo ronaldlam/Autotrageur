@@ -52,7 +52,7 @@ def prepare_tables(currency_pairs):
         currency_pairs (list[(str, str)]): List of base/quote pairs.
     """
     for base, quote in currency_pairs:
-        # Create table if needed and insert data.
+        # Create table if needed.
         table_name = ''.join([base, quote, 'minute'])
         db_handler.execute_ddl(
             "CREATE TABLE IF NOT EXISTS " + table_name +
