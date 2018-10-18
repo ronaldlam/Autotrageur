@@ -608,6 +608,11 @@ class FCFStrategy():
                     # Targets were hit, but current balances cannot facilitate
                     # trade. Recalculate targets with no balance update.
                     self.__update_trade_targets()
+                    # If the trade is not within the exchange limits, there is
+                    # no longer a way to complete the trade at the current
+                    # target. We mark the trade complete to reset the polling
+                    # interval.
+                    self.trade_chunker.trade_completed = True
                 logging.debug(
                     '#### Is within exchange limits: {}'.format(is_opportunity))
 
