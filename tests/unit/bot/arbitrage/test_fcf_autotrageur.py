@@ -16,7 +16,7 @@ from ccxt import ExchangeError
 
 import bot.arbitrage.arbseeker as arbseeker
 import bot.arbitrage.fcf_autotrageur
-import libs.db.maria_db_handler as db_handler
+import fp_libs.db.maria_db_handler as db_handler
 from bot.arbitrage.arbseeker import SpreadOpportunity
 from bot.arbitrage.fcf.strategy import TradeMetadata
 from bot.arbitrage.fcf_autotrageur import (DEFAULT_PHONE_MESSAGE,
@@ -40,8 +40,8 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      TRADES_TABLE)
 from bot.common.notification_constants import (SUBJECT_LIVE_FAILURE)
 from bot.trader.dry_run import DryRunManager
-from libs.db.maria_db_handler import InsertRowObject
-from libs.utilities import num_to_decimal
+from fp_libs.db.maria_db_handler import InsertRowObject
+from fp_libs.utilities import num_to_decimal
 
 xfail = pytest.mark.xfail
 

@@ -23,10 +23,10 @@ import pprint
 import ccxt
 from docopt import docopt
 
-import libs.ccxt_extensions as ccxt_extensions
-from libs.constants.ccxt_constants import API_KEY, API_SECRET
-from libs.security.encryption import decrypt
-from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
+import fp_libs.ccxt_extensions as ccxt_extensions
+from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET
+from fp_libs.security.encryption import decrypt
+from fp_libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
 
 
 logging.basicConfig(

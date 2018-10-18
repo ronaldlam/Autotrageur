@@ -5,8 +5,8 @@ import bot.arbitrage.spreadcalculator as spreadcalculator
 from bot.arbitrage.arbseeker import (SpreadOpportunity, execute_buy,
                                      execute_sell, get_spreads_by_ob)
 from bot.trader.ccxt_trader import CCXTTrader, OrderbookException, PricePair
-from libs.constants.ccxt_constants import BUY_SIDE, SELL_SIDE
-from libs.utilities import num_to_decimal
+from fp_libs.constants.ccxt_constants import BUY_SIDE, SELL_SIDE
+from fp_libs.utilities import num_to_decimal
 
 BIDS = "bids"
 ASKS = "asks"

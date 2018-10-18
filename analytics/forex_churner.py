@@ -13,8 +13,8 @@ import time
 
 from forex_python.converter import CurrencyRates, RatesNotAvailableError
 
-import libs.csv.csvmaker as csvmaker
-from libs.time_utils import SECONDS_PER_DAY, DAYS_PER_YEAR
+import fp_libs.csv.csvmaker as csvmaker
+from fp_libs.time_utils import SECONDS_PER_DAY, DAYS_PER_YEAR
 
 
 # Constants.

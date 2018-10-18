@@ -5,11 +5,11 @@ import ccxt
 import pytest
 
 import bot.trader.ccxt_trader as ccxt_trader
-from libs.constants.ccxt_constants import BUY_SIDE, SELL_SIDE
-from libs.fiat_symbols import FIAT_SYMBOLS
-from libs.trade.executor.ccxt_executor import CCXTExecutor
-from libs.trade.executor.dryrun_executor import DryRunExecutor
-from libs.utilities import num_to_decimal, set_autotrageur_decimal_context
+from fp_libs.constants.ccxt_constants import BUY_SIDE, SELL_SIDE
+from fp_libs.fiat_symbols import FIAT_SYMBOLS
+from fp_libs.trade.executor.ccxt_executor import CCXTExecutor
+from fp_libs.trade.executor.dryrun_executor import DryRunExecutor
+from fp_libs.utilities import num_to_decimal, set_autotrageur_decimal_context
 
 # Namespace shortcuts.
 CCXTTrader = ccxt_trader.CCXTTrader

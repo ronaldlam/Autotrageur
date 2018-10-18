@@ -1,7 +1,7 @@
 import pytest
 
-from libs.trade.executor.dryrun_executor import DryRunExecutor
-import libs.ccxt_extensions as ccxt_extensions
+from fp_libs.trade.executor.dryrun_executor import DryRunExecutor
+import fp_libs.ccxt_extensions as ccxt_extensions
 
 @pytest.fixture(scope="module")
 def executor():

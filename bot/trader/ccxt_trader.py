@@ -4,15 +4,15 @@ from statistics import stdev
 
 import ccxt
 
-import libs.forex.currency_converter as forex
-import libs.ccxt_extensions as ccxt_extensions
-from libs.constants.ccxt_constants import BUY_SIDE
-from libs.constants.decimal_constants import HUNDRED, ONE, ZERO
-from libs.db.maria_db_handler import execute_parametrized_query
-from libs.trade.executor.ccxt_executor import CCXTExecutor
-from libs.trade.executor.dryrun_executor import DryRunExecutor
-from libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
-from libs.utilities import keys_exists, num_to_decimal
+import fp_libs.forex.currency_converter as forex
+import fp_libs.ccxt_extensions as ccxt_extensions
+from fp_libs.constants.ccxt_constants import BUY_SIDE
+from fp_libs.constants.decimal_constants import HUNDRED, ONE, ZERO
+from fp_libs.db.maria_db_handler import execute_parametrized_query
+from fp_libs.trade.executor.ccxt_executor import CCXTExecutor
+from fp_libs.trade.executor.dryrun_executor import DryRunExecutor
+from fp_libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
+from fp_libs.utilities import keys_exists, num_to_decimal
 
 EXTENSION_PREFIX = "ext_"
 

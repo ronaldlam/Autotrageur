@@ -3,7 +3,7 @@ from decimal import Decimal
 import pytest
 
 from bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
-from libs.constants.decimal_constants import ZERO
+from fp_libs.constants.decimal_constants import ZERO
 
 MAX_TRADE_SIZE = Decimal('1000')
 

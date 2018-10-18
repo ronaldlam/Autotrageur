@@ -3,8 +3,8 @@ import pytest
 from cryptography.fernet import InvalidToken
 from cryptography.hazmat.backends import default_backend
 
-from libs.security.encryption import encrypt, decrypt, SALT_LEN
-import libs.security.encryption as rnd_encryption
+from fp_libs.security.encryption import encrypt, decrypt, SALT_LEN
+import fp_libs.security.encryption as rnd_encryption
 
 
 ENCRYPT_DECRYPT_PARAMS = [

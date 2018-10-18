@@ -8,8 +8,8 @@ from bot.arbitrage.fcf.target_tracker import FCFTargetTracker
 from bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
 from bot.common.enums import Momentum
 from bot.trader.ccxt_trader import OrderbookException
-from libs.constants.decimal_constants import ONE
-from libs.utilities import num_to_decimal
+from fp_libs.constants.decimal_constants import ONE
+from fp_libs.utilities import num_to_decimal
 
 
 # See https://stackoverflow.com/questions/1606436/adding-docstrings-to-namedtuples
