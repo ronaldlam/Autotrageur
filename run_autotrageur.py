@@ -22,7 +22,7 @@ from fp_libs.logging import bot_logging
 from fp_libs.utilities import set_autotrageur_decimal_context
 
 
-def main(arguments):
+def main():
     """Main function after `run_autotrageur` called as entry script.
 
     Setup:
@@ -32,10 +32,9 @@ def main(arguments):
 
     Run:
     Calls the `run_autotrageur` function to start bot's run.
-
-    Args:
-        arguments (args): The command-line arguments parsed by docopt.
     """
+    arguments = docopt(__doc__, version=get_version())
+
     try:
         # This sets the global decimal context for the program. We aim to
         # keep precision regardless at 28 digits until either external calls
@@ -52,5 +51,4 @@ def main(arguments):
         autotrageur.logger.queue_listener.stop()
 
 if __name__ == "__main__":
-    arguments = docopt(__doc__, version=get_version())
-    main(arguments)
+    main()
