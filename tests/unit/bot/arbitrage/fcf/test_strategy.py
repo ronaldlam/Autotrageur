@@ -457,6 +457,7 @@ def test_poll_opportunity(mocker, fcf_strategy, vol_min, e1_quote_balance,
                 is_within_limits.assert_called_once_with()
                 if not is_within_limits:
                     update_targets.assert_called_once_with()
+                    assert fcf_strategy.trade_chunker.trade_completed
             else:
                 is_within_limits.assert_not_called()
             assert is_opportunity_result == (is_opportunity and is_in_limits)
