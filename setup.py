@@ -130,10 +130,6 @@ setup(
     packages=find_packages(where="src", exclude=['contrib', 'docs', 'tests']),  # Required
     package_dir={"": "src"},
 
-    dependency_links=[
-        'git+ssh://git@github.com/ronaldlam/FirstPartyLibs.git@9000#egg=fp-libs-0'
-    ],
-
     # This field lists other packages that your project depends on to run.
     # Any package you put here will be installed by pip when your project is
     # installed, so they must be valid existing projects.
@@ -142,7 +138,9 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
         'docopt',
-        'fp-libs',
+        # NOTE: This is only supported with pip versions > 18.1.
+        # See https://github.com/pypa/pip/issues/4187 for more details.
+        'fp-libs @ git+ssh://git@github.com/ronaldlam/FirstPartyLibs.git@staging',
         'python-dotenv',
         'setuptools-scm',
     ],  # Optional
