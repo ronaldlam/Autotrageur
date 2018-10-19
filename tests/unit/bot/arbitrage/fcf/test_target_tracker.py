@@ -1,6 +1,6 @@
 import pytest
 
-from bot.arbitrage.fcf.target_tracker import FCFTargetTracker
+from autotrageur.bot.arbitrage.fcf.target_tracker import FCFTargetTracker
 
 
 @pytest.fixture(scope='module')

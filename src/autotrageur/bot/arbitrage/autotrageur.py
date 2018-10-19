@@ -13,12 +13,12 @@ import yaml
 from dotenv import load_dotenv
 
 import fp_libs.db.maria_db_handler as db_handler
-from bot.common.config_constants import DB_NAME, DB_USER
-from bot.common.env_var_constants import ENV_VAR_NAMES
-from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
+from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
+from autotrageur.bot.common.env_var_constants import ENV_VAR_NAMES
+from autotrageur.bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
-from bot.trader.ccxt_trader import CCXTTrader
-from bot.trader.dry_run import DryRunManager, DryRunExchange
+from autotrageur.bot.trader.ccxt_trader import CCXTTrader
+from autotrageur.bot.trader.dry_run import DryRunManager, DryRunExchange
 from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from fp_libs.security.encryption import decrypt
 from fp_libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
@@ -42,7 +42,7 @@ class Configuration(namedtuple('Configuration', [
         'h_to_e1_max', 'h_to_e2_max', 'id', 'max_trade_size',
         'poll_wait_default', 'poll_wait_short', 'slippage', 'spread_min',
         'start_timestamp', 'twilio_cfg_path', 'vol_min'])):
-    """Holds all of the configuration for the autotrageur bot.
+    """Holds all of the configuration for the autotrageur autotrageur.bot.
 
     Args:
         dryrun (bool): If True, this bot's run is considered to be a dry run
@@ -94,7 +94,7 @@ def fancy_log(title):
 
 
 class Autotrageur(ABC):
-    """Base class for running Autotrageur, the algorithmic trading bot.
+    """Base class for running Autotrageur, the algorithmic trading autotrageur.bot.
 
     This class follows the "Template Method" design pattern. The
     functions prefixed with _ are functionally protected methods, and
@@ -447,10 +447,10 @@ class Autotrageur(ABC):
         if requires_configs and not arguments['--resume_id']:
             self._load_configs(arguments[CONFIGFILE])
 
-        # Initialize core components of the bot.
+        # Initialize core components of the autotrageur.bot.
         self._setup(arguments)
 
-        # Set up the rest of the bot.
+        # Set up the rest of the autotrageur.bot.
         self._post_setup(arguments)
 
         retry_counter = RetryCounter()

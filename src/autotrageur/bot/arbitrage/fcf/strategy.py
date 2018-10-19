@@ -3,11 +3,11 @@ from collections import namedtuple
 
 import ccxt
 
-import bot.arbitrage.arbseeker as arbseeker
-from bot.arbitrage.fcf.target_tracker import FCFTargetTracker
-from bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
-from bot.common.enums import Momentum
-from bot.trader.ccxt_trader import OrderbookException
+import autotrageur.bot.arbitrage.arbseeker as arbseeker
+from autotrageur.bot.arbitrage.fcf.target_tracker import FCFTargetTracker
+from autotrageur.bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
+from autotrageur.bot.common.enums import Momentum
+from autotrageur.bot.trader.ccxt_trader import OrderbookException
 from fp_libs.constants.decimal_constants import ONE
 from fp_libs.utilities import num_to_decimal
 

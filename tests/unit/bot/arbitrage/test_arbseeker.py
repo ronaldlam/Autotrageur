@@ -1,10 +1,10 @@
 # pylint: disable=E1101
 import pytest
 
-import bot.arbitrage.spreadcalculator as spreadcalculator
-from bot.arbitrage.arbseeker import (SpreadOpportunity, execute_buy,
+import autotrageur.bot.arbitrage.spreadcalculator as spreadcalculator
+from autotrageur.bot.arbitrage.arbseeker import (SpreadOpportunity, execute_buy,
                                      execute_sell, get_spreads_by_ob)
-from bot.trader.ccxt_trader import CCXTTrader, OrderbookException, PricePair
+from autotrageur.bot.trader.ccxt_trader import CCXTTrader, OrderbookException, PricePair
 from fp_libs.constants.ccxt_constants import BUY_SIDE, SELL_SIDE
 from fp_libs.utilities import num_to_decimal
 

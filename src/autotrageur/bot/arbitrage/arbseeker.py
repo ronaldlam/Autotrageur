@@ -2,7 +2,7 @@ import logging
 import uuid
 from collections import namedtuple
 
-import bot.arbitrage.spreadcalculator as spreadcalculator
+import autotrageur.bot.arbitrage.spreadcalculator as spreadcalculator
 from fp_libs.constants.ccxt_constants import BUY_SIDE, SELL_SIDE
 from fp_libs.utils.ccxt_utils import wrap_ccxt_retry
 

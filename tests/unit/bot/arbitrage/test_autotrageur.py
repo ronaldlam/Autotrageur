@@ -7,12 +7,12 @@ import pytest
 import schedule
 import yaml
 
-import bot.arbitrage.autotrageur
+import autotrageur.bot.arbitrage.autotrageur
 import fp_libs.db.maria_db_handler as db_handler
-from bot.arbitrage.autotrageur import (Autotrageur,
+from autotrageur.bot.arbitrage.autotrageur import (Autotrageur,
                                        AutotrageurAuthenticationError)
-from bot.common.config_constants import DB_NAME, DB_USER
-from bot.trader.dry_run import DryRunExchange, DryRunManager
+from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
+from autotrageur.bot.trader.dry_run import DryRunExchange, DryRunManager
 from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from fp_libs.utils.ccxt_utils import RetryableError
 
@@ -77,8 +77,8 @@ def test_parse_keyfile(mocker, autotrageur, decrypt_success, dryrun):
     args = mocker.MagicMock()
     mocker.patch('getpass.getpass')
     mocker.patch.object(autotrageur._config, 'dryrun', dryrun)
-    mock_decrypt = mocker.patch.object(bot.arbitrage.autotrageur, 'decrypt')
-    mock_kf_to_map = mocker.patch.object(bot.arbitrage.autotrageur, 'keyfile_to_map')
+    mock_decrypt = mocker.patch.object(autotrageur.bot.arbitrage.autotrageur, 'decrypt')
+    mock_kf_to_map = mocker.patch.object(autotrageur.bot.arbitrage.autotrageur, 'keyfile_to_map')
 
     if not decrypt_success:
         mock_decrypt.side_effect = Exception
@@ -104,7 +104,7 @@ def test_load_configs(mocker, autotrageur):
     MOCK_CONFIG_PATH = 'mock/config/path'
     mock_parse_config_file = mocker.patch.object(
         autotrageur, '_Autotrageur__parse_config_file')
-    mock_configuration = mocker.patch('bot.arbitrage.autotrageur.Configuration')
+    mock_configuration = mocker.patch('autotrageur.bot.arbitrage.autotrageur.Configuration')
     mock_uuid4 = mocker.patch('uuid.uuid4')
     mock_time_time = mocker.patch('time.time')
 
@@ -153,10 +153,10 @@ def test_init_db(mocker, autotrageur, mock_open_yaml):
 def test_load_env_vars(mocker, autotrageur, env_path_exists, env_path_loaded,
                        env_var_loaded):
     mock_env_file = mocker.Mock()
-    mocker.patch.object(bot.arbitrage.autotrageur, 'Path', return_value=mock_env_file)
+    mocker.patch.object(autotrageur.bot.arbitrage.autotrageur, 'Path', return_value=mock_env_file)
     mocker.patch.object(mock_env_file, 'exists', return_value=env_path_exists)
-    mocker.patch.object(bot.arbitrage.autotrageur, 'load_dotenv', return_value=env_path_loaded)
-    mocker.patch('bot.arbitrage.autotrageur.ENV_VAR_NAMES', ['FAKE_ENV_VAR_NAME'])
+    mocker.patch.object(autotrageur.bot.arbitrage.autotrageur, 'load_dotenv', return_value=env_path_loaded)
+    mocker.patch('autotrageur.bot.arbitrage.autotrageur.ENV_VAR_NAMES', ['FAKE_ENV_VAR_NAME'])
     mocker.patch('os.getenv', return_value=env_var_loaded)
 
     result = autotrageur._Autotrageur__load_env_vars()
@@ -209,7 +209,7 @@ def test_setup_traders(mocker, autotrageur, dryrun, use_test_api,
     placeholder = 'fake'
     mock_trader1 = mocker.Mock()
     mock_trader2 = mocker.Mock()
-    mock_ccxt_trader_constructor = mocker.patch('bot.arbitrage.autotrageur.CCXTTrader')
+    mock_ccxt_trader_constructor = mocker.patch('autotrageur.bot.arbitrage.autotrageur.CCXTTrader')
     mock_ccxt_trader_constructor.side_effect = [mock_trader1, mock_trader2]
     mocker.patch.object(autotrageur._config, 'exchange1_pair', fake_pair)
     mocker.patch.object(autotrageur._config, 'exchange2_pair', fake_pair)
@@ -325,7 +325,7 @@ class TestRunAutotrageur:
         mocker.patch.object(autotrageur, '_poll_opportunity', side_effect=[
             True, True, False, True, False
         ])
-        mock_counter = mocker.patch('bot.arbitrage.autotrageur.RetryCounter')
+        mock_counter = mocker.patch('autotrageur.bot.arbitrage.autotrageur.RetryCounter')
         retry_counter_instance = mock_counter.return_value
 
         with pytest.raises(SystemExit):
@@ -352,7 +352,7 @@ class TestRunAutotrageur:
             True, True, False, KeyboardInterrupt, False
         ])
         mocker.patch.object(autotrageur._config, 'dryrun', dryrun)
-        mock_counter = mocker.patch('bot.arbitrage.autotrageur.RetryCounter')
+        mock_counter = mocker.patch('autotrageur.bot.arbitrage.autotrageur.RetryCounter')
         retry_counter_instance = mock_counter.return_value
 
         if dryrun:
@@ -432,7 +432,7 @@ class TestRunAutotrageur:
             True, RetryableError, RetryableError, RetryableError, SystemExit
         ])
         mocker.patch.object(autotrageur._config, 'dryrun', True)
-        mock_counter = mocker.patch('bot.arbitrage.autotrageur.RetryCounter')
+        mock_counter = mocker.patch('autotrageur.bot.arbitrage.autotrageur.RetryCounter')
         retry_counter_instance = mock_counter.return_value
         retry_counter_instance.decrement.side_effect = decrement_returns
 

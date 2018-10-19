@@ -5,13 +5,13 @@ from unittest.mock import Mock, MagicMock
 import pytest
 from ccxt import NetworkError
 
-import bot.arbitrage.arbseeker as arbseeker
-from bot.arbitrage.fcf.strategy import (FCFStrategy, InsufficientCryptoBalance,
+import autotrageur.bot.arbitrage.arbseeker as arbseeker
+from autotrageur.bot.arbitrage.fcf.strategy import (FCFStrategy, InsufficientCryptoBalance,
                                         TradeMetadata)
-from bot.arbitrage.fcf.target_tracker import FCFTargetTracker
-from bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
-from bot.common.enums import Momentum
-from bot.trader.ccxt_trader import CCXTTrader, OrderbookException
+from autotrageur.bot.arbitrage.fcf.target_tracker import FCFTargetTracker
+from autotrageur.bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
+from autotrageur.bot.common.enums import Momentum
+from autotrageur.bot.trader.ccxt_trader import CCXTTrader, OrderbookException
 
 FAKE_CONFIG_UUID = str(uuid.uuid4())
 

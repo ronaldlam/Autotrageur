@@ -1,8 +1,8 @@
 from setuptools_scm import get_version
 
-from bot.arbitrage.autotrageur import Configuration
-from bot.arbitrage.fcf.strategy import FCFStrategyState
-from bot.trader.dry_run import DryRunManager
+from autotrageur.bot.arbitrage.autotrageur import Configuration
+from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyState
+from autotrageur.bot.trader.dry_run import DryRunManager
 
 # Constants
 VERSION = get_version()
@@ -31,7 +31,7 @@ class FCFCheckpoint():
         the constructor directly.
 
         Args:
-            config (Configuration): The current Configuration of the bot.
+            config (Configuration): The current Configuration of the autotrageur.bot.
         """
         self._config = config
         self._strategy_state = strategy_state

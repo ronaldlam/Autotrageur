@@ -11,13 +11,13 @@ Options:
 
 Description:
     KEYFILE                             The encrypted Keyfile containing relevant api keys.
-    CONFIGFILE                          The config file, modeled under configs/arb_config_sample.yaml for use with the bot.
+    CONFIGFILE                          The config file, modeled under configs/arb_config_sample.yaml for use with the autotrageur.bot.
     DBCONFIGFILE                        The config file for the database.
 """
 from docopt import docopt
 from setuptools_scm import get_version
 
-from bot.arbitrage.fcf_autotrageur import FCFAutotrageur
+from autotrageur.bot.arbitrage.fcf_autotrageur import FCFAutotrageur
 from fp_libs.logging import bot_logging
 from fp_libs.utilities import set_autotrageur_decimal_context
 
@@ -27,7 +27,7 @@ def main():
 
     Setup:
     Sets the decimal context to deal with decimal precision and arithmetic in
-    the bot.  Also sets up the background logger for logging on a separate
+    the autotrageur.bot.  Also sets up the background logger for logging on a separate
     thread using a queue.
 
     Run:
@@ -43,7 +43,7 @@ def main():
         bg_logger = bot_logging.setup_background_logger()
         autotrageur = FCFAutotrageur(bg_logger)
 
-        # Start listening for logs and run the bot.
+        # Start listening for logs and run the autotrageur.bot.
         autotrageur.logger.queue_listener.start()
         autotrageur.run_autotrageur(arguments)
     finally:

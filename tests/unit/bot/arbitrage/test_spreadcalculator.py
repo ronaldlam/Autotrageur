@@ -2,7 +2,7 @@ from decimal import Decimal, DefaultContext, setcontext
 
 import pytest
 
-import bot.arbitrage.spreadcalculator as spreadcalculator
+import autotrageur.bot.arbitrage.spreadcalculator as spreadcalculator
 from fp_libs.utilities import set_autotrageur_decimal_context
 
 

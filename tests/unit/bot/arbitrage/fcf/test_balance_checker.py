@@ -4,7 +4,7 @@ import pytest
 import schedule
 
 import fp_libs.utils.schedule_utils as schedule_utils
-from bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
+from autotrageur.bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
 
 
 @pytest.fixture

@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from bot.trader.dry_run import DryRunExchange, InsufficientFakeFunds
+from autotrageur.bot.trader.dry_run import DryRunExchange, InsufficientFakeFunds
 
 
 START_BALANCE = Decimal('100')
