@@ -49,14 +49,22 @@ safety check -r requirements.txt
 The following are examples of commands that would work. Top level scripts listed below are documented using `docopt`, so using a `-h` command will bring up usage instructions.
 ### Script list
 - `archive_logs.py`
+- `basic_client.py`
 - `encrypt_file.py`
 - `run_autotrageur.py`
+- `scrape_forex.py`
 - `spawn_ohlcv_minute.py`
-### Install requirements
+### Installation
+Use python 3.6, that's what we use.
+#### Development or running from source
 ```
 virtualenv venv
 source venv/bin/activate
 pip install -r requirements.txt
+```
+#### Through pip
+```
+pip install git+ssh://git@github.com/ronaldlam/Autotrageur.git[@<version/branch>]
 ```
 ### Setup configuration
 Environment variables:
