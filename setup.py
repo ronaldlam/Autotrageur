@@ -131,7 +131,7 @@ setup(
     package_dir={"": "src"},
 
     dependency_links=[
-        'git+ssh://git@github.com/ronaldlam/FirstPartyLibs.git@9000#egg=fp_libs-0'
+        'git+ssh://git@github.com/ronaldlam/FirstPartyLibs.git@9000#egg=fp-libs-0'
     ],
 
     # This field lists other packages that your project depends on to run.
@@ -142,7 +142,7 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
         'docopt',
-        'fp_libs',
+        'fp-libs',
         'setuptools-scm',
     ],  # Optional
 
