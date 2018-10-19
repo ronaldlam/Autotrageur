@@ -127,7 +127,8 @@ setup(
     #
     #   py_modules=["my_module"],
     #
-    packages=find_packages(exclude=['contrib', 'docs', 'tests']),  # Required
+    packages=find_packages(where="src", exclude=['contrib', 'docs', 'tests']),  # Required
+    package_dir={"": "src"},
 
     dependency_links=[
         'git+ssh://git@github.com/ronaldlam/FirstPartyLibs.git@9000#egg=fp_libs-0'
@@ -189,7 +190,7 @@ setup(
     # platform.
     entry_points={  # Optional
         'console_scripts': [
-            'run_autotrageur=run_autotrageur:main',
+            'run_autotrageur=autotrageur.run_autotrageur:main',
         ],
     },
 
