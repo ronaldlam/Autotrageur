@@ -143,6 +143,7 @@ setup(
     install_requires=[
         'docopt',
         'fp-libs',
+        'python-dotenv',
         'setuptools-scm',
     ],  # Optional
 
