@@ -12,6 +12,9 @@ import zipfile
 from datetime import datetime
 
 import schedule
+from docopt import docopt
+
+from autotrageur.version import VERSION
 
 
 def archive_logs():
@@ -52,11 +55,12 @@ def dir_filter(x):
     return os.path.isdir('logs/{}'.format(x))
 
 
-if __name__ == '__main__':
+def main():
+    """Installed entry point."""
+    docopt(__doc__, version=VERSION)
     logging.basicConfig(format="%(asctime)s %(message)s",
                         datefmt="%Y-%m-%d %H:%M:%S")
     logging.getLogger().setLevel(logging.INFO)
-
 
     logging.info('Start')
     schedule.every().day.do(archive_logs)
@@ -64,3 +68,7 @@ if __name__ == '__main__':
     while True:
         schedule.run_pending()
         time.sleep(3600)
+
+
+if __name__ == '__main__':
+    main()

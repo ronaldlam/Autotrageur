@@ -14,13 +14,15 @@ import time
 import schedule
 import yaml
 from docopt import docopt
-from setuptools_scm import get_version
 
-from analytics.forex_to_db import (get_pairs, persist_to_db, prepare_tables,
-                                   start_db)
+from autotrageur.analytics.forex_to_db import (get_pairs, persist_to_db,
+                                               prepare_tables, start_db)
+from autotrageur.version import VERSION
 
-if __name__ == "__main__":
-    args = docopt(__doc__, version=get_version())
+
+def main():
+    """Installed entry point."""
+    args = docopt(__doc__, version=VERSION)
     logging.basicConfig(format="%(asctime)s %(message)s",
                         datefmt="%Y-%m-%d %H:%M:%S")
     logging.getLogger().setLevel(logging.INFO)
@@ -40,3 +42,7 @@ if __name__ == "__main__":
     while True:
         schedule.run_pending()
         time.sleep(10)
+
+
+if __name__ == "__main__":
+    main()

@@ -27,7 +27,7 @@ def main():
 
     Setup:
     Sets the decimal context to deal with decimal precision and arithmetic in
-    the autotrageur.bot.  Also sets up the background logger for logging on a separate
+    the bot.  Also sets up the background logger for logging on a separate
     thread using a queue.
 
     Run:
@@ -43,7 +43,7 @@ def main():
         bg_logger = bot_logging.setup_background_logger()
         autotrageur = FCFAutotrageur(bg_logger)
 
-        # Start listening for logs and run the autotrageur.bot.
+        # Start listening for logs and run the bot.
         autotrageur.logger.queue_listener.start()
         autotrageur.run_autotrageur(arguments)
     finally:

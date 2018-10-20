@@ -21,13 +21,15 @@ from docopt import docopt
 
 import yaml
 
-from analytics.history_to_db import make_fetchers, persist_to_db
+from autotrageur.analytics.history_to_db import make_fetchers, persist_to_db
+from autotrageur.version import VERSION
 from fp_libs.security.encryption import decrypt
 from fp_libs.utilities import to_bytes, to_str
 
 
-if __name__ == "__main__":
-    args = docopt(__doc__, version="spawn_ohlcv_minute 0.1")
+def main():
+    """Installed entry point."""
+    args = docopt(__doc__, version=VERSION)
 
     pw = args['--db_pw']
     if pw is None:
@@ -52,3 +54,7 @@ if __name__ == "__main__":
 
     hist_fetchers = make_fetchers(min_filepaths)
     persist_to_db(db_name, db_user, db_password, hist_fetchers)
+
+
+if __name__ == "__main__":
+    main()

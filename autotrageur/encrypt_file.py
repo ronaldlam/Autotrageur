@@ -16,11 +16,14 @@ import getpass
 
 from docopt import docopt
 
+from autotrageur.version import VERSION
 from fp_libs.security.encryption import encrypt
 from fp_libs.utilities import to_bytes
 
-if __name__ == "__main__":
-    arguments = docopt(__doc__, version="Encrypt 0.1")
+
+def main():
+    """Installed entry point."""
+    arguments = docopt(__doc__, version=VERSION)
 
     pw = getpass.getpass()
 
@@ -36,3 +39,7 @@ if __name__ == "__main__":
         new_file_name = "/".join(split_file_name)
         with open(new_file_name, "wb") as out_file:
             out_file.write(ciphertext)
+
+
+if __name__ == "__main__":
+    main()

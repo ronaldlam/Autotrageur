@@ -66,6 +66,7 @@ pip install -r requirements.txt
 ```
 pip install git+ssh://git@github.com/ronaldlam/Autotrageur.git[@<version/branch>]
 ```
+This will generate entry points for all the scripts except for basic_client (which we wish to run interactively), with the config files copied to `<venv-root>/configs`.
 ### Setup configuration
 Environment variables:
 - rename `.env.sample` to `.env` and include any necessary environment variables.
@@ -76,12 +77,22 @@ Modify:
 ```
 python encrypt_file.py secret.txt
 ```
-### Run!
-The workhorse:
+or for a pip installation:
 ```
-python run_autotrageur.py configs/arb_config.yaml encrypted-secret.txt
+encrypt_file secret.txt
+```
+### Run!
+#### Development or running from source
+The workhorse (unfortunately this is necessary since the scripts are now within the package):
+```
+python -m autotrageur.run_autotrageur encrypted-secret.txt configs/arb_config.yaml configs/db_config.yaml
 ```
 In a separate process, run to archive logs daily.
 ```
 python archive_logs.py
+```
+#### Through pip
+```
+run_autotrageur ...
+archive_logs
 ```
