@@ -80,7 +80,7 @@ class DryRunExchange():
 
 
 class DryRunManager():
-    """An object to manage and hold the dry run state of the autotrageur.bot."""
+    """An object to manage and hold the dry run state of the bot."""
 
     def __init__(self, exchange1, exchange2):
         """Constructor.

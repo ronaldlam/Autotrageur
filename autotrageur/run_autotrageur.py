@@ -11,7 +11,7 @@ Options:
 
 Description:
     KEYFILE                             The encrypted Keyfile containing relevant api keys.
-    CONFIGFILE                          The config file, modeled under configs/arb_config_sample.yaml for use with the autotrageur.bot.
+    CONFIGFILE                          The config file, modeled under configs/arb_config_sample.yaml for use with the bot.
     DBCONFIGFILE                        The config file for the database.
 """
 from docopt import docopt

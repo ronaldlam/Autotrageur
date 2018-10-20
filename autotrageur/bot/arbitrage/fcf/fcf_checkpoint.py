@@ -29,7 +29,7 @@ class FCFCheckpoint():
         the constructor directly.
 
         Args:
-            config (Configuration): The current Configuration of the autotrageur.bot.
+            config (Configuration): The current Configuration of the bot.
         """
         self._config = config
         self._strategy_state = strategy_state

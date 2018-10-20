@@ -95,7 +95,7 @@ class FCFAutotrageur(Autotrageur):
             os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'), self.logger)
 
         # Make sure there is a valid connection as notifications are a critical
-        # service to the autotrageur.bot.
+        # service to the bot.
         self.twilio_client.test_connection()
 
     def __persist_config(self):
