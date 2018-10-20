@@ -22,8 +22,8 @@ from docopt import docopt
 import yaml
 
 from analytics.history_to_db import make_fetchers, persist_to_db
-from libs.security.encryption import decrypt
-from libs.utilities import to_bytes, to_str
+from fp_libs.security.encryption import decrypt
+from fp_libs.utilities import to_bytes, to_str
 
 
 if __name__ == "__main__":

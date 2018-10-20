@@ -9,9 +9,9 @@ from time import time
 
 import yaml
 
-import libs.db.maria_db_handler as db_handler
-from libs.constants.decimal_constants import ONE
-from libs.forex.currency_converter import convert_currencies_primary
+import fp_libs.db.maria_db_handler as db_handler
+from fp_libs.constants.decimal_constants import ONE
+from fp_libs.forex.currency_converter import convert_currencies_primary
 
 
 def _get_conversion(pair):

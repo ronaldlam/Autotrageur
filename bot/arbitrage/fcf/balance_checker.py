@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import schedule
 
-import libs.utils.schedule_utils as schedule_utils
+import fp_libs.utils.schedule_utils as schedule_utils
 
 
 class FCFBalanceChecker():

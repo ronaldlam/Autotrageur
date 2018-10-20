@@ -18,8 +18,8 @@ from docopt import docopt
 from setuptools_scm import get_version
 
 from bot.arbitrage.fcf_autotrageur import FCFAutotrageur
-from libs.logging import bot_logging
-from libs.utilities import set_autotrageur_decimal_context
+from fp_libs.logging import bot_logging
+from fp_libs.utilities import set_autotrageur_decimal_context
 
 
 def main(arguments):

@@ -8,13 +8,13 @@ import schedule
 import yaml
 
 import bot.arbitrage.autotrageur
-import libs.db.maria_db_handler as db_handler
+import fp_libs.db.maria_db_handler as db_handler
 from bot.arbitrage.autotrageur import (Autotrageur,
                                        AutotrageurAuthenticationError)
 from bot.common.config_constants import DB_NAME, DB_USER
 from bot.trader.dry_run import DryRunExchange, DryRunManager
-from libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
-from libs.utils.ccxt_utils import RetryableError
+from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
+from fp_libs.utils.ccxt_utils import RetryableError
 
 OpenAndSafeLoad = namedtuple('OpenAndSafeLoad', ['open', 'safe_load'])
 

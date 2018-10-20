@@ -1,6 +1,6 @@
 import logging
 
-from libs.constants.decimal_constants import ZERO, ONE, HUNDRED
+from fp_libs.constants.decimal_constants import ZERO, ONE, HUNDRED
 
 
 def _is_invalid_price(exc2_num_price, exc1_denom_price):

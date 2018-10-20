@@ -11,7 +11,7 @@ import schedule
 import yaml
 
 import bot.arbitrage.arbseeker as arbseeker
-import libs.db.maria_db_handler as db_handler
+import fp_libs.db.maria_db_handler as db_handler
 from bot.arbitrage.autotrageur import Autotrageur
 from bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
 from bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
@@ -30,12 +30,12 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      TRADES_PRIM_KEY_SIDE,
                                      TRADES_PRIM_KEY_TRADE_OPP_ID,
                                      TRADES_TABLE)
-from libs.constants.decimal_constants import TEN, ZERO
-from libs.db.maria_db_handler import InsertRowObject
-from libs.email_client.simple_email_client import send_all_emails
-from libs.fiat_symbols import FIAT_SYMBOLS
-from libs.twilio.twilio_client import TwilioClient
-from libs.utilities import num_to_decimal
+from fp_libs.constants.decimal_constants import TEN, ZERO
+from fp_libs.db.maria_db_handler import InsertRowObject
+from fp_libs.email_client.simple_email_client import send_all_emails
+from fp_libs.fiat_symbols import FIAT_SYMBOLS
+from fp_libs.twilio.twilio_client import TwilioClient
+from fp_libs.utilities import num_to_decimal
 
 
 # Default error message for phone call.

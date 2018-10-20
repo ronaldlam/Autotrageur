@@ -9,7 +9,7 @@ def test_main(mocker):
     mock_decimal_context = mocker.patch(
         'run_autotrageur.set_autotrageur_decimal_context')
     mock_setup_background_logger = mocker.patch(
-        'libs.logging.bot_logging.setup_background_logger',
+        'fp_libs.logging.bot_logging.setup_background_logger',
         return_value=bg_logger)
     mock_FCFAutotrageur = mocker.patch(
         'run_autotrageur.FCFAutotrageur', return_value=autotrageur)

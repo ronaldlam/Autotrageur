@@ -10,10 +10,10 @@ import MySQLdb
 from warnings import filterwarnings
 import yaml
 
-from libs.trade.fetcher.history_fetcher import (HistoryFetcher,
+from fp_libs.trade.fetcher.history_fetcher import (HistoryFetcher,
     HistoryQueryParams)
-from libs.fiat_symbols import FIAT_SYMBOLS
-from libs.time_utils import TimeInterval, get_most_recent_rounded_timestamp
+from fp_libs.fiat_symbols import FIAT_SYMBOLS
+from fp_libs.time_utils import TimeInterval, get_most_recent_rounded_timestamp
 
 # Constants
 CSV_COL_HEADERS = [

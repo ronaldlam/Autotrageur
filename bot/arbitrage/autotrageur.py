@@ -12,18 +12,18 @@ import schedule
 import yaml
 from dotenv import load_dotenv
 
-import libs.db.maria_db_handler as db_handler
+import fp_libs.db.maria_db_handler as db_handler
 from bot.common.config_constants import DB_NAME, DB_USER
 from bot.common.env_var_constants import ENV_VAR_NAMES
 from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
 from bot.trader.ccxt_trader import CCXTTrader
 from bot.trader.dry_run import DryRunManager, DryRunExchange
-from libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
-from libs.security.encryption import decrypt
-from libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
+from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
+from fp_libs.security.encryption import decrypt
+from fp_libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
                             to_bytes, to_str)
-from libs.utils.ccxt_utils import RetryableError, RetryCounter
+from fp_libs.utils.ccxt_utils import RetryableError, RetryCounter
 
 # Program argument constants.
 CONFIGFILE = 'CONFIGFILE'

@@ -1,7 +1,7 @@
 import logging
 
-from libs.constants.decimal_constants import ZERO
-from libs.utilities import num_to_decimal
+from fp_libs.constants.decimal_constants import ZERO
+from fp_libs.utilities import num_to_decimal
 
 
 class InsufficientFakeFunds(Exception):
