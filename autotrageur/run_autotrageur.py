@@ -15,9 +15,9 @@ Description:
     DBCONFIGFILE                        The config file for the database.
 """
 from docopt import docopt
-from setuptools_scm import get_version
 
 from autotrageur.bot.arbitrage.fcf_autotrageur import FCFAutotrageur
+from autotrageur.version import VERSION
 from fp_libs.logging import bot_logging
 from fp_libs.utilities import set_autotrageur_decimal_context
 
@@ -33,7 +33,7 @@ def main():
     Run:
     Calls the `run_autotrageur` function to start bot's run.
     """
-    arguments = docopt(__doc__, version=get_version())
+    arguments = docopt(__doc__, version=VERSION)
 
     try:
         # This sets the global decimal context for the program. We aim to
