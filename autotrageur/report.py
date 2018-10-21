@@ -92,10 +92,13 @@ def main():
     logging.info('{:<10} {}'.format(e2_base + ':', current_e2_base - start_e2_base))
     logging.info('{:<10} {}'.format(e2_quote + ':', current_e2_quote - start_e2_quote))
 
-    usd_e1_quote_diff = convert_currencies(
-        e1_quote, 'USD', current_e1_quote - start_e1_quote)
-    usd_e2_quote_diff = convert_currencies(
-        e2_quote, 'USD', current_e2_quote - start_e2_quote)
+    usd_start_e1_quote = convert_currencies(e1_quote, 'USD', start_e1_quote)
+    usd_start_e2_quote = convert_currencies(e2_quote, 'USD', start_e2_quote)
+    usd_current_e1_quote = convert_currencies(e1_quote, 'USD', current_e1_quote)
+    usd_current_e2_quote = convert_currencies(e2_quote, 'USD', current_e2_quote)
+
+    usd_e1_quote_diff = usd_current_e1_quote - usd_start_e1_quote
+    usd_e2_quote_diff = usd_current_e2_quote - usd_start_e2_quote
 
     logging.info('Profitability, current forex:')
     logging.info('{:<10} {}'.format('USD:', usd_e1_quote_diff + usd_e2_quote_diff))
