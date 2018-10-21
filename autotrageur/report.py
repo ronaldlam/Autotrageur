@@ -52,9 +52,9 @@ def main():
             start_e2_quote = num_to_decimal(balance_info['e2_quote'])
 
     market_info = execute_parametrized_query(
-        'SELECT DISTINCT exchange1, exchange2, exchange1_pair, exchange2_pair, use_test_api'
-        'FROM fcf_autotrageur_config'
-        'WHERE id=%s'
+        'SELECT DISTINCT exchange1, exchange2, exchange1_pair, exchange2_pair, use_test_api '
+        'FROM fcf_autotrageur_config '
+        'WHERE id=%s '
         'ORDER BY start_timestamp',
         (arguments['CONFIG_ID'],)
     )
