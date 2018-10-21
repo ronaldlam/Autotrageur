@@ -51,8 +51,10 @@ def main():
             start_e2_base = num_to_decimal(balance_info['e2_base'])
             start_e2_quote = num_to_decimal(balance_info['e2_quote'])
 
+    # As is, the BIT MariaDB type will return b'\x00' or b'\x01'. We use
+    # INTEGER since it's better behaved as a python int.
     market_info = execute_parametrized_query(
-        'SELECT DISTINCT exchange1, exchange2, exchange1_pair, exchange2_pair, use_test_api '
+        'SELECT DISTINCT exchange1, exchange2, exchange1_pair, exchange2_pair, CAST(use_test_api AS INTEGER) '
         'FROM fcf_autotrageur_config '
         'WHERE id=%s '
         'ORDER BY start_timestamp',
