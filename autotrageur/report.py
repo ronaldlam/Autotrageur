@@ -56,7 +56,7 @@ def main():
         'FROM fcf_autotrageur_config'
         'WHERE id=%s'
         'ORDER BY start_timestamp',
-        (arguments['CONFIG_ID'])
+        (arguments['CONFIG_ID'],)
     )
     e1_name, e2_name, e1_pair, e2_pair, use_test_api = market_info[0]
 
