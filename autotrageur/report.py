@@ -155,6 +155,7 @@ def main():
     fancy_log('Profitability, Current Forex')
     logging.info('{:<25} {}'.format('USD:', usd_profit))
     logging.info('{:<25} {}'.format('Percent (USD):', usd_percent_profit))
+    logging.info('{:<25} {}'.format('Annualized (USD):', annualized_profit))
     logging.info('{:<25} {}'.format(e1_base + ':', base_profit))
     fancy_log('Trading Summary')
     logging.info('{:<25} {}'.format('Days run:', days_elapsed))
