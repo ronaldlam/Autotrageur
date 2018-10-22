@@ -33,7 +33,6 @@ logging.basicConfig(
 
 
 # Constants
-EXTENSION_PREFIX = "ext_"
 EXCHANGE = 'EXCHANGE'
 KEYFILE = 'KEYFILE'
 
