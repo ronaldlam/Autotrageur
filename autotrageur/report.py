@@ -16,12 +16,14 @@ Description:
 """
 import getpass
 import logging
+import time
 
 import yaml
 from docopt import docopt
 
 from autotrageur.version import VERSION
 from fp_libs.ccxt_extensions.exchange_loader import load_exchange
+from fp_libs.constants.decimal_constants import HUNDRED, ONE
 from fp_libs.db.maria_db_handler import execute_parametrized_query, start_db
 from fp_libs.forex.currency_converter import convert_currencies
 from fp_libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
@@ -59,8 +61,7 @@ def main():
         'WHERE id=%s '
         'ORDER BY start_timestamp '
         'LIMIT 1',
-        (arguments['CONFIG_ID'],)
-    )
+        (arguments['CONFIG_ID'],))
     e1_name, e2_name, e1_pair, e2_pair, use_test_api = market_info[0]
 
     exchange_key_map = load_keyfile(
@@ -78,31 +79,82 @@ def main():
         e2_base, e2_quote)
 
     logging.info('Start Balances:')
-    logging.info('{:<10} {}'.format(e1_base + ':', start_e1_base))
-    logging.info('{:<10} {}'.format(e1_quote + ':', start_e1_quote))
-    logging.info('{:<10} {}'.format(e2_base + ':', start_e2_base))
-    logging.info('{:<10} {}'.format(e2_quote + ':', start_e2_quote))
+    logging.info('{:<25} {}'.format(e1_base + ':', start_e1_base))
+    logging.info('{:<25} {}'.format(e1_quote + ':', start_e1_quote))
+    logging.info('{:<25} {}'.format(e2_base + ':', start_e2_base))
+    logging.info('{:<25} {}'.format(e2_quote + ':', start_e2_quote))
     logging.info('Current Balances:')
-    logging.info('{:<10} {}'.format(e1_base + ':', current_e1_base))
-    logging.info('{:<10} {}'.format(e1_quote + ':', current_e1_quote))
-    logging.info('{:<10} {}'.format(e2_base + ':', current_e2_base))
-    logging.info('{:<10} {}'.format(e2_quote + ':', current_e2_quote))
+    logging.info('{:<25} {}'.format(e1_base + ':', current_e1_base))
+    logging.info('{:<25} {}'.format(e1_quote + ':', current_e1_quote))
+    logging.info('{:<25} {}'.format(e2_base + ':', current_e2_base))
+    logging.info('{:<25} {}'.format(e2_quote + ':', current_e2_quote))
     logging.info('Balance Differences:')
-    logging.info('{:<10} {}'.format(e1_base + ':', current_e1_base - start_e1_base))
-    logging.info('{:<10} {}'.format(e1_quote + ':', current_e1_quote - start_e1_quote))
-    logging.info('{:<10} {}'.format(e2_base + ':', current_e2_base - start_e2_base))
-    logging.info('{:<10} {}'.format(e2_quote + ':', current_e2_quote - start_e2_quote))
+    logging.info('{:<25} {}'.format(e1_base + ':', current_e1_base - start_e1_base))
+    logging.info('{:<25} {}'.format(e1_quote + ':', current_e1_quote - start_e1_quote))
+    logging.info('{:<25} {}'.format(e2_base + ':', current_e2_base - start_e2_base))
+    logging.info('{:<25} {}'.format(e2_quote + ':', current_e2_quote - start_e2_quote))
 
     usd_start_e1_quote = convert_currencies(e1_quote, 'USD', start_e1_quote)
     usd_start_e2_quote = convert_currencies(e2_quote, 'USD', start_e2_quote)
     usd_current_e1_quote = convert_currencies(e1_quote, 'USD', current_e1_quote)
     usd_current_e2_quote = convert_currencies(e2_quote, 'USD', current_e2_quote)
 
+    usd_start_sum = usd_start_e1_quote + usd_start_e2_quote
+    usd_current_sum = usd_current_e1_quote + usd_current_e2_quote
     usd_e1_quote_diff = usd_current_e1_quote - usd_start_e1_quote
     usd_e2_quote_diff = usd_current_e2_quote - usd_start_e2_quote
+    e1_base_diff = current_e1_base - start_e1_base
+    e2_base_diff = current_e2_quote - start_e2_quote
 
-    logging.info('Profitability, current forex:')
-    logging.info('{:<10} {}'.format('USD:', usd_e1_quote_diff + usd_e2_quote_diff))
+    usd_profit = usd_e1_quote_diff + usd_e2_quote_diff
+    usd_percent_profit = (ONE - usd_current_sum / usd_start_sum) * HUNDRED
+    base_profit = e1_base_diff + e2_base_diff
+
+    logging.info('Profitability, Current Forex:')
+    logging.info('{:<25} {}'.format('USD:', usd_profit))
+    logging.info('{:<25} {}'.format('Percent (USD):', usd_percent_profit))
+    logging.info('{:<25} {}'.format(e1_base + ':', base_profit))
+
+    start_time_info = execute_parametrized_query(
+        'SELECT start_timestamp '
+        'FROM fcf_autotrageur_config '
+        'WHERE id=%s '
+        'ORDER BY local_timestamp '
+        'LIMIT 1',
+        (arguments['CONFIG_ID'],))
+    start_timestamp = start_time_info[0][0]
+    current_timestamp = int(time.time())
+    seconds_elapsed = current_timestamp - start_timestamp
+    days_elapsed = seconds_elapsed / 60.0 / 60.0 / 24.0
+
+    trade_count = execute_parametrized_query(
+        'SELECT COUNT(*) '
+        'FROM trades '
+        'WHERE autotrageur_config_id=%s',
+        (arguments['CONFIG_ID'],))[0][0]
+    e1_base_volume, e1_quote_volume = execute_parametrized_query(
+        'SELECT SUM(pre_fee_base), SUM(post_fee_quote) '
+        'FROM trades '
+        'WHERE autotrageur_config_id=%s AND exchange=%s',
+        (arguments['CONFIG_ID'], e1_name))[0]
+    e2_base_volume, e2_quote_volume = execute_parametrized_query(
+        'SELECT SUM(pre_fee_base), SUM(post_fee_quote) '
+        'FROM trades '
+        'WHERE autotrageur_config_id=%s AND exchange=%s',
+        (arguments['CONFIG_ID'], e2_name))[0]
+
+    e1_usd_volume = convert_currencies(e1_quote_volume, 'USD', start_e1_quote)
+    e2_usd_volume = convert_currencies(e2_quote_volume, 'USD', start_e2_quote)
+
+    logging.info('Trading Summary:')
+    logging.info('{:<25} {}'.format('Days run:', days_elapsed))
+    logging.info('{:<25} {}'.format('Trade count:', trade_count))
+    logging.info('{:<25} {}'.format(e1_name + ' base volume:', e1_base_volume))
+    logging.info('{:<25} {}'.format(e1_name + ' quote volume:', e1_quote_volume))
+    logging.info('{:<25} {}'.format(e1_name + ' usd volume:', e1_usd_volume))
+    logging.info('{:<25} {}'.format(e2_name + ' base volume:', e2_base_volume))
+    logging.info('{:<25} {}'.format(e2_name + ' quote volume:', e2_quote_volume))
+    logging.info('{:<25} {}'.format(e2_name + ' usd volume:', e2_usd_volume))
 
 
 if __name__ == "__main__":
