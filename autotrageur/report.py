@@ -21,11 +21,11 @@ import yaml
 from docopt import docopt
 
 from autotrageur.version import VERSION
+from fp_libs.ccxt_extensions.exchange_loader import load_exchange
 from fp_libs.db.maria_db_handler import execute_parametrized_query, start_db
 from fp_libs.forex.currency_converter import convert_currencies
 from fp_libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
-from fp_libs.utilities import (load_exchange, load_keyfile, num_to_decimal,
-                               split_symbol)
+from fp_libs.utilities import load_keyfile, num_to_decimal, split_symbol
 
 
 def main():
