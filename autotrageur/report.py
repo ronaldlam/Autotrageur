@@ -35,8 +35,18 @@ START_END_FORMAT = "{} {:^30} {}"
 STARS = "*"*20
 
 
+def capitalize(string):
+    """Capitalize the given string
+
+    Args:
+        string (str): The string input.
+    """
+    return string[0].upper() + string[1:]
+
+
 def fancy_log(title):
-    """Log title surrounded by stars."""
+    """Log an empty line and title surrounded by stars."""
+    logging.info('')
     logging.info(START_END_FORMAT.format(STARS, title, STARS))
 
 
@@ -73,6 +83,48 @@ def main():
         'LIMIT 1',
         (arguments['CONFIG_ID'],))
     e1_name, e2_name, e1_pair, e2_pair, use_test_api = market_info[0]
+    e1_base, e1_quote = split_symbol(e1_pair)
+    e2_base, e2_quote = split_symbol(e2_pair)
+
+    start_timestamp = execute_parametrized_query(
+        'SELECT start_timestamp '
+        'FROM fcf_autotrageur_config '
+        'WHERE id=%s '
+        'ORDER BY start_timestamp '
+        'LIMIT 1',
+        (arguments['CONFIG_ID'],))[0][0]
+    trade_count = execute_parametrized_query(
+        'SELECT COUNT(*) '
+        'FROM trades '
+        'WHERE autotrageur_config_id=%s',
+        (arguments['CONFIG_ID'],))[0][0]
+    e1_base_volume, e1_quote_volume = execute_parametrized_query(
+        'SELECT SUM(pre_fee_base), SUM(post_fee_quote) '
+        'FROM trades '
+        'WHERE autotrageur_config_id=%s AND exchange=%s',
+        (arguments['CONFIG_ID'], e1_name))[0]
+    e2_base_volume, e2_quote_volume = execute_parametrized_query(
+        'SELECT SUM(pre_fee_base), SUM(post_fee_quote) '
+        'FROM trades '
+        'WHERE autotrageur_config_id=%s AND exchange=%s',
+        (arguments['CONFIG_ID'], e2_name))[0]
+
+    if e1_quote != 'USD':
+        e1_start_rate = execute_parametrized_query(
+            'SELECT f.rate '
+            'FROM fcf_autotrageur_config c, forex_rate f '
+            'WHERE f.local_timestamp >= c.start_timestamp AND c.id=%s AND f.quote=%s '
+            'ORDER BY f.local_timestamp '
+            'LIMIT 1',
+            (arguments['CONFIG_ID'], e1_quote))[0][0]
+    if e2_quote != 'USD':
+        e2_start_rate = execute_parametrized_query(
+            'SELECT f.rate '
+            'FROM fcf_autotrageur_config c, forex_rate f '
+            'WHERE f.local_timestamp >= c.start_timestamp AND c.id=%s AND f.quote=%s '
+            'ORDER BY f.local_timestamp '
+            'LIMIT 1',
+            (arguments['CONFIG_ID'], e2_quote))[0][0]
 
     exchange_key_map = load_keyfile(
         arguments['KEY_FILE'], arguments['--pi_mode'])
@@ -81,8 +133,6 @@ def main():
 
     e1_fetcher = CCXTFetcher(e1)
     e2_fetcher = CCXTFetcher(e2)
-    e1_base, e1_quote = split_symbol(e1_pair)
-    e2_base, e2_quote = split_symbol(e2_pair)
     current_e1_base, current_e1_quote = e1_fetcher.fetch_free_balances(
         e1_base, e1_quote)
     current_e2_base, current_e2_quote = e2_fetcher.fetch_free_balances(
@@ -100,14 +150,6 @@ def main():
     e1_base_diff = current_e1_base - start_e1_base
     e2_base_diff = current_e2_base - start_e2_base
 
-    start_time_info = execute_parametrized_query(
-        'SELECT start_timestamp '
-        'FROM fcf_autotrageur_config '
-        'WHERE id=%s '
-        'ORDER BY start_timestamp '
-        'LIMIT 1',
-        (arguments['CONFIG_ID'],))
-    start_timestamp = start_time_info[0][0]
     current_timestamp = int(time.time())
     seconds_elapsed = current_timestamp - start_timestamp
     days_elapsed = seconds_elapsed / 60.0 / 60.0 / 24.0
@@ -118,24 +160,11 @@ def main():
     annualized_profit = (annualized_profit_ratio - ONE) * HUNDRED
     base_profit = e1_base_diff + e2_base_diff
 
-    trade_count = execute_parametrized_query(
-        'SELECT COUNT(*) '
-        'FROM trades '
-        'WHERE autotrageur_config_id=%s',
-        (arguments['CONFIG_ID'],))[0][0]
-    e1_base_volume, e1_quote_volume = execute_parametrized_query(
-        'SELECT SUM(pre_fee_base), SUM(post_fee_quote) '
-        'FROM trades '
-        'WHERE autotrageur_config_id=%s AND exchange=%s',
-        (arguments['CONFIG_ID'], e1_name))[0]
-    e2_base_volume, e2_quote_volume = execute_parametrized_query(
-        'SELECT SUM(pre_fee_base), SUM(post_fee_quote) '
-        'FROM trades '
-        'WHERE autotrageur_config_id=%s AND exchange=%s',
-        (arguments['CONFIG_ID'], e2_name))[0]
-
     e1_usd_volume = convert_currencies(e1_quote, 'USD', e1_quote_volume)
     e2_usd_volume = convert_currencies(e2_quote, 'USD', e2_quote_volume)
+
+    e1_name = capitalize(e1_name)
+    e2_name = capitalize(e2_name)
 
     fancy_log('Start Balances')
     logging.info('{:<25} {}'.format(e1_base + ':', start_e1_base))
@@ -166,6 +195,20 @@ def main():
     logging.info('{:<25} {}'.format(e2_name + ' base volume:', e2_base_volume))
     logging.info('{:<25} {}'.format(e2_name + ' quote volume:', e2_quote_volume))
     logging.info('{:<25} {}'.format(e2_name + ' usd volume:', e2_usd_volume))
+    if e1_quote != 'USD' or e2_quote != 'USD':
+        fancy_log('Forex')
+        if e1_quote != 'USD':
+            e1_current_rate = convert_currencies('USD', e1_quote, ONE)
+            e1_rate_percent_change = (e1_current_rate / e1_start_rate - ONE) * HUNDRED
+            logging.info('{:<25} {}'.format('Start ' + e1_quote + '/USD:', e1_start_rate))
+            logging.info('{:<25} {}'.format('Start ' + e1_quote + '/USD:', e1_current_rate))
+            logging.info('{:<25} {}'.format('Percent change:', e1_rate_percent_change))
+        if e2_quote != 'USD':
+            e2_current_rate = convert_currencies('USD', e2_quote, ONE)
+            e2_rate_percent_change = (e2_current_rate / e2_start_rate - ONE) * HUNDRED
+            logging.info('{:<25} {}'.format('Start ' + e2_quote + '/USD:', e2_start_rate))
+            logging.info('{:<25} {}'.format('Start ' + e2_quote + '/USD:', e2_current_rate))
+            logging.info('{:<25} {}'.format('Percent change:', e2_rate_percent_change))
 
 
 if __name__ == "__main__":
