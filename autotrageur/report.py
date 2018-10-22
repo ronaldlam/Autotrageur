@@ -20,12 +20,12 @@ import logging
 import yaml
 from docopt import docopt
 
-from autotrageur.basic_client import load_exchange
 from autotrageur.version import VERSION
 from fp_libs.db.maria_db_handler import execute_parametrized_query, start_db
 from fp_libs.forex.currency_converter import convert_currencies
 from fp_libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
-from fp_libs.utilities import num_to_decimal, split_symbol
+from fp_libs.utilities import (load_exchange, load_keyfile, num_to_decimal,
+                               split_symbol)
 
 
 def main():
@@ -54,18 +54,19 @@ def main():
     # As is, the BIT MariaDB type will return b'\x00' or b'\x01'. We use
     # INTEGER since it's better behaved as a python int.
     market_info = execute_parametrized_query(
-        'SELECT DISTINCT exchange1, exchange2, exchange1_pair, exchange2_pair, CAST(use_test_api AS INTEGER) '
+        'SELECT exchange1, exchange2, exchange1_pair, exchange2_pair, CAST(use_test_api AS INTEGER) '
         'FROM fcf_autotrageur_config '
         'WHERE id=%s '
-        'ORDER BY start_timestamp',
+        'ORDER BY start_timestamp '
+        'LIMIT 1',
         (arguments['CONFIG_ID'],)
     )
     e1_name, e2_name, e1_pair, e2_pair, use_test_api = market_info[0]
 
-    e1 = load_exchange(
-        e1_name, arguments['KEY_FILE'], arguments['--pi_mode'], use_test_api)
-    e2 = load_exchange(
-        e2_name, arguments['KEY_FILE'], arguments['--pi_mode'], use_test_api)
+    exchange_key_map = load_keyfile(
+        arguments['KEY_FILE'], arguments['--pi_mode'])
+    e1 = load_exchange(e1_name, exchange_key_map, use_test_api)
+    e2 = load_exchange(e2_name, exchange_key_map, use_test_api)
 
     e1_fetcher = CCXTFetcher(e1)
     e2_fetcher = CCXTFetcher(e2)
