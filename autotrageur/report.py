@@ -30,6 +30,16 @@ from fp_libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
 from fp_libs.utilities import load_keyfile, num_to_decimal, split_symbol
 
 
+# Logging constants
+START_END_FORMAT = "{} {:^30} {}"
+STARS = "*"*20
+
+
+def fancy_log(title):
+    """Log title surrounded by stars."""
+    logging.info(START_END_FORMAT.format(STARS, title, STARS))
+
+
 def main():
     """Installed entry point."""
     arguments = docopt(__doc__, version=VERSION)
@@ -78,22 +88,6 @@ def main():
     current_e2_base, current_e2_quote = e2_fetcher.fetch_free_balances(
         e2_base, e2_quote)
 
-    logging.info('Start Balances:')
-    logging.info('{:<25} {}'.format(e1_base + ':', start_e1_base))
-    logging.info('{:<25} {}'.format(e1_quote + ':', start_e1_quote))
-    logging.info('{:<25} {}'.format(e2_base + ':', start_e2_base))
-    logging.info('{:<25} {}'.format(e2_quote + ':', start_e2_quote))
-    logging.info('Current Balances:')
-    logging.info('{:<25} {}'.format(e1_base + ':', current_e1_base))
-    logging.info('{:<25} {}'.format(e1_quote + ':', current_e1_quote))
-    logging.info('{:<25} {}'.format(e2_base + ':', current_e2_base))
-    logging.info('{:<25} {}'.format(e2_quote + ':', current_e2_quote))
-    logging.info('Balance Differences:')
-    logging.info('{:<25} {}'.format(e1_base + ':', current_e1_base - start_e1_base))
-    logging.info('{:<25} {}'.format(e1_quote + ':', current_e1_quote - start_e1_quote))
-    logging.info('{:<25} {}'.format(e2_base + ':', current_e2_base - start_e2_base))
-    logging.info('{:<25} {}'.format(e2_quote + ':', current_e2_quote - start_e2_quote))
-
     usd_start_e1_quote = convert_currencies(e1_quote, 'USD', start_e1_quote)
     usd_start_e2_quote = convert_currencies(e2_quote, 'USD', start_e2_quote)
     usd_current_e1_quote = convert_currencies(e1_quote, 'USD', current_e1_quote)
@@ -106,15 +100,6 @@ def main():
     e1_base_diff = current_e1_base - start_e1_base
     e2_base_diff = current_e2_base - start_e2_base
 
-    usd_profit = usd_e1_quote_diff + usd_e2_quote_diff
-    usd_percent_profit = (ONE - usd_current_sum / usd_start_sum) * HUNDRED
-    base_profit = e1_base_diff + e2_base_diff
-
-    logging.info('Profitability, Current Forex:')
-    logging.info('{:<25} {}'.format('USD:', usd_profit))
-    logging.info('{:<25} {}'.format('Percent (USD):', usd_percent_profit))
-    logging.info('{:<25} {}'.format(e1_base + ':', base_profit))
-
     start_time_info = execute_parametrized_query(
         'SELECT start_timestamp '
         'FROM fcf_autotrageur_config '
@@ -126,6 +111,12 @@ def main():
     current_timestamp = int(time.time())
     seconds_elapsed = current_timestamp - start_timestamp
     days_elapsed = seconds_elapsed / 60.0 / 60.0 / 24.0
+
+    usd_profit = usd_e1_quote_diff + usd_e2_quote_diff
+    usd_percent_profit = (usd_current_sum / usd_start_sum - ONE) * HUNDRED
+    annualized_profit_ratio = (usd_current_sum / usd_start_sum) ** num_to_decimal(365 / days_elapsed)
+    annualized_profit = (annualized_profit_ratio - ONE) * HUNDRED
+    base_profit = e1_base_diff + e2_base_diff
 
     trade_count = execute_parametrized_query(
         'SELECT COUNT(*) '
@@ -146,7 +137,26 @@ def main():
     e1_usd_volume = convert_currencies(e1_quote, 'USD', e1_quote_volume)
     e2_usd_volume = convert_currencies(e2_quote, 'USD', e2_quote_volume)
 
-    logging.info('Trading Summary:')
+    fancy_log('Start Balances')
+    logging.info('{:<25} {}'.format(e1_base + ':', start_e1_base))
+    logging.info('{:<25} {}'.format(e1_quote + ':', start_e1_quote))
+    logging.info('{:<25} {}'.format(e2_base + ':', start_e2_base))
+    logging.info('{:<25} {}'.format(e2_quote + ':', start_e2_quote))
+    fancy_log('Current Balances')
+    logging.info('{:<25} {}'.format(e1_base + ':', current_e1_base))
+    logging.info('{:<25} {}'.format(e1_quote + ':', current_e1_quote))
+    logging.info('{:<25} {}'.format(e2_base + ':', current_e2_base))
+    logging.info('{:<25} {}'.format(e2_quote + ':', current_e2_quote))
+    fancy_log('Balance Differences')
+    logging.info('{:<25} {}'.format(e1_base + ':', current_e1_base - start_e1_base))
+    logging.info('{:<25} {}'.format(e1_quote + ':', current_e1_quote - start_e1_quote))
+    logging.info('{:<25} {}'.format(e2_base + ':', current_e2_base - start_e2_base))
+    logging.info('{:<25} {}'.format(e2_quote + ':', current_e2_quote - start_e2_quote))
+    fancy_log('Profitability, Current Forex')
+    logging.info('{:<25} {}'.format('USD:', usd_profit))
+    logging.info('{:<25} {}'.format('Percent (USD):', usd_percent_profit))
+    logging.info('{:<25} {}'.format(e1_base + ':', base_profit))
+    fancy_log('Trading Summary')
     logging.info('{:<25} {}'.format('Days run:', days_elapsed))
     logging.info('{:<25} {}'.format('Trade count:', trade_count))
     logging.info('{:<25} {}'.format(e1_name + ' base volume:', e1_base_volume))
