@@ -143,8 +143,8 @@ def main():
         'WHERE autotrageur_config_id=%s AND exchange=%s',
         (arguments['CONFIG_ID'], e2_name))[0]
 
-    e1_usd_volume = convert_currencies(e1_quote_volume, 'USD', start_e1_quote)
-    e2_usd_volume = convert_currencies(e2_quote_volume, 'USD', start_e2_quote)
+    e1_usd_volume = convert_currencies(e1_quote, 'USD', e1_quote_volume)
+    e2_usd_volume = convert_currencies(e2_quote, 'USD', e2_quote_volume)
 
     logging.info('Trading Summary:')
     logging.info('{:<25} {}'.format('Days run:', days_elapsed))
