@@ -104,7 +104,7 @@ def main():
     usd_e1_quote_diff = usd_current_e1_quote - usd_start_e1_quote
     usd_e2_quote_diff = usd_current_e2_quote - usd_start_e2_quote
     e1_base_diff = current_e1_base - start_e1_base
-    e2_base_diff = current_e2_quote - start_e2_quote
+    e2_base_diff = current_e2_base - start_e2_base
 
     usd_profit = usd_e1_quote_diff + usd_e2_quote_diff
     usd_percent_profit = (ONE - usd_current_sum / usd_start_sum) * HUNDRED
@@ -119,7 +119,7 @@ def main():
         'SELECT start_timestamp '
         'FROM fcf_autotrageur_config '
         'WHERE id=%s '
-        'ORDER BY local_timestamp '
+        'ORDER BY start_timestamp '
         'LIMIT 1',
         (arguments['CONFIG_ID'],))
     start_timestamp = start_time_info[0][0]
