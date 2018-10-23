@@ -173,14 +173,14 @@ setup(
     # In this case, 'data_file' will be installed into '<sys.prefix>/my_data'
     # Optional
     data_files=[
-        ('configs', ['.env.sample']),
-        ('configs/master', ['configs/master/db_prod.yaml']),
-        ('configs/master', ['configs/master/kraken_bithumb_btc.yaml']),
-        ('configs/staging', ['configs/staging/db_staging.yaml']),
-        ('configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_btc.yaml']),
-        ('configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_eth.yaml']),
-        ('configs/staging/sandbox', ['configs/staging/sandbox/gdax_gemini_btc.yaml']),
-        ('configs/staging/sandbox', ['configs/staging/sandbox/gdax_gemini_eth.yaml']),
+        ('..', ['.env.sample']),
+        ('../configs/master', ['configs/master/db_prod.yaml']),
+        ('../configs/master', ['configs/master/kraken_bithumb_btc.yaml']),
+        ('../configs/staging', ['configs/staging/db_staging.yaml']),
+        ('../configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_btc.yaml']),
+        ('../configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_eth.yaml']),
+        ('../configs/staging/sandbox', ['configs/staging/sandbox/gdax_gemini_btc.yaml']),
+        ('../configs/staging/sandbox', ['configs/staging/sandbox/gdax_gemini_eth.yaml']),
     ],
 
     # To provide executable scripts, use entry points in preference to the
