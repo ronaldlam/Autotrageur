@@ -201,13 +201,13 @@ def main():
             e1_current_rate = convert_currencies('USD', e1_quote, ONE)
             e1_rate_percent_change = (e1_current_rate / e1_start_rate - ONE) * HUNDRED
             logging.info('{:<25} {}'.format('Start ' + e1_quote + '/USD:', e1_start_rate))
-            logging.info('{:<25} {}'.format('Start ' + e1_quote + '/USD:', e1_current_rate))
+            logging.info('{:<25} {}'.format('Current ' + e1_quote + '/USD:', e1_current_rate))
             logging.info('{:<25} {}'.format('Percent change:', e1_rate_percent_change))
         if e2_quote != 'USD':
             e2_current_rate = convert_currencies('USD', e2_quote, ONE)
             e2_rate_percent_change = (e2_current_rate / e2_start_rate - ONE) * HUNDRED
             logging.info('{:<25} {}'.format('Start ' + e2_quote + '/USD:', e2_start_rate))
-            logging.info('{:<25} {}'.format('Start ' + e2_quote + '/USD:', e2_current_rate))
+            logging.info('{:<25} {}'.format('Current ' + e2_quote + '/USD:', e2_current_rate))
             logging.info('{:<25} {}'.format('Percent change:', e2_rate_percent_change))
 
 
