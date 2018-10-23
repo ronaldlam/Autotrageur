@@ -173,6 +173,7 @@ setup(
     # In this case, 'data_file' will be installed into '<sys.prefix>/my_data'
     # Optional
     data_files=[
+        ('configs', ['.env.sample']),
         ('configs/master', ['configs/master/db_prod.yaml']),
         ('configs/master', ['configs/master/kraken_bithumb_btc.yaml']),
         ('configs/staging', ['configs/staging/db_staging.yaml']),
