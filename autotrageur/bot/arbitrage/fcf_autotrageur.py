@@ -10,16 +10,16 @@ import uuid
 import schedule
 import yaml
 
-import bot.arbitrage.arbseeker as arbseeker
+import autotrageur.bot.arbitrage.arbseeker as arbseeker
 import fp_libs.db.maria_db_handler as db_handler
-from bot.arbitrage.autotrageur import Autotrageur
-from bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
-from bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
-from bot.arbitrage.fcf.fcf_checkpoint_utils import pickle_fcf_checkpoint
-from bot.arbitrage.fcf.strategy import FCFStrategyBuilder
-from bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
+from autotrageur.bot.arbitrage.autotrageur import Autotrageur
+from autotrageur.bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
+from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
+from autotrageur.bot.arbitrage.fcf.fcf_checkpoint_utils import pickle_fcf_checkpoint
+from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyBuilder
+from autotrageur.bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER)
-from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
+from autotrageur.bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,

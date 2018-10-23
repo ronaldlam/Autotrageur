@@ -14,20 +14,20 @@ import schedule
 import yaml
 from ccxt import ExchangeError
 
-import bot.arbitrage.arbseeker as arbseeker
-import bot.arbitrage.fcf_autotrageur
+import autotrageur.bot.arbitrage.arbseeker as arbseeker
+import autotrageur.bot.arbitrage.fcf_autotrageur
 import fp_libs.db.maria_db_handler as db_handler
-from bot.arbitrage.arbseeker import SpreadOpportunity
-from bot.arbitrage.fcf.strategy import TradeMetadata
-from bot.arbitrage.fcf_autotrageur import (DEFAULT_PHONE_MESSAGE,
+from autotrageur.bot.arbitrage.arbseeker import SpreadOpportunity
+from autotrageur.bot.arbitrage.fcf.strategy import TradeMetadata
+from autotrageur.bot.arbitrage.fcf_autotrageur import (DEFAULT_PHONE_MESSAGE,
                                            FCFAlertError, FCFAutotrageur,
                                            FCFCheckpoint,
                                            IncompleteArbitrageError,
                                            IncorrectStateObjectTypeError,
                                            arbseeker)
-from bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
+from autotrageur.bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
                                          TWILIO_SENDER_NUMBER)
-from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
+from autotrageur.bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
                                      FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS,
                                      FCF_AUTOTRAGEUR_CONFIG_TABLE,
@@ -38,8 +38,8 @@ from bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                      TRADES_PRIM_KEY_SIDE,
                                      TRADES_PRIM_KEY_TRADE_OPP_ID,
                                      TRADES_TABLE)
-from bot.common.notification_constants import (SUBJECT_LIVE_FAILURE)
-from bot.trader.dry_run import DryRunManager
+from autotrageur.bot.common.notification_constants import (SUBJECT_LIVE_FAILURE)
+from autotrageur.bot.trader.dry_run import DryRunManager
 from fp_libs.db.maria_db_handler import InsertRowObject
 from fp_libs.utilities import num_to_decimal
 
@@ -123,7 +123,7 @@ def test_load_twilio(mocker, no_patch_fcf_autotrageur):
     fake_yaml_safe_load = mocker.patch.object(yaml, 'safe_load')
     fake_twilio_client = mocker.Mock()
     fake_twilio_client_constructor = mocker.patch.object(
-        bot.arbitrage.fcf_autotrageur, 'TwilioClient', return_value=fake_twilio_client)
+        autotrageur.bot.arbitrage.fcf_autotrageur, 'TwilioClient', return_value=fake_twilio_client)
     fake_test_connection = mocker.patch.object(fake_twilio_client, 'test_connection')
     mocker.patch('os.getenv', return_value='some_env_var')
 
@@ -358,7 +358,7 @@ def test_construct_strategy(mocker, no_patch_fcf_autotrageur):
     mock_strategy_builder = mocker.Mock()
     mock_strategy_builder.build.return_value = mock_strategy
     mock_strategy_builder_constructor = mocker.patch(
-        'bot.arbitrage.fcf_autotrageur.FCFStrategyBuilder',
+        'autotrageur.bot.arbitrage.fcf_autotrageur.FCFStrategyBuilder',
         return_value=mock_strategy_builder)
 
     mock_strategy_builder.set_has_started.return_value = mock_strategy_builder
@@ -605,7 +605,7 @@ def test_post_setup(mocker, no_patch_fcf_autotrageur):
     mock_persist_config = mocker.patch.object(
         no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_config')
     mock_balance_checker_constructor = mocker.patch(
-        'bot.arbitrage.fcf_autotrageur.FCFBalanceChecker',
+        'autotrageur.bot.arbitrage.fcf_autotrageur.FCFBalanceChecker',
         return_value=FAKE_BALANCE_CHECKER)
 
     no_patch_fcf_autotrageur._post_setup(arguments)
@@ -627,9 +627,9 @@ def test_send_email(mocker, no_patch_fcf_autotrageur):
     FAKE_MESSAGE = 'A FAKE MESSAGE'
 
     mocker.patch.object(no_patch_fcf_autotrageur._config, 'email_cfg_path', 'path/to/config')
-    mocker.patch('bot.arbitrage.fcf_autotrageur.send_all_emails')
+    mocker.patch('autotrageur.bot.arbitrage.fcf_autotrageur.send_all_emails')
     no_patch_fcf_autotrageur._send_email(FAKE_SUBJECT, FAKE_MESSAGE)
-    bot.arbitrage.fcf_autotrageur.send_all_emails.assert_called_once_with(
+    autotrageur.bot.arbitrage.fcf_autotrageur.send_all_emails.assert_called_once_with(
         no_patch_fcf_autotrageur._config.email_cfg_path, FAKE_SUBJECT, FAKE_MESSAGE)
 
 
@@ -641,7 +641,7 @@ def test_setup(mocker, no_patch_fcf_autotrageur, fcf_checkpoint, resume_id):
     parent_super = mocker.patch.object(builtins, 'super')
     mock_construct_strategy = mocker.patch.object(
         no_patch_fcf_autotrageur, '_FCFAutotrageur__construct_strategy')
-    mock_fcf_checkpoint_constructor = mocker.patch('bot.arbitrage.fcf_autotrageur.FCFCheckpoint')
+    mock_fcf_checkpoint_constructor = mocker.patch('autotrageur.bot.arbitrage.fcf_autotrageur.FCFCheckpoint')
     mock_import_state = mocker.patch.object(no_patch_fcf_autotrageur, '_import_state')
 
     if resume_id:

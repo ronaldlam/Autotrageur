@@ -7,7 +7,7 @@ Please read the `pickle_fcf_checkpoint` and `unpickle_fcf_checkpoint` functions
 carefully.  The two functions are both responsible for pickling/exporting and
 restoring an FCFCheckpoint object in a way that is backwards-compatible.
 """
-from bot.arbitrage.fcf.fcf_checkpoint import (CURRENT_FCF_CHECKPOINT_VERSION,
+from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import (CURRENT_FCF_CHECKPOINT_VERSION,
                                               FCFCheckpoint)
 
 

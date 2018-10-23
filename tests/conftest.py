@@ -8,7 +8,7 @@ from fp_libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
 from fp_libs.trade.executor.ccxt_executor import CCXTExecutor
 from fp_libs.trade.executor.dryrun_executor import DryRunExecutor
 from fp_libs.utilities import set_autotrageur_decimal_context
-from bot.trader.ccxt_trader import CCXTTrader
+from autotrageur.bot.trader.ccxt_trader import CCXTTrader
 
 
 # Set the Decimal context before test runs.

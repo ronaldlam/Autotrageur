@@ -2,8 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import bot.arbitrage.fcf.fcf_checkpoint_utils as fcf_checkpoint_utils
-from bot.arbitrage.fcf.fcf_checkpoint import (CURRENT_FCF_CHECKPOINT_VERSION,
+import autotrageur.bot.arbitrage.fcf.fcf_checkpoint_utils as fcf_checkpoint_utils
+from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import (CURRENT_FCF_CHECKPOINT_VERSION,
                                               FCFCheckpoint)
 
 MOCK_CONFIG = MagicMock()

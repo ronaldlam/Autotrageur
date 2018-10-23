@@ -1,11 +1,9 @@
-from setuptools_scm import get_version
-
-from bot.arbitrage.autotrageur import Configuration
-from bot.arbitrage.fcf.strategy import FCFStrategyState
-from bot.trader.dry_run import DryRunManager
+from autotrageur.bot.arbitrage.autotrageur import Configuration
+from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyState
+from autotrageur.bot.trader.dry_run import DryRunManager
+from autotrageur.version import VERSION
 
 # Constants
-VERSION = get_version()
 MAJOR, MINOR, HOTFIX, *REMAINDER = VERSION
 CURRENT_FCF_CHECKPOINT_VERSION = '{}.{}'.format(MAJOR, MINOR)
 

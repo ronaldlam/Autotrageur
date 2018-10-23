@@ -13,12 +13,12 @@ import yaml
 from dotenv import load_dotenv
 
 import fp_libs.db.maria_db_handler as db_handler
-from bot.common.config_constants import DB_NAME, DB_USER
-from bot.common.env_var_constants import ENV_VAR_NAMES
-from bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
+from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
+from autotrageur.bot.common.env_var_constants import ENV_VAR_NAMES
+from autotrageur.bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                SUBJECT_LIVE_FAILURE)
-from bot.trader.ccxt_trader import CCXTTrader
-from bot.trader.dry_run import DryRunManager, DryRunExchange
+from autotrageur.bot.trader.ccxt_trader import CCXTTrader
+from autotrageur.bot.trader.dry_run import DryRunManager, DryRunExchange
 from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from fp_libs.security.encryption import decrypt
 from fp_libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,

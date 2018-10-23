@@ -4,7 +4,7 @@ from enum import Enum
 import ccxt
 import pytest
 
-import bot.trader.ccxt_trader as ccxt_trader
+import autotrageur.bot.trader.ccxt_trader as ccxt_trader
 from fp_libs.constants.ccxt_constants import BUY_SIDE, SELL_SIDE
 from fp_libs.fiat_symbols import FIAT_SYMBOLS
 from fp_libs.trade.executor.ccxt_executor import CCXTExecutor
@@ -49,9 +49,9 @@ class TestCCXTTraderInit:
                          slippage, quote_target_amount, exchange_config,
                          dry_run, mocker, ccxtfetcher_binance,
                          fake_ccxt_executor, fake_dryrun_executor):
-        mocker.patch('bot.trader.ccxt_trader.CCXTFetcher', return_value=ccxtfetcher_binance)
-        mocker.patch('bot.trader.ccxt_trader.CCXTExecutor', return_value=fake_ccxt_executor)
-        mocker.patch('bot.trader.ccxt_trader.DryRunExecutor', return_value=fake_dryrun_executor)
+        mocker.patch('autotrageur.bot.trader.ccxt_trader.CCXTFetcher', return_value=ccxtfetcher_binance)
+        mocker.patch('autotrageur.bot.trader.ccxt_trader.CCXTExecutor', return_value=fake_ccxt_executor)
+        mocker.patch('autotrageur.bot.trader.ccxt_trader.DryRunExecutor', return_value=fake_dryrun_executor)
 
         if exchange_name in self.ext_exchanges:
             exchange_obj = getattr(ccxt_trader.ccxt_extensions,
