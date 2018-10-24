@@ -113,7 +113,7 @@ def main():
         'FROM trades '
         'WHERE autotrageur_config_id=%s '
         'GROUP BY fee_asset',
-        (arguments['CONFIG_ID'], e2_name))
+        (arguments['CONFIG_ID']))
 
     if e1_quote != 'USD':
         e1_start_rate = execute_parametrized_query(
