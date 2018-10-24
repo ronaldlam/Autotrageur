@@ -108,6 +108,12 @@ def main():
         'FROM trades '
         'WHERE autotrageur_config_id=%s AND exchange=%s',
         (arguments['CONFIG_ID'], e2_name))[0]
+    fee_data = execute_parametrized_query(
+        'SELECT fee_asset, SUM(fees) '
+        'FROM trades '
+        'WHERE autotrageur_config_id=%s '
+        'GROUP BY fee_asset',
+        (arguments['CONFIG_ID'], e2_name))
 
     if e1_quote != 'USD':
         e1_start_rate = execute_parametrized_query(
@@ -195,6 +201,9 @@ def main():
     logging.info('{:<25} {}'.format(e2_name + ' base volume:', e2_base_volume))
     logging.info('{:<25} {}'.format(e2_name + ' quote volume:', e2_quote_volume))
     logging.info('{:<25} {}'.format(e2_name + ' usd volume:', e2_usd_volume))
+    fancy_log('Fees')
+    for row in fee_data:
+        logging.info('{:<25} {}'.format(row[0] + ':', row[1]))
     if e1_quote != 'USD' or e2_quote != 'USD':
         fancy_log('Forex')
         if e1_quote != 'USD':
