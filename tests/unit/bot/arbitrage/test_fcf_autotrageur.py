@@ -88,8 +88,7 @@ FAKE_STRATEGY_STATE_RESTORED = Mock()
 
 @pytest.fixture(scope='module')
 def no_patch_fcf_autotrageur():
-    fake_logger = Mock()
-    fcf_instance = FCFAutotrageur(fake_logger)
+    fcf_instance = FCFAutotrageur()
     fcf_instance._config = Mock()
     fcf_instance._dry_run_manager = DryRunManager(Mock(), Mock())
     return fcf_instance
@@ -97,8 +96,7 @@ def no_patch_fcf_autotrageur():
 
 @pytest.fixture()
 def fcf_autotrageur(mocker, fake_ccxt_trader):
-    fake_logger = Mock()
-    f = FCFAutotrageur(fake_logger)
+    f = FCFAutotrageur()
     f.config = {
         'email_cfg_path': 'fake/path/to/config.yaml',
         'spread_target_low': 1.0,
@@ -126,6 +124,7 @@ def test_load_twilio(mocker, no_patch_fcf_autotrageur):
         autotrageur.bot.arbitrage.fcf_autotrageur, 'TwilioClient', return_value=fake_twilio_client)
     fake_test_connection = mocker.patch.object(fake_twilio_client, 'test_connection')
     mocker.patch('os.getenv', return_value='some_env_var')
+    mocker.patch.object(no_patch_fcf_autotrageur, 'logger', mocker.Mock(), create=True)
 
     no_patch_fcf_autotrageur._FCFAutotrageur__load_twilio(FAKE_TWILIO_CFG_PATH)
 
