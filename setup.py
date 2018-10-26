@@ -174,6 +174,7 @@ setup(
     # Optional
     data_files=[
         ('..', ['.env.sample']),
+        ('..', ['basic_client.py']),
         ('../configs/master', ['configs/master/db_prod.yaml']),
         ('../configs/master', ['configs/master/kraken_bithumb_btc.yaml']),
         ('../configs/staging', ['configs/staging/db_staging.yaml']),
@@ -191,6 +192,7 @@ setup(
         'console_scripts': [
             'archive_logs=autotrageur.archive_logs:main',
             'encrypt_file=autotrageur.encrypt_file:main',
+            'report=autotrageur.report:main',
             'run_autotrageur=autotrageur.run_autotrageur:main',
             'scrape_forex=autotrageur.scrape_forex:main',
             'spawn_ohlcv_minute=autotrageur.spawn_ohlcv_minute:main',
