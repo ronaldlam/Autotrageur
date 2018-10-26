@@ -34,6 +34,11 @@ from fp_libs.utilities import load_keyfile, num_to_decimal, split_symbol
 START_END_FORMAT = "{} {:^30} {}"
 STARS = "*"*20
 
+# Decimal constants
+SIXTY = num_to_decimal('60')
+TWENTY_FOUR = num_to_decimal('24')
+THREE_SIXTY_FIVE = num_to_decimal('365')
+
 
 def capitalize(string):
     """Capitalize the given string
@@ -64,6 +69,7 @@ def main():
 
     db_password = getpass.getpass('DB password:')
     start_db(db_user, db_password, db_name)
+    config_id = arguments['CONFIG_ID']
 
     if arguments['START_BALANCES']:
         with open(arguments['START_BALANCES'], 'r') as balance_info:
@@ -81,7 +87,7 @@ def main():
         'WHERE id=%s '
         'ORDER BY start_timestamp '
         'LIMIT 1',
-        (arguments['CONFIG_ID'],))
+        (config_id,))
     e1_name, e2_name, e1_pair, e2_pair, use_test_api = market_info[0]
     e1_base, e1_quote = split_symbol(e1_pair)
     e2_base, e2_quote = split_symbol(e2_pair)
@@ -92,28 +98,28 @@ def main():
         'WHERE id=%s '
         'ORDER BY start_timestamp '
         'LIMIT 1',
-        (arguments['CONFIG_ID'],))[0][0]
+        (config_id,))[0][0]
     trade_count = execute_parametrized_query(
         'SELECT COUNT(*) '
         'FROM trades '
         'WHERE autotrageur_config_id=%s',
-        (arguments['CONFIG_ID'],))[0][0]
+        (config_id,))[0][0]
     e1_base_volume, e1_quote_volume = execute_parametrized_query(
         'SELECT SUM(pre_fee_base), SUM(post_fee_quote) '
         'FROM trades '
         'WHERE autotrageur_config_id=%s AND exchange=%s',
-        (arguments['CONFIG_ID'], e1_name))[0]
+        (config_id, e1_name))[0]
     e2_base_volume, e2_quote_volume = execute_parametrized_query(
         'SELECT SUM(pre_fee_base), SUM(post_fee_quote) '
         'FROM trades '
         'WHERE autotrageur_config_id=%s AND exchange=%s',
-        (arguments['CONFIG_ID'], e2_name))[0]
+        (config_id, e2_name))[0]
     fee_data = execute_parametrized_query(
         'SELECT fee_asset, SUM(fees) '
         'FROM trades '
         'WHERE autotrageur_config_id=%s '
         'GROUP BY fee_asset',
-        (arguments['CONFIG_ID'],))
+        (config_id,))
 
     if e1_quote != 'USD':
         e1_start_rate = execute_parametrized_query(
@@ -122,7 +128,7 @@ def main():
             'WHERE f.local_timestamp >= c.start_timestamp AND c.id=%s AND f.quote=%s '
             'ORDER BY f.local_timestamp '
             'LIMIT 1',
-            (arguments['CONFIG_ID'], e1_quote))[0][0]
+            (config_id, e1_quote))[0][0]
     if e2_quote != 'USD':
         e2_start_rate = execute_parametrized_query(
             'SELECT f.rate '
@@ -130,7 +136,7 @@ def main():
             'WHERE f.local_timestamp >= c.start_timestamp AND c.id=%s AND f.quote=%s '
             'ORDER BY f.local_timestamp '
             'LIMIT 1',
-            (arguments['CONFIG_ID'], e2_quote))[0][0]
+            (config_id, e2_quote))[0][0]
 
     exchange_key_map = load_keyfile(
         arguments['KEY_FILE'], arguments['--pi_mode'])
@@ -157,12 +163,12 @@ def main():
     e2_base_diff = current_e2_base - start_e2_base
 
     current_timestamp = int(time.time())
-    seconds_elapsed = current_timestamp - start_timestamp
-    days_elapsed = seconds_elapsed / 60.0 / 60.0 / 24.0
+    seconds_elapsed = num_to_decimal(current_timestamp - start_timestamp)
+    days_elapsed = seconds_elapsed / SIXTY / SIXTY / TWENTY_FOUR
 
     usd_profit = usd_e1_quote_diff + usd_e2_quote_diff
     usd_percent_profit = (usd_current_sum / usd_start_sum - ONE) * HUNDRED
-    annualized_profit_ratio = (usd_current_sum / usd_start_sum) ** num_to_decimal(365 / days_elapsed)
+    annualized_profit_ratio = (usd_current_sum / usd_start_sum) ** (THREE_SIXTY_FIVE / days_elapsed)
     annualized_profit = (annualized_profit_ratio - ONE) * HUNDRED
     base_profit = e1_base_diff + e2_base_diff
 
