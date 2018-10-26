@@ -46,6 +46,7 @@ from fp_libs.utilities import num_to_decimal
 def _is_number(in_num):
     return isinstance(in_num, (float, int))
 
+
 def _load_checkpoint(resume_id):
     raw_result = db_handler.execute_parametrized_query(
                 "SELECT state FROM fcf_state where id = %s;",
@@ -98,7 +99,8 @@ def _export_config(new_config):
 def _replace_strategy_state(checkpoint, in_yaml):
     old_ss = checkpoint.strategy_state
     new_ss_map = in_yaml['strategy_state_map']
-    ss_constructor_attr = ['has_started', 'h_to_e1_max', 'h_to_e2_max']
+    ss_constructor_or_tgt_attr = [
+        'has_started', 'h_to_e1_max', 'h_to_e2_max', 'e1_targets', 'e2_targets']
 
     new_strategy_state = FCFStrategyState(
         new_ss_map['has_started'] if new_ss_map['has_started'] is not None
@@ -109,12 +111,24 @@ def _replace_strategy_state(checkpoint, in_yaml):
             is not None else old_ss.h_to_e2_max)
 
     for key in new_ss_map:
-        if key not in ss_constructor_attr:
+        if key not in ss_constructor_or_tgt_attr:
             new_value = (num_to_decimal(new_ss_map[key])
                 if _is_number(new_ss_map[key]) else new_ss_map[key])
             setattr(new_strategy_state, key,
                 new_value if new_value is not None
                 else getattr(old_ss, key))
+
+    # Set the e1_targets and e2_targets, if present.  Else, just set to the
+    # previous targets.
+    for tgt_key in ['e1_targets', 'e2_targets']:
+        new_tgts = []
+        if in_yaml[tgt_key]:
+            for price, vol in in_yaml[tgt_key]:
+                # Create a tuple, with casted price and vol into Decimal type.
+                new_tgts.append((num_to_decimal(price), num_to_decimal(vol)))
+            setattr(new_strategy_state, tgt_key, new_tgts)
+        else:
+            setattr(new_strategy_state, tgt_key, getattr(old_ss, tgt_key))
 
     # Initialize the target_tracker and trade_chunker to the old strategy state
     # target_tracker and trade_chunker.
@@ -200,9 +214,9 @@ def main():
 
     # Final prompt before persisting back into DB.
     user_confirm = input(
-        ">> You want to replace OLD checkpoint:\n"
+        ">> You want to create from OLD checkpoint:\n"
         "*********************************************************************"
-        "\n\n\n\n\n{}\n\n\n\n\nWith NEW checkpoint:\n"
+        "\n\n\n\n\n{}\n\n\n\n\nA NEW checkpoint:\n"
         "*********************************************************************"
         "\n\n\n\n\n{}\n\n\n\n\nY/N ?".format(
             original_checkpoint, checkpoint))

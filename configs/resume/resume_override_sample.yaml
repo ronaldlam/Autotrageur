@@ -61,8 +61,14 @@ strategy_state_map:
   h_to_e1_max:
   h_to_e2_max:
   momentum:
-  e1_targets:
-  e2_targets:
+
+# e1 and e2 targets.  Must be in the form of:
+#  - [price, vol]
+#
+# Eg.
+#  - [304.99, 22.018] For $304.99 price and 22.018 units
+e1_targets:
+e2_targets:
 
 # ----------------TARGET TRACKER---------------------------------------------
 target_tracker_map:
