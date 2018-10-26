@@ -16,13 +16,14 @@ import fp_libs.db.maria_db_handler as db_handler
 from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
 from autotrageur.bot.common.env_var_constants import ENV_VAR_NAMES
 from autotrageur.bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
-                                               SUBJECT_LIVE_FAILURE)
+                                                           SUBJECT_LIVE_FAILURE)
 from autotrageur.bot.trader.ccxt_trader import CCXTTrader
-from autotrageur.bot.trader.dry_run import DryRunManager, DryRunExchange
+from autotrageur.bot.trader.dry_run import DryRunExchange, DryRunManager
 from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
+from fp_libs.logging import bot_logging
 from fp_libs.security.encryption import decrypt
 from fp_libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
-                            to_bytes, to_str)
+                               to_bytes, to_str)
 from fp_libs.utils.ccxt_utils import RetryableError, RetryCounter
 
 # Program argument constants.
@@ -134,6 +135,26 @@ class Autotrageur(ABC):
             db_password,
             db_info[DB_NAME])
         schedule.every(7).hours.do(db_handler.ping_db)
+
+    def __init_logger(self):
+        """Starts the background logger.
+
+        Note that configs must be loaded.
+        """
+        if self._config.dryrun and self._config.use_test_api:
+            log_dir = 'dryrun-test'
+        elif self._config.dryrun:
+            log_dir = 'dryrun'
+        elif self._config.use_test_api:
+            log_dir = 'test'
+        else:
+            log_dir = 'live'
+
+        self.logger = bot_logging.setup_background_logger(
+            log_dir, self._config.id)
+
+        # Start listening for logs.
+        self.logger.queue_listener.start()
 
     def __load_env_vars(self):
         """Ensures that the necessary environment variables are loaded.
@@ -321,10 +342,6 @@ class Autotrageur(ABC):
         Args:
             config_file_path (str): Path to the configuration file used for the
                 current autotrageur run.
-
-        Raises:
-            IOError: If the encrypted keyfile does not open, and not in
-                dryrun mode.
         """
         # Set up the configuration.
         config_map = self.__parse_config_file(config_file_path)
@@ -359,6 +376,7 @@ class Autotrageur(ABC):
         components which must be set up before any additional components.
 
         Core components initialized:
+        - logger
         - loading environment variables
         - initializing and connecting to the DB
 
@@ -368,6 +386,8 @@ class Autotrageur(ABC):
         Args:
             arguments (dict): Map of the arguments passed to the program.
         """
+        self.__init_logger()
+
         # Load environment variables.
         if not self.__load_env_vars():
             raise EnvironmentError('Failed to load all of the necessary'

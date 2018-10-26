@@ -77,10 +77,6 @@ class FCFAutotrageur(Autotrageur):
     specified target high; vice versa if the calculated spread is less
     than the specified target low.
     """
-    def __init__(self, logger):
-        """Constructor."""
-        self.logger = logger
-
     def __load_twilio(self, twilio_cfg_path):
         """Loads the Twilio configuration file and tests the connection to
         Twilio APIs.

@@ -146,6 +146,25 @@ def test_init_db(mocker, mock_autotrageur, mock_open_yaml):
     schedule.clear()
 
 
+@pytest.mark.parametrize('dryrun, use_test_api, result_log_dir', [
+    (True, True, 'dryrun-test'),
+    (True, False, 'dryrun'),
+    (False, True, 'test'),
+    (False, False, 'live'),
+])
+def test_init_logger(mocker, mock_autotrageur, dryrun, use_test_api,
+                     result_log_dir):
+    mocker.patch.object(mock_autotrageur._config, 'dryrun', dryrun)
+    mocker.patch.object(mock_autotrageur._config, 'use_test_api', use_test_api)
+    mock_setup_background_logger = mocker.patch.object(
+        autotrageur.bot.arbitrage.autotrageur.bot_logging,
+        'setup_background_logger')
+
+    mock_autotrageur._Autotrageur__init_logger()
+
+    mock_setup_background_logger.assert_called_once_with(result_log_dir, mock_autotrageur._config.id)
+    mock_setup_background_logger.return_value.queue_listener.start.assert_called_once()
+
 
 @pytest.mark.parametrize('env_path_exists', [True, False])
 @pytest.mark.parametrize('env_path_loaded', [True, False])
@@ -268,6 +287,7 @@ def test_post_setup(mocker, mock_autotrageur):
 @pytest.mark.parametrize('env_vars_loaded', [True, False])
 def test_setup(mocker, mock_autotrageur, env_vars_loaded):
     args = mocker.MagicMock()
+    mock_init_logger = mocker.patch.object(mock_autotrageur, '_Autotrageur__init_logger')
     mock_load_env_vars = mocker.patch.object(
         mock_autotrageur, '_Autotrageur__load_env_vars', return_value=env_vars_loaded)
     mock_init_db = mocker.patch.object(mock_autotrageur, '_Autotrageur__init_db')
@@ -281,6 +301,8 @@ def test_setup(mocker, mock_autotrageur, env_vars_loaded):
             mock_autotrageur._setup(args)
         mock_load_env_vars.assert_called_once_with()
         mock_init_db.assert_not_called()
+
+    mock_init_logger.assert_called_once()
 
 
 def test_wait(mocker, mock_autotrageur):
