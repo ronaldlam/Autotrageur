@@ -4,11 +4,11 @@
 # -------------------GENERAL SETTINGS------------------------------------------
 
 # (String) The base currency of the trading pair (e.g. "ETH" of "ETH/USD" pair).
-base: bch
+base: eth
 # (String) The quote currency of the trading pair (e.g. "USD" of "ETH/USD" pair).
 quote: btc
 # (String) The name of the exchange to obtain historical data (e.g. "Gemini").
-exchange: gdax
+exchange: coinbase
 # (String) Time Interval to retrieve historical.  One of 'day', 'hour', 'minute'.
 interval: minute
 # (Int) Number of data points to return. E.g. 365 for daily will be 365 days.
