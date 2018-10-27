@@ -1,1 +1,0 @@
-** This lib is taken from https://github.com/stefs304/cryCompare to be used as a CryptoCompare wrapper.
