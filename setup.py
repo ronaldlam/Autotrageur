@@ -127,7 +127,7 @@ setup(
     #
     #   py_modules=["my_module"],
     #
-    packages=find_packages(include=['autotrageur']),  # Required
+    packages=find_packages(exclude=['contrib', 'docs', 'tests']),  # Required
 
     # This field lists other packages that your project depends on to run.
     # Any package you put here will be installed by pip when your project is
@@ -173,7 +173,7 @@ setup(
     # In this case, 'data_file' will be installed into '<sys.prefix>/my_data'
     # Optional
     data_files=[
-        ('..', ['.env.sample']),
+        # ('..', ['.env.sample']),
         ('../configs/master', ['configs/master/db_prod.yaml']),
         ('../configs/master', ['configs/master/kraken_bithumb_btc.yaml']),
         ('../configs/staging', ['configs/staging/db_staging.yaml']),
