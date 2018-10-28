@@ -180,8 +180,8 @@ setup(
         ('../configs/staging', ['configs/staging/db_staging.yaml']),
         ('../configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_btc.yaml']),
         ('../configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_eth.yaml']),
-        ('../configs/staging/sandbox', ['configs/staging/sandbox/gdax_gemini_btc.yaml']),
-        ('../configs/staging/sandbox', ['configs/staging/sandbox/gdax_gemini_eth.yaml']),
+        ('../configs/staging/sandbox', ['configs/staging/sandbox/coinbasepro_gemini_btc.yaml']),
+        ('../configs/staging/sandbox', ['configs/staging/sandbox/coinbasepro_gemini_eth.yaml']),
     ],
 
     # To provide executable scripts, use entry points in preference to the

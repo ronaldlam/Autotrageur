@@ -2,21 +2,21 @@
 
 # Dry Run functionality.
 dryrun: false # If True, will log trades instead of executing them.
-dryrun_e1_base: 5
+dryrun_e1_base: 70
 dryrun_e1_quote: 2000
-dryrun_e2_base: 5
+dryrun_e2_base: 70
 dryrun_e2_quote: 2000
 
 # Email configuration, and email options.
 email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to send e-mails on arb opportunities.
 
 # Exchange 1
-exchange1: gdax
-exchange1_pair: BTC/USD
+exchange1: coinbasepro
+exchange1_pair: ETH/USD
 
 # Exchange 2
 exchange2: gemini
-exchange2_pair: BTC/USD
+exchange2_pair: ETH/USD
 
 # Whether to connect to the test exchange APIs of both exchanges.
 use_test_api: true
