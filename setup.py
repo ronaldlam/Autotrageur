@@ -174,7 +174,6 @@ setup(
     # Optional
     data_files=[
         ('..', ['.env.sample']),
-        ('..', ['basic_client.py']),
         ('../configs/master', ['configs/master/db_prod.yaml']),
         ('../configs/master', ['configs/master/kraken_bithumb_btc.yaml']),
         ('../configs/staging', ['configs/staging/db_staging.yaml']),
