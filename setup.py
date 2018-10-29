@@ -5,9 +5,32 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-# Always prefer setuptools over distutils
-from setuptools import setup, find_packages
+from glob import iglob
 from os import path
+
+# Always prefer setuptools over distutils
+from setuptools import find_packages, setup
+
+
+DATA_DIR = 'autotrageur-data'
+
+
+def get_config_data_files():
+    """Retrieve list of tuples mapping data files to their installed
+    destinations.
+
+    Tuples are in the following form:
+    (<dst folder>, [<src files>])
+
+    Returns:
+        list: The list of tuples.
+    """
+    files = [f for f in iglob('configs/**/*', recursive=True) if path.isfile(f)]
+    # Get relative paths without filename.
+    src_dirs = [path.split(f)[0] for f in files]
+    dst_dirs = [path.join(DATA_DIR, d) for d in src_dirs]
+    return list(zip(dst_dirs, [[f] for f in files]))
+
 
 here = path.abspath(path.dirname(__file__))
 
@@ -174,15 +197,8 @@ setup(
     # Optional
     data_files=[
         ('autotrageur-data', ['.env.sample']),
-        ('autotrageur-data', ['basic_client.py']),
-        ('autotrageur-data/configs/master', ['configs/master/db_prod.yaml']),
-        ('autotrageur-data/configs/master', ['configs/master/kraken_bithumb_btc.yaml']),
-        ('autotrageur-data/configs/staging', ['configs/staging/db_staging.yaml']),
-        ('autotrageur-data/configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_btc.yaml']),
-        ('autotrageur-data/configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_eth.yaml']),
-        ('autotrageur-data/configs/staging/sandbox', ['configs/staging/sandbox/coinbasepro_gemini_btc.yaml']),
-        ('autotrageur-data/configs/staging/sandbox', ['configs/staging/sandbox/coinbasepro_gemini_eth.yaml']),
-    ],
+        ('autotrageur-data', ['basic_client.py'])
+    ] + get_config_data_files(),
 
     # To provide executable scripts, use entry points in preference to the
     # "scripts" keyword. Entry points provide cross-platform support and allow
