@@ -25,7 +25,7 @@ Description:
     VENV            The venv/virtualenv name, defaults to venv
 """
 from os import getcwd, listdir
-from os.path import isdir, isfile, join
+from os.path import isdir, isfile, join, split
 from shutil import copy2, copytree
 
 from docopt import docopt
@@ -68,7 +68,10 @@ def main():
     src_files = _file_list(data_dir)
 
     for d in src_dirs:
-        copytree(d, cwd)
+        # This is the directory name.
+        _, tail = split(d)
+        # Copy contents of tree into directory of same name.
+        copytree(d, join(cwd, tail))
 
     for f in src_files:
         copy2(f, cwd)
