@@ -1,0 +1,83 @@
+# (bool) Override the config object.
+config_override:
+
+# (map) The Configuration map.  Should be the same as `arb_config_sample`
+config_map:
+  # Dry Run functionality.
+  dryrun: # If True, will log trades instead of executing them.
+  dryrun_e1_base: # Starting base amount on e1
+  dryrun_e1_quote: # Starting quote amount on e1
+  dryrun_e2_base: # Starting base amount on e2
+  dryrun_e2_quote: # Starting quote amount on e2
+
+  # Email configuration, and email options.
+  email_cfg_path: # path/to/email_cfg file.  Used to send e-mails on arb opportunities.
+
+  # Exchange 1 - This is the exchange to be used as the default denominator.
+  exchange1: # Name of first exchange, eg. binance
+  exchange1_pair: # Name of target pair, eg. ETH/USDT
+
+  # Exchange 2 - This is the exchange to be used as the default numerator.
+  exchange2: # Name of second exchange, eg. bithumb
+  exchange2_pair: # Name of target pair, eg. ETH/KRW
+
+  # Whether to connect to the test exchange APIs of both exchanges.
+  use_test_api:
+
+  # Poll intervals in seconds
+  poll_wait_default:
+  poll_wait_short: # Used when trade is chunked and in progress.
+
+  # Historical max spread to exchange 1.
+  h_to_e1_max:
+  # Historical max spread to exchange 2.
+  h_to_e2_max:
+  # The maximum USD value of any given trade.
+  max_trade_size:
+  # The minimum spread increment for considering trade targets.
+  spread_min:
+  # The minimum volume trade in USD.
+  vol_min:
+  # Percentage downside of limit order slippage tolerable for market order emulations
+  slippage: # Important for Gemini, eg. 3
+
+  # ----------------TWILIO SETTINGS--------------------------------------------
+  # Path for the twilio config file.
+  twilio_cfg_path:
+
+
+# (bool) Override the strategy state object.  ** Be extremely careful overriding
+strategy_state_override:
+
+# (bool) Override the target tracker object.  ** Be extremely careful overriding
+target_tracker_override:
+
+# (bool) Override the trade chunker object.  ** Be extremely careful overriding
+trade_chunker_override:
+
+# (map) The strategy state map.
+strategy_state_map:
+  has_started:
+  h_to_e1_max:
+  h_to_e2_max:
+  momentum:
+
+# e1 and e2 targets.  Must be in the form of:
+#  - [price, vol]
+#
+# Eg.
+#  - [304.99, 22.018] For $304.99 price and 22.018 units
+e1_targets:
+e2_targets:
+
+# ----------------TARGET TRACKER---------------------------------------------
+target_tracker_map:
+  _target_index:
+  _last_target_index:
+
+# ----------------TRADE CHUNKER----------------------------------------------
+trade_chunker_map:
+  _max_trade_size:
+  _target:
+  _current_trade_size:
+  trade_completed:
