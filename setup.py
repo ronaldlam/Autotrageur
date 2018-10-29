@@ -173,14 +173,15 @@ setup(
     # In this case, 'data_file' will be installed into '<sys.prefix>/my_data'
     # Optional
     data_files=[
-        # ('..', ['.env.sample']),
-        ('configs/master', ['configs/master/db_prod.yaml']),
-        ('configs/master', ['configs/master/kraken_bithumb_btc.yaml']),
-        ('configs/staging', ['configs/staging/db_staging.yaml']),
-        ('configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_btc.yaml']),
-        ('configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_eth.yaml']),
-        ('configs/staging/sandbox', ['configs/staging/sandbox/coinbasepro_gemini_btc.yaml']),
-        ('configs/staging/sandbox', ['configs/staging/sandbox/coinbasepro_gemini_eth.yaml']),
+        ('autotrageur-data', ['.env.sample']),
+        ('autotrageur-data', ['basic_client.py']),
+        ('autotrageur-data/configs/master', ['configs/master/db_prod.yaml']),
+        ('autotrageur-data/configs/master', ['configs/master/kraken_bithumb_btc.yaml']),
+        ('autotrageur-data/configs/staging', ['configs/staging/db_staging.yaml']),
+        ('autotrageur-data/configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_btc.yaml']),
+        ('autotrageur-data/configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_eth.yaml']),
+        ('autotrageur-data/configs/staging/sandbox', ['configs/staging/sandbox/coinbasepro_gemini_btc.yaml']),
+        ('autotrageur-data/configs/staging/sandbox', ['configs/staging/sandbox/coinbasepro_gemini_eth.yaml']),
     ],
 
     # To provide executable scripts, use entry points in preference to the
@@ -191,6 +192,7 @@ setup(
         'console_scripts': [
             'archive_logs=autotrageur.archive_logs:main',
             'encrypt_file=autotrageur.encrypt_file:main',
+            'post_install=autotrageur.post_install:main'
             'report=autotrageur.report:main',
             'run_autotrageur=autotrageur.run_autotrageur:main',
             'scrape_forex=autotrageur.scrape_forex:main',
