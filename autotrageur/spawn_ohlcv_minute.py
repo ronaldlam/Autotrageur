@@ -15,36 +15,36 @@ Description:
     DBPWFILE            The encrypted file containing the database password.
 """
 import getpass
+import logging
 import os
 
+import yaml
 from docopt import docopt
 
-import yaml
-
-from autotrageur.analytics.history_to_db import make_fetchers, persist_to_db
+import fp_libs.db.maria_db_handler as db_handler
+from autotrageur.analytics.history_to_db import (HistoryTableMetadata,
+                                                 make_fetchers, persist_to_db,
+                                                 prepare_tables)
 from autotrageur.version import VERSION
-from fp_libs.security.encryption import decrypt
-from fp_libs.utilities import to_bytes, to_str
 
 
 def main():
     """Installed entry point."""
     args = docopt(__doc__, version=VERSION)
+    logging.basicConfig(format="%(asctime)s %(message)s",
+                        datefmt="%Y-%m-%d %H:%M:%S")
+    logging.getLogger().setLevel(logging.INFO)
 
-    pw = args['--db_pw']
-    if pw is None:
-        pw = getpass.getpass()
-
-    with open(args['DBPWFILE'], 'rb') as db_pw:
-        db_password = to_str(decrypt(
-            db_pw.read(),
-            to_bytes(pw),
-            args['--pi_mode']))
+    db_pw = getpass.getpass("Enter DB Password:")
 
     with open(args['DBINFOFILE'], 'r') as db_info:
         db_info = yaml.safe_load(db_info)
         db_user = db_info['db_user']
         db_name = db_info['db_name']
+
+    # Connect to the DB.
+    logging.info("DB started.")
+    db_handler.start_db(db_user, db_pw, db_name)
 
     min_filepaths = []
     for root, dirs, files in os.walk('configs/fetch_rpi'):
@@ -53,7 +53,25 @@ def main():
                              files if root.endswith('minute')])
 
     hist_fetchers = make_fetchers(min_filepaths)
-    persist_to_db(db_name, db_user, db_password, hist_fetchers)
+
+    # Create Table Metadata objects from each type of fetcher.
+    table_metadata_list = []
+    for fetcher in hist_fetchers:
+        table_metadata_list.append(HistoryTableMetadata(
+            fetcher.base,
+            fetcher.quote,
+            fetcher.exchange,
+            fetcher.interval,
+            ''.join(
+                [
+                    fetcher.exchange,
+                    fetcher.base,
+                    fetcher.quote,
+                    fetcher.interval
+                ])))
+
+    prepare_tables(table_metadata_list)
+    persist_to_db(table_metadata_list, hist_fetchers)
 
 
 if __name__ == "__main__":
