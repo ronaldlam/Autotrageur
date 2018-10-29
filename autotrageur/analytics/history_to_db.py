@@ -4,7 +4,7 @@ Updates database with historical prices of a trading pair.
 """
 import logging
 from collections import namedtuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from warnings import filterwarnings
 
 import MySQLdb
@@ -152,6 +152,7 @@ def persist_to_db(hist_fetchers):
         hist_fetchers (list[HistoryFetcher]): A list of fetchers containing
             metadata, and used for fetching historical data through an API.
     """
+    cached_exceptions = []
     with ThreadPoolExecutor(max_workers=30) as executor:
         future_to_fetcher = {
             executor.submit(fetch_history, fetcher): fetcher for fetcher in hist_fetchers
@@ -161,8 +162,7 @@ def persist_to_db(hist_fetchers):
             try:
                 price_history = future.result()
             except Exception as exc:
-                logging.info("{} fetching generated an exception: {}".format(
-                    fetcher.exchange, exc))
+                cached_exceptions.append(exc)
             else:
                 if logging.getLogger().getEffectiveLevel() < logging.INFO:
                     filterwarnings('ignore', category=MySQLdb.Warning)
@@ -177,13 +177,20 @@ def persist_to_db(hist_fetchers):
                 for row in price_history:
                     row_add_info(row, base, quote, exchange)
 
+                cursor = db_handler.db.cursor()
                 cursor.executemany("INSERT IGNORE INTO "
                     + tablename
                     + "(time, close, high, low, open, volumefrom, volumeto, vwap, base,"
                     + " quote, exchange)\n"
                     + "VALUES (%(time)s, %(close)s, %(high)s, %(low)s, %(open)s,"
                     + " %(volumefrom)s, %(volumeto)s, %(vwap)s, %(base)s, %(quote)s,"
-                    + " %(exchange)s)",
+                    + " %(exchange)s) "
+                    + "ON DUPLICATE KEY UPDATE time=time",
                     price_history)
-                db.commit()
+                db_handler.db.commit()
                 cursor.close()
+
+        wait(future_to_fetcher)
+        for exc in cached_exceptions:
+            logging.info("{} fetching generated an exception: {}".format(
+                fetcher.exchange, exc))

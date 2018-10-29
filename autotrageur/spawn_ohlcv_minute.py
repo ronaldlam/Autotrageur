@@ -71,7 +71,7 @@ def main():
                 ])))
 
     prepare_tables(table_metadata_list)
-    persist_to_db(table_metadata_list, hist_fetchers)
+    persist_to_db(hist_fetchers)
 
 
 if __name__ == "__main__":
