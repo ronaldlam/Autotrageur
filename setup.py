@@ -5,9 +5,32 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-# Always prefer setuptools over distutils
-from setuptools import setup, find_packages
+from glob import iglob
 from os import path
+
+# Always prefer setuptools over distutils
+from setuptools import find_packages, setup
+
+
+DATA_DIR = 'autotrageur-data'
+
+
+def get_config_data_files():
+    """Retrieve list of tuples mapping data files to their installed
+    destinations.
+
+    Tuples are in the following form:
+    (<dst folder>, [<src files>])
+
+    Returns:
+        list: The list of tuples.
+    """
+    files = [f for f in iglob('configs/**/*', recursive=True) if path.isfile(f)]
+    # Get relative paths without filename.
+    src_dirs = [path.split(f)[0] for f in files]
+    dst_dirs = [path.join(DATA_DIR, d) for d in src_dirs]
+    return list(zip(dst_dirs, [[f] for f in files]))
+
 
 here = path.abspath(path.dirname(__file__))
 
@@ -173,16 +196,9 @@ setup(
     # In this case, 'data_file' will be installed into '<sys.prefix>/my_data'
     # Optional
     data_files=[
-        ('..', ['.env.sample']),
-        ('..', ['basic_client.py']),
-        ('../configs/master', ['configs/master/db_prod.yaml']),
-        ('../configs/master', ['configs/master/kraken_bithumb_btc.yaml']),
-        ('../configs/staging', ['configs/staging/db_staging.yaml']),
-        ('../configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_btc.yaml']),
-        ('../configs/staging/dryrun', ['configs/staging/dryrun/kraken_bithumb_eth.yaml']),
-        ('../configs/staging/sandbox', ['configs/staging/sandbox/coinbasepro_gemini_btc.yaml']),
-        ('../configs/staging/sandbox', ['configs/staging/sandbox/coinbasepro_gemini_eth.yaml']),
-    ],
+        ('autotrageur-data', ['.env.sample']),
+        ('autotrageur-data', ['basic_client.py'])
+    ] + get_config_data_files(),
 
     # To provide executable scripts, use entry points in preference to the
     # "scripts" keyword. Entry points provide cross-platform support and allow
@@ -192,6 +208,7 @@ setup(
         'console_scripts': [
             'archive_logs=autotrageur.archive_logs:main',
             'encrypt_file=autotrageur.encrypt_file:main',
+            'post_install=autotrageur.post_install:main',
             'report=autotrageur.report:main',
             'run_autotrageur=autotrageur.run_autotrageur:main',
             'scrape_forex=autotrageur.scrape_forex:main',
