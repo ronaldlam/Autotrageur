@@ -123,16 +123,10 @@ def _replace_strategy_state(checkpoint, in_yaml):
             is not None else old_ss.h_to_e2_max)
 
     new_momentum = new_ss_map['momentum']
-    if new_momentum:
-        for name, member in Momentum.__members__.items():
-            if member.value == new_momentum:
-                new_strategy_state.momentum = member
-                break
-
-        try:
-            new_strategy_state.momentum = Momentum(new_momentum)
-        except ValueError:
-            new_strategy_state.momentum = old_ss.momentum
+    try:
+        new_strategy_state.momentum = Momentum(new_momentum)
+    except ValueError:
+        new_strategy_state.momentum = old_ss.momentum
 
     # Set the e1_targets and e2_targets, if present.  Else, just set to the
     # previous targets.
