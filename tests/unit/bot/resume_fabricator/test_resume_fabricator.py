@@ -1,19 +1,20 @@
-import autotrageur.resume_fabricator as rf
-import pytest
+import copy
 import getpass
+import os
+import sys
+from decimal import Decimal
+
+import pytest
+import yaml
+
+import autotrageur.resume_fabricator as rf
 from autotrageur.bot.arbitrage.autotrageur import Configuration
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
 from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyState
 from autotrageur.bot.arbitrage.fcf.target_tracker import FCFTargetTracker
 from autotrageur.bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
-import sys
-import copy
-import yaml
-import os
 from autotrageur.bot.common.enums import Momentum
 from fp_libs.utilities import num_to_decimal
-from decimal import Decimal
-
 
 CURR_DIR = os.path.dirname(os.path.realpath(__file__))
 

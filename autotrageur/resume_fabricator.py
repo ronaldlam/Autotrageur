@@ -55,6 +55,7 @@ def _connect_db(args):
         db_password,
         db_info[DB_NAME])
 
+
 def _is_number(in_num):
     # `bool` is a subclass of `int` so we cannot use isinstance().
     return type(in_num) in (float, int)
@@ -121,15 +122,14 @@ def _replace_strategy_state(checkpoint, in_yaml):
         num_to_decimal(new_ss_map['h_to_e2_max']) if new_ss_map['h_to_e2_max']
             is not None else old_ss.h_to_e2_max)
 
-    if new_ss_map['momentum']:
-        for mmt_item in Momentum:
-            if mmt_item.value == new_ss_map['momentum']:
-                setattr(new_strategy_state, 'momentum', mmt_item)
+    new_momentum = new_ss_map['momentum']
+    if new_momentum:
+        for name, member in Momentum.__members__.items():
+            if member.value == new_momentum:
+                new_strategy_state.momentum = member
+                break
             else:
-                setattr(
-                    new_strategy_state,
-                    'momentum',
-                    getattr(old_ss, 'momentum'))
+                new_strategy_state.momentum = old_ss.momentum
 
     # Set the e1_targets and e2_targets, if present.  Else, just set to the
     # previous targets.
