@@ -129,7 +129,9 @@ def _replace_strategy_state(checkpoint, in_yaml):
                 new_strategy_state.momentum = member
                 break
 
-        if not new_strategy_state.momentum:
+        try:
+            new_strategy_state.momentum = Momentum(new_momentum)
+        except ValueError:
             new_strategy_state.momentum = old_ss.momentum
 
     # Set the e1_targets and e2_targets, if present.  Else, just set to the
