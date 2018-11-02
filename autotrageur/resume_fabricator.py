@@ -128,8 +128,9 @@ def _replace_strategy_state(checkpoint, in_yaml):
             if member.value == new_momentum:
                 new_strategy_state.momentum = member
                 break
-            else:
-                new_strategy_state.momentum = old_ss.momentum
+
+        if not new_strategy_state.momentum:
+            new_strategy_state.momentum = old_ss.momentum
 
     # Set the e1_targets and e2_targets, if present.  Else, just set to the
     # previous targets.
