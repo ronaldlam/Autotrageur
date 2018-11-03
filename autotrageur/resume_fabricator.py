@@ -38,13 +38,27 @@ from autotrageur.bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                                  FCF_AUTOTRAGEUR_CONFIG_TABLE,
                                                  FCF_STATE_PRIM_KEY_ID,
                                                  FCF_STATE_TABLE)
+from autotrageur.bot.common.enums import Momentum
 from autotrageur.version import VERSION
 from fp_libs.db.maria_db_handler import InsertRowObject
 from fp_libs.utilities import num_to_decimal
 
 
+def _connect_db(args):
+    # Connect to the DB.
+    db_password = getpass.getpass(
+        prompt="Enter database password:")
+    with open(args['DBINFOFILE'], 'r') as db_file:
+        db_info = yaml.safe_load(db_file)
+    db_handler.start_db(
+        db_info[DB_USER],
+        db_password,
+        db_info[DB_NAME])
+
+
 def _is_number(in_num):
-    return isinstance(in_num, (float, int))
+    # `bool` is a subclass of `int` so we cannot use isinstance().
+    return type(in_num) in (float, int)
 
 
 def _load_checkpoint(resume_id):
@@ -99,8 +113,6 @@ def _export_config(new_config):
 def _replace_strategy_state(checkpoint, in_yaml):
     old_ss = checkpoint.strategy_state
     new_ss_map = in_yaml['strategy_state_map']
-    ss_constructor_or_tgt_attr = [
-        'has_started', 'h_to_e1_max', 'h_to_e2_max', 'e1_targets', 'e2_targets']
 
     new_strategy_state = FCFStrategyState(
         new_ss_map['has_started'] if new_ss_map['has_started'] is not None
@@ -110,13 +122,11 @@ def _replace_strategy_state(checkpoint, in_yaml):
         num_to_decimal(new_ss_map['h_to_e2_max']) if new_ss_map['h_to_e2_max']
             is not None else old_ss.h_to_e2_max)
 
-    for key in new_ss_map:
-        if key not in ss_constructor_or_tgt_attr:
-            new_value = (num_to_decimal(new_ss_map[key])
-                if _is_number(new_ss_map[key]) else new_ss_map[key])
-            setattr(new_strategy_state, key,
-                new_value if new_value is not None
-                else getattr(old_ss, key))
+    new_momentum = new_ss_map['momentum']
+    try:
+        new_strategy_state.momentum = Momentum(new_momentum)
+    except ValueError:
+        new_strategy_state.momentum = old_ss.momentum
 
     # Set the e1_targets and e2_targets, if present.  Else, just set to the
     # previous targets.
@@ -173,23 +183,14 @@ def _replace_strategy_state(checkpoint, in_yaml):
     checkpoint.strategy_state = new_strategy_state
 
 def main():
-    """Main function after `resume_overrider` called as entry script."""
+    """Main function after `resume_fabricator` called as entry script."""
     args = docopt(__doc__, version=VERSION)
 
-    # Connect to the DB.
-    db_password = getpass.getpass(
-        prompt="Enter database password:")
-    with open(args['DBINFOFILE'], 'r') as db_file:
-        db_info = yaml.safe_load(db_file)
-    db_handler.start_db(
-        db_info[DB_USER],
-        db_password,
-        db_info[DB_NAME])
+    _connect_db(args)
 
     # Parse the input file.
     with open(args['CONFIGFILE']) as in_file:
         in_yaml = yaml.safe_load(in_file)
-        print(in_yaml)
 
     # Import the desired resume state based on ID.
     resume_id = args['RESUME_ID']
@@ -222,8 +223,11 @@ def main():
             original_checkpoint, checkpoint))
 
     if user_confirm.lower() != 'y':
-        sys.exit("Resume override process terminated due to no confirmation "
+        sys.exit("Resume fabrication process terminated due to no confirmation "
             "from user.")
+    elif not in_yaml['config_override'] and not in_yaml['strategy_state_override']:
+        sys.exit("Resume fabrication process terminated due to no desired "
+            "override specified for any state.")
     else:
         # Export back to DB.
         print('#### Exporting to DB')

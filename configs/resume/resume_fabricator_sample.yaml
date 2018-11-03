@@ -60,7 +60,7 @@ strategy_state_map:
   has_started:
   h_to_e1_max:
   h_to_e2_max:
-  momentum:
+  momentum: # Must be one of -1, 0, 1.  See `Momentum` class enum for more detail.
 
 # e1 and e2 targets.  Must be in the form of:
 #  - [price, vol]
