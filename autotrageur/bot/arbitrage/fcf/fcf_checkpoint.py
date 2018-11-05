@@ -1,6 +1,6 @@
 from autotrageur.bot.arbitrage.autotrageur import Configuration
 from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyState
-from autotrageur.bot.trader.dry_run import DryRunManager
+from autotrageur.bot.arbitrage.fcf.fcf_stat_tracker import AbstractStatTracker
 from autotrageur.version import VERSION
 
 # Constants
@@ -15,7 +15,7 @@ class FCFCheckpoint():
     situations.
     """
 
-    def __init__(self, config=None, strategy_state=None, dry_run_manager=None):
+    def __init__(self, config=None, strategy_state=None, stat_tracker=None):
         """Constructor.
 
         Initializes all state-related objects and variables.  Persists the
@@ -30,10 +30,13 @@ class FCFCheckpoint():
 
         Args:
             config (Configuration): The current Configuration of the bot.
+            strategy_state (FCFStrategyState): The current Strategy State of
+                the bot.
+            stat_tracker (StatTracker): The StatTracker state of the bot.
         """
         self._config = config
         self._strategy_state = strategy_state
-        self._dry_run_manager = dry_run_manager
+        self._stat_tracker = stat_tracker
 
     @property
     def config(self):
@@ -65,28 +68,29 @@ class FCFCheckpoint():
         self._config = config
 
     @property
-    def dry_run_manager(self):
-        """Property getter for the checkpoint's dry run manager.
+    def stat_tracker(self):
+        """Property getter for the checkpoint's stat tracker.
 
         Returns:
-            DryRunManager: The checkpoint's saved dry run manager.
+            StatTracker: The checkpoint's saved stat tracker.
         """
-        return self._dry_run_manager
+        return self._stat_tracker
 
-    @dry_run_manager.setter
-    def dry_run_manager(self, dry_run_manager):
-        """Property setter for the checkpoint's dry run manager.
+    @stat_tracker.setter
+    def stat_tracker(self, stat_tracker):
+        """Property setter for the checkpoint's stat tracker.
 
         Args:
-            dry_run_manager (DryRunManager): A dry run manager to save into the
+            stat_tracker (StatTracker): A stat tracker to save into the
                 checkpoint.
 
         Raises:
-            TypeError: Raised if not type DryRunManager.
+            TypeError: Raised if a class or subclass of AbstractStatTracker.
         """
-        if not isinstance(dry_run_manager, DryRunManager):
-            raise TypeError("a dry run manager must be of type DryRunManager.")
-        self._dry_run_manager = dry_run_manager
+        if not isinstance(stat_tracker, AbstractStatTracker):
+            raise TypeError("a stat tracker must be a subclass of "
+                "AbstractStatTracker.")
+        self._stat_tracker = stat_tracker
 
     @property
     def strategy_state(self):
@@ -115,7 +119,7 @@ class FCFCheckpoint():
     def __repr__(self):
         """Printable representation of the FCFCheckpoint, for debugging."""
         return "FCFCheckpoint state objects:\n{0!r}\n{1!r}\n{2!r}".format(
-            self.config, self.strategy_state, self.dry_run_manager)
+            self.config, self.strategy_state, self.stat_tracker)
 
     def restore_strategy(self, strategy):
         """Restores a Strategy to its former state.

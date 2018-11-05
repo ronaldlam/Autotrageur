@@ -18,22 +18,19 @@ from autotrageur.bot.common.env_var_constants import ENV_VAR_NAMES
 from autotrageur.bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                            SUBJECT_LIVE_FAILURE)
 from autotrageur.bot.trader.ccxt_trader import CCXTTrader
-from autotrageur.bot.trader.dry_run import DryRunExchange, DryRunManager
+from autotrageur.bot.trader.dry_run import DryRunExchange
 from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from fp_libs.logging import bot_logging
 from fp_libs.security.encryption import decrypt
 from fp_libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
                                to_bytes, to_str)
 from fp_libs.utils.ccxt_utils import RetryableError, RetryCounter
+from fp_libs.utils.logging_utils import fancy_log
 
 # Program argument constants.
 CONFIGFILE = 'CONFIGFILE'
 DBCONFIGFILE = 'DBCONFIGFILE'
 KEYFILE = 'KEYFILE'
-
-# Logging constants
-START_END_FORMAT = "{} {:^15} {}"
-STARS = "*"*20
 
 
 class Configuration(namedtuple('Configuration', [
@@ -88,10 +85,6 @@ class AutotrageurAuthenticationError(Exception):
     """Incorrect credentials or exchange unavailable when attempting to
     communicate through an exchange's API."""
     pass
-
-def fancy_log(title):
-    """Log title surrounded by stars."""
-    logging.info(START_END_FORMAT.format(STARS, title, STARS))
 
 
 class Autotrageur(ABC):
@@ -209,41 +202,20 @@ class Autotrageur(ABC):
                 logging.info("**Dry run: continuing with program")
                 return None
 
-    def __setup_dry_run(self, resume_id=None):
-        """Sets up the bot for a dry run.
-
-        If resuming a bot, simply logs and returns without any additional
-        setup.
-
-        Args:
-            resume_id (str, optional): The resume id used when resuming a run.
-                Defaults to None.
-        """
-        # Create dry run objects to hold dry run state, if on dry run mode.
-        if resume_id and self._config.dryrun:
-            fancy_log(
-                "Resumed - DRY RUN mode. Trades will NOT execute on actual "
-                "exchanges.")
-            return
-        elif self._config.dryrun:
-            e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
-            e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
-            exchange1 = self._config.exchange1
-            exchange2 = self._config.exchange2
-            e1_base_balance = self._config.dryrun_e1_base
-            e1_quote_balance = self._config.dryrun_e1_quote
-            e2_base_balance = self._config.dryrun_e2_base
-            e2_quote_balance = self._config.dryrun_e2_quote
-            dry_e1 = DryRunExchange(exchange1, e1_base, e1_quote,
-                                    e1_base_balance, e1_quote_balance)
-            dry_e2 = DryRunExchange(exchange2, e2_base, e2_quote,
-                                    e2_base_balance, e2_quote_balance)
-            self._dry_run_manager = DryRunManager(dry_e1, dry_e2)
-            fancy_log(
-                "DRY RUN mode initiated. Trades will NOT execute on actual "
-                "exchanges.")
-        else:
-            self._dry_run_manager = None
+    def __setup_dry_run_exchanges(self):
+        e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
+        e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
+        exchange1 = self._config.exchange1
+        exchange2 = self._config.exchange2
+        e1_base_balance = self._config.dryrun_e1_base
+        e1_quote_balance = self._config.dryrun_e1_quote
+        e2_base_balance = self._config.dryrun_e2_base
+        e2_quote_balance = self._config.dryrun_e2_quote
+        dry_e1 = DryRunExchange(exchange1, e1_base, e1_quote,
+                                e1_base_balance, e1_quote_balance)
+        dry_e2 = DryRunExchange(exchange2, e2_base, e2_quote,
+                                e2_base_balance, e2_quote_balance)
+        return dry_e1, dry_e2
 
     def __setup_traders(self, exchange_key_map):
         """Sets up the Traders to interface with exchanges.
@@ -289,12 +261,12 @@ class Autotrageur(ABC):
             exchange2_configs['password'] = (
                 exchange_key_map[exchange2][PASSWORD])
 
+        # Set up DryRunExchanges.
         if self._config.dryrun:
-            dry_run_exchange1 = self._dry_run_manager.e1
-            dry_run_exchange2 = self._dry_run_manager.e2
+            dry_e1, dry_e2 = self.__setup_dry_run_exchanges()
         else:
-            dry_run_exchange1 = None
-            dry_run_exchange2 = None
+            dry_e1 = None
+            dry_e2 = None
 
         self.trader1 = CCXTTrader(
             e1_base,
@@ -303,7 +275,7 @@ class Autotrageur(ABC):
             'e1',
             num_to_decimal(self._config.slippage),
             exchange1_configs,
-            dry_run_exchange1)
+            dry_e1)
         self.trader2 = CCXTTrader(
             e2_base,
             e2_quote,
@@ -311,14 +283,14 @@ class Autotrageur(ABC):
             'e2',
             num_to_decimal(self._config.slippage),
             exchange2_configs,
-            dry_run_exchange2)
+            dry_e2)
 
         # Set to run against test API, if applicable.
         if not self._config.use_test_api:
-            fancy_log("Starting bot against LIVE exchanges.")
+            fancy_log("Starting bot against LIVE exchange APIs.")
             self.is_test_run = False
         else:
-            fancy_log("Starting bot against TEST exchanges.")
+            fancy_log("Starting bot against TEST exchange APIs.")
             self.trader1.connect_test_api()
             self.trader2.connect_test_api()
             self.is_test_run = True
@@ -364,9 +336,6 @@ class Autotrageur(ABC):
         # Parse keyfile into a dict.
         exchange_key_map = self.__parse_keyfile(
             arguments[KEYFILE], arguments['--pi_mode'])
-
-        # Initialize dry run component.
-        self.__setup_dry_run(arguments['--resume_id'])
 
         # Set up the Traders for interfacing with exchange APIs.
         self.__setup_traders(exchange_key_map)
@@ -502,7 +471,7 @@ class Autotrageur(ABC):
             if self._config.dryrun:
                 logging.critical("Keyboard Interrupt")
                 fancy_log("Summary")
-                self._dry_run_manager.log_all()
+                self._stat_tracker.log_all()
                 fancy_log("End")
             else:
                 raise
