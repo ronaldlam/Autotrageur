@@ -26,10 +26,13 @@ def archive_logs():
 
     The bot creates log files in the following format:
     ./logs/<log-type>/<run-config-id>/<start-timestamp>/<log-files>
+    where <log-type> is one of [live, test, dryrun, dryrun-test]. For
+    example, <log-files> may be in a folder like:
+    ./logs/dryrun/4a41bfe6/2018-11-05_12_10_51_085470/
 
     Each directory in the 'logs' directory will be searched for
-    concurrent operating bot support. Archives are only created if there
-    logs to archive. Old files are deleted after archiving. The archives
+    concurrent operating bot support. Archives are only created if log
+    files exist. Old files are deleted after archiving. The archives
     are created in zip files named by the timestamp at the time of
     archive, in the location of the existing files.
     """
