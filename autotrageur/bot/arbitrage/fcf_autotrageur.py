@@ -17,8 +17,7 @@ from autotrageur.bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint_utils import \
     pickle_fcf_checkpoint
-from autotrageur.bot.arbitrage.fcf.fcf_stat_tracker import (FCFDryRunStatTracker,
-                                                            FCFLiveStatTracker)
+from autotrageur.bot.arbitrage.fcf.fcf_stat_tracker import FCFStatTracker
 from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyBuilder
 from autotrageur.bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
                                                      TWILIO_SENDER_NUMBER)
@@ -257,30 +256,28 @@ class FCFAutotrageur(Autotrageur):
                 fancy_log(
                     "DRY RUN mode initiated. Trades will NOT execute on actual"
                     " exchanges.")
-                self._stat_tracker = FCFDryRunStatTracker(
-                    new_id=new_stat_tracker_id,
-                    e1_trader=self.trader1,
-                    e2_trader=self.trader2)
-            else:
-                self._stat_tracker = FCFLiveStatTracker(
-                    new_id=new_stat_tracker_id,
-                    e1_trader=self.trader1,
-                    e2_trader=self.trader2)
+
+            self._stat_tracker = FCFStatTracker(
+                new_id=new_stat_tracker_id,
+                e1_trader=self.trader1,
+                e2_trader=self.trader2)
 
         row_data = {
             'id': new_stat_tracker_id,
             'autotrageur_config_id': self._config.id,
             'autotrageur_config_start_timestamp': self._config.start_timestamp,
+            'autotrageur_stop_timestamp': self._config.start_timestamp,
             'central_currency': 'USD',
-            'e1_start_bal_fiat': self.trader1.quote_bal,
-            'e1_close_bal_fiat': self.trader1.quote_bal,
-            'e2_start_bal_fiat': self.trader2.quote_bal,
-            'e2_close_bal_fiat': self.trader2.quote_bal,
-            'e1_start_bal_crypto': self.trader1.base_bal,
-            'e1_close_bal_crypto': self.trader1.base_bal,
-            'e2_start_bal_crypto': self.trader2.base_bal,
-            'e2_close_bal_crypto': self.trader2.base_bal,
-            'total_poll_success_rate': 1.00
+            'e1_start_bal_base': self.trader1.base_bal,
+            'e1_close_bal_base': self.trader1.base_bal,
+            'e2_start_bal_base': self.trader2.base_bal,
+            'e2_close_bal_base': self.trader2.base_bal,
+            'e1_start_bal_quote': self.trader1.quote_bal,
+            'e1_close_bal_quote': self.trader1.quote_bal,
+            'e2_start_bal_quote': self.trader2.quote_bal,
+            'e2_close_bal_quote': self.trader2.quote_bal,
+            'num_fatal_errors': 0,
+            'trade_count': 0
         }
         stat_tracker_row_obj = InsertRowObject(
             FCF_MEASURES_TABLE,
@@ -434,23 +431,29 @@ class FCFAutotrageur(Autotrageur):
 
     # @Override
     def _export_state(self):
-        """Exports the state of the autotrageur to a database."""
+        """Exports the state of the autotrageur to a database.
+
+        NOTE: This method is only called when the fcf bot is stops due to a
+        fatal error or if it is killed manually."""
         logging.debug("#### Exporting bot's current state")
 
         # UPDATE the fcf_measures table with updated stats.
         raw_update_result = db_handler.execute_parametrized_query(
                 "UPDATE fcf_measures SET "
-                "e1_close_bal_fiat = %s, "
-                "e2_close_bal_fiat = %s, "
-                "e1_close_bal_crypto = %s, "
-                "e2_close_bal_crypto = %s, "
-                "total_poll_success_rate = %s "
+                "autotrageur_stop_timestamp = %s, "
+                "e1_close_bal_base = %s, "
+                "e2_close_bal_base = %s, "
+                "e1_close_bal_quote = %s, "
+                "e2_close_bal_quote = %s, "
+                "num_fatal_errors = num_fatal_errors + 1, "
+                "trade_count = %s "
                 "WHERE id = %s;",
-                (self._stat_tracker.e1.quote_bal,
-                self._stat_tracker.e2.quote_bal,
+                (int(time.time()),
                 self._stat_tracker.e1.base_bal,
                 self._stat_tracker.e2.base_bal,
-                self._stat_tracker.get_total_poll_success_rate(),
+                self._stat_tracker.e1.quote_bal,
+                self._stat_tracker.e2.quote_bal,
+                self._stat_tracker.trade_count,
                 self._stat_tracker.id))
 
         logging.debug("UPDATE fcf_measures affected rows: {}".format(
@@ -518,13 +521,7 @@ class FCFAutotrageur(Autotrageur):
         Returns:
             bool: Whether there is an opportunity.
         """
-        try:
-            self._stat_tracker.total_polls_attempted += 1
-            return self._strategy.poll_opportunity()
-        except:
-            logging.error("Poll failed due to an exception.")
-            self._stat_tracker.total_polls_failed += 1
-            raise
+        return self._strategy.poll_opportunity()
 
     # @Override
     def _post_setup(self, arguments):
@@ -554,11 +551,6 @@ class FCFAutotrageur(Autotrageur):
         self.__persist_config()
 
         # Initialize StatTracker component.
-        # TODO: There is also a choice to init StatTracker in autotrageur and
-        # persist it into DB at fcf_autotrageur.  Or we can move __persist_config
-        # into autotrageur because the config hasn't been persisted yet.  However,
-        # the autotrageur level doesn't deal with direct persistence yet, so it
-        # would introduce that knowledge/responsibility to the superclass.
         self.__setup_stat_tracker(arguments['--resume_id'])
 
         # Initialize a Balance Checker.

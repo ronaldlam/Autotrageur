@@ -203,6 +203,13 @@ class Autotrageur(ABC):
                 return None
 
     def __setup_dry_run_exchanges(self):
+        """Sets up the DryRunExchanges which emulate the exchanges and trade
+        updates.
+
+        Returns:
+            (tuple(DryRunExchange, DryRunExchange)): The DryRunExchanges for
+                E1 and E2 respectively.
+        """
         e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
         e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
         exchange1 = self._config.exchange1

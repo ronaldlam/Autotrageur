@@ -1,6 +1,6 @@
 from autotrageur.bot.arbitrage.autotrageur import Configuration
 from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyState
-from autotrageur.bot.arbitrage.fcf.fcf_stat_tracker import AbstractStatTracker
+from autotrageur.bot.arbitrage.fcf.fcf_stat_tracker import FCFStatTracker
 from autotrageur.version import VERSION
 
 # Constants
@@ -85,11 +85,11 @@ class FCFCheckpoint():
                 checkpoint.
 
         Raises:
-            TypeError: Raised if a class or subclass of AbstractStatTracker.
+            TypeError: Raised if not a class or subclass of FCFStatTracker.
         """
-        if not isinstance(stat_tracker, AbstractStatTracker):
+        if not isinstance(stat_tracker, FCFStatTracker):
             raise TypeError("a stat tracker must be a subclass of "
-                "AbstractStatTracker.")
+                "FCFStatTracker.")
         self._stat_tracker = stat_tracker
 
     @property

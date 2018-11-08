@@ -54,7 +54,7 @@ def pickle_fcf_checkpoint(checkpoint):
             any additional kwargs such as version).
     """
     attr_map = _form_fcf_attr_map(checkpoint)
-    attr_map['version'] = CURRENT_FCF_CHECKPOINT_VERSION
+    attr_map['version'] = str(CURRENT_FCF_CHECKPOINT_VERSION)
     return unpickle_fcf_checkpoint, (attr_map,)
 
 
@@ -94,11 +94,11 @@ def unpickle_fcf_checkpoint(kwargs):
         FCFCheckpoint: An FCFCheckpoint object, restored with the serialized
             attributes.
     """
-    version = kwargs.pop('version', 1)
+    version = kwargs.pop('version', '1')
     # In the future, logic with different versions will be done here.
     if v_convert(version) < v_convert('1.1.2'):
         # FCFCheckpoint changed to contain a StatTracker object instead of
-        # a DryRunManager.
-        # TODO: Just remove the DryRunMananger?
-        pass
+        # a DryRunManager.  We just pop off the DryRunManager to make sure that
+        # the FCFCheckpoint at least constructs correctly.
+        kwargs.pop('dry_run_manager', None)
     return FCFCheckpoint(**kwargs)

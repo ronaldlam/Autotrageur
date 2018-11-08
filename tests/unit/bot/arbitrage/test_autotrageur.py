@@ -10,10 +10,11 @@ import yaml
 import autotrageur.bot.arbitrage.autotrageur
 import fp_libs.db.maria_db_handler as db_handler
 from autotrageur.bot.arbitrage.autotrageur import (Autotrageur,
-                                       AutotrageurAuthenticationError)
+                                                   AutotrageurAuthenticationError)
 from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
-from autotrageur.bot.trader.dry_run import DryRunExchange, DryRunManager
+from autotrageur.bot.trader.dry_run import DryRunExchange
 from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
+from fp_libs.utilities import num_to_decimal
 from fp_libs.utils.ccxt_utils import RetryableError
 
 OpenAndSafeLoad = namedtuple('OpenAndSafeLoad', ['open', 'safe_load'])
@@ -182,28 +183,37 @@ def test_load_env_vars(mocker, mock_autotrageur, env_path_exists, env_path_loade
     assert result is (env_path_exists and env_path_loaded and env_var_loaded)
 
 
-@pytest.mark.parametrize("resume_id", [None, 'abcdef'])
-@pytest.mark.parametrize("dryrun", [True, False])
-def test_setup_dry_run(mocker, mock_autotrageur, resume_id, dryrun):
-    dry_run_exchange_init = mocker.patch.object(
-        DryRunExchange, '__init__', return_value=None)
-    dry_run_manager_init = mocker.patch.object(
-        DryRunManager, '__init__', return_value=None)
-    mocker.patch.object(mock_autotrageur._config, 'dryrun', dryrun)
-    mocker.patch.object(mock_autotrageur._config, 'exchange1_pair', 'ETH/USD')
-    mocker.patch.object(mock_autotrageur._config, 'exchange2_pair', 'ETH/KRW')
+def test_setup_dry_run_exchanges(mocker, mock_autotrageur):
+    MOCK_E1 = 'Gemini'
+    MOCK_E2 = 'Bithumb'
+    MOCK_E1_PAIR = 'ETH/USD'
+    MOCK_E2_PAIR = 'ETH/KRW'
+    MOCK_E1_BASE_BAL = 5
+    MOCK_E1_QUOTE_BAL = 2000
+    MOCK_E2_BASE_BAL = 10
+    MOCK_E2_QUOTE_BAL = 20000
 
-    mock_autotrageur._Autotrageur__setup_dry_run(resume_id)
+    mocker.patch.object(mock_autotrageur._config, 'exchange1', MOCK_E1)
+    mocker.patch.object(mock_autotrageur._config, 'exchange2', MOCK_E2)
+    mocker.patch.object(mock_autotrageur._config, 'exchange1_pair', MOCK_E1_PAIR)
+    mocker.patch.object(mock_autotrageur._config, 'exchange2_pair', MOCK_E2_PAIR)
+    mocker.patch.object(mock_autotrageur._config, 'dryrun_e1_base', MOCK_E1_BASE_BAL)
+    mocker.patch.object(mock_autotrageur._config, 'dryrun_e1_quote', MOCK_E1_QUOTE_BAL)
+    mocker.patch.object(mock_autotrageur._config, 'dryrun_e2_base', MOCK_E2_BASE_BAL)
+    mocker.patch.object(mock_autotrageur._config, 'dryrun_e2_quote', MOCK_E2_QUOTE_BAL)
 
-    if resume_id and dryrun:
-        assert dry_run_exchange_init.call_count == 0
-        assert dry_run_manager_init.call_count == 0
-    elif dryrun:
-        assert dry_run_exchange_init.call_count == 2
-        assert dry_run_manager_init.call_count == 1
-        assert isinstance(mock_autotrageur._dry_run_manager, DryRunManager)
-    else:
-        assert mock_autotrageur._dry_run_manager is None
+    mock_dry_e1, mock_dry_e2 = mock_autotrageur._Autotrageur__setup_dry_run_exchanges()
+
+    assert mock_dry_e1.name == MOCK_E1
+    assert mock_dry_e1.base == 'ETH'
+    assert mock_dry_e1.quote == 'USD'
+    assert mock_dry_e1.base_balance == num_to_decimal(MOCK_E1_BASE_BAL)
+    assert mock_dry_e1.quote_balance == num_to_decimal(MOCK_E1_QUOTE_BAL)
+    assert mock_dry_e2.name == MOCK_E2
+    assert mock_dry_e2.base == 'ETH'
+    assert mock_dry_e2.quote == 'KRW'
+    assert mock_dry_e2.base_balance == num_to_decimal(MOCK_E2_BASE_BAL)
+    assert mock_dry_e2.quote_balance == num_to_decimal(MOCK_E2_QUOTE_BAL)
 
 @pytest.mark.parametrize('exc_type', [ccxt.AuthenticationError, ccxt.ExchangeNotAvailable])
 @pytest.mark.parametrize('balance_check_success', [True, False])
@@ -237,12 +247,10 @@ def test_setup_traders(mocker, mock_autotrageur, dryrun, use_test_api,
     mocker.patch.object(mock_autotrageur._config, 'slippage', fake_slippage)
     mocker.patch.object(mock_autotrageur._config, 'use_test_api', use_test_api)
     mocker.patch.object(mock_autotrageur._config, 'dryrun', dryrun)
+    mock_setup_dr_exchanges = mocker.patch.object(
+        mock_autotrageur, '_Autotrageur__setup_dry_run_exchanges')
     if dryrun:
-        mocker.patch.object(
-            mock_autotrageur,
-            '_dry_run_manager',
-            DryRunManager(mocker.Mock(), mocker.Mock()),
-            create=True)
+        mock_setup_dr_exchanges.return_value = mocker.Mock(), mocker.Mock()
 
     # If wallet balance fetch fails, expect either ccxt.AuthenticationError or
     # ccxt.ExchangeNotAvailable to be raised.
@@ -262,6 +270,11 @@ def test_setup_traders(mocker, mock_autotrageur, dryrun, use_test_api,
         assert(mock_trader1.load_markets.call_count == 1)
         assert(mock_trader2.load_markets.call_count == 1)
 
+    if dryrun:
+        assert mock_setup_dr_exchanges.call_count == 1
+    else:
+        assert mock_setup_dr_exchanges.call_count == 0
+
     if use_test_api:
         assert(mock_trader1.connect_test_api.call_count == 1)
         assert(mock_trader2.connect_test_api.call_count == 1)
@@ -275,12 +288,10 @@ def test_post_setup(mocker, mock_autotrageur):
     MOCK_EXCHANGE_KEY_MAP = mocker.Mock()
     mock_parse_keyfile = mocker.patch.object(
         mock_autotrageur, '_Autotrageur__parse_keyfile', return_value=MOCK_EXCHANGE_KEY_MAP)
-    mock_setup_dry_run = mocker.patch.object(mock_autotrageur, '_Autotrageur__setup_dry_run')
     mock_setup_traders = mocker.patch.object(mock_autotrageur, '_Autotrageur__setup_traders')
 
     mock_autotrageur._post_setup(args)
     mock_parse_keyfile.assert_called_once_with(args['KEYFILE'], args['--pi_mode'])
-    mock_setup_dry_run.assert_called_once_with(args['--resume_id'])
     mock_setup_traders.assert_called_once_with(MOCK_EXCHANGE_KEY_MAP)
 
 
@@ -378,8 +389,8 @@ class TestRunAutotrageur:
         retry_counter_instance = mock_counter.return_value
 
         if dryrun:
-            mocker.patch.object(mock_autotrageur, '_dry_run_manager', create=True)
-            mocker.patch.object(mock_autotrageur._dry_run_manager, 'log_all', create=True)
+            mocker.patch.object(mock_autotrageur, '_stat_tracker', create=True)
+            mocker.patch.object(mock_autotrageur._stat_tracker, 'log_all', create=True)
             mock_autotrageur.run_autotrageur(self.FAKE_ARGS_NEW_RUN)
         else:
             with pytest.raises(KeyboardInterrupt):
@@ -397,7 +408,7 @@ class TestRunAutotrageur:
         assert retry_counter_instance.increment.call_count == 3
 
         if dryrun:
-            mock_autotrageur._dry_run_manager.log_all.assert_called_once_with()
+            mock_autotrageur._stat_tracker.log_all.assert_called_once_with()
 
     @pytest.mark.parametrize("exc_type", [
         AutotrageurAuthenticationError,
@@ -414,7 +425,6 @@ class TestRunAutotrageur:
         mocker.patch.object(mock_autotrageur._config, 'dryrun', dryrun)
 
         if dryrun:
-            mocker.patch.object(mock_autotrageur, '_dry_run_manager', create=True)
             with pytest.raises(exc_type):
                 mock_autotrageur.run_autotrageur(self.FAKE_ARGS_NEW_RUN)
             mock_autotrageur._alert.assert_called_once()
@@ -424,7 +434,7 @@ class TestRunAutotrageur:
 
             mocker.spy(mock_autotrageur, 'original_run_autotrageur')
             mocker.patch.object(mock_autotrageur, 'run_autotrageur')
-            mocker.patch.object(mock_autotrageur, '_dry_run_manager', None, create=True)
+
             mock_autotrageur.original_run_autotrageur(self.FAKE_ARGS_NEW_RUN)
 
             mock_autotrageur._alert.assert_called_once()

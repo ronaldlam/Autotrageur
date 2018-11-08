@@ -28,22 +28,24 @@ CREATE TABLE IF NOT EXISTS fcf_measures (
     id VARCHAR(36) NOT NULL,
     autotrageur_config_id VARCHAR(36) NOT NULL,
     autotrageur_config_start_timestamp INT(11) UNSIGNED NOT NULL,
+    autotrageur_stop_timestamp INT(11) UNSIGNED NOT NULL,
     central_currency CHAR(3) NOT NULL,
-    e1_start_bal_fiat DECIMAL(27, 8) UNSIGNED NOT NULL,
-    e1_close_bal_fiat DECIMAL(27, 8) UNSIGNED NOT NULL,
-    e2_start_bal_fiat DECIMAL(27, 8) UNSIGNED NOT NULL,
-    e2_close_bal_fiat DECIMAL(27, 8) UNSIGNED NOT NULL,
-    e1_start_bal_crypto DECIMAL(27, 8) UNSIGNED NOT NULL,
-    e1_close_bal_crypto DECIMAL(27, 8) UNSIGNED NOT NULL,
-    e2_start_bal_crypto DECIMAL(27, 8) UNSIGNED NOT NULL,
-    e2_close_bal_crypto DECIMAL(27, 8) UNSIGNED NOT NULL,
-    total_poll_success_rate DECIMAL(5, 4) UNSIGNED NOT NULL,
+    e1_start_bal_base DECIMAL(27, 8) NOT NULL,
+    e1_close_bal_base DECIMAL(27, 8) NOT NULL,
+    e2_start_bal_base DECIMAL(27, 8) NOT NULL,
+    e2_close_bal_base DECIMAL(27, 8) NOT NULL,
+    e1_start_bal_quote DECIMAL(27, 8) NOT NULL,
+    e1_close_bal_quote DECIMAL(27, 8) NOT NULL,
+    e2_start_bal_quote DECIMAL(27, 8) NOT NULL,
+    e2_close_bal_quote DECIMAL(27, 8) NOT NULL,
+    num_fatal_errors INT(9) UNSIGNED NOT NULL,
+    trade_count INT(11) UNSIGNED NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT `fk_fcf_measures_fcf_autotrageur_config`
         FOREIGN KEY (autotrageur_config_id, autotrageur_config_start_timestamp) REFERENCES fcf_autotrageur_config (id, start_timestamp)
         ON DELETE CASCADE
-        ON UPDATE CASCADE,
-)
+        ON UPDATE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS forex_rate (
     id VARCHAR(36) NOT NULL,

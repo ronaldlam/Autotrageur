@@ -1,5 +1,3 @@
-import logging
-
 from fp_libs.constants.decimal_constants import ZERO
 from fp_libs.utilities import num_to_decimal
 
@@ -27,9 +25,6 @@ class DryRunExchange():
         self.quote = quote
         self.base_balance = num_to_decimal(base_balance)
         self.quote_balance = num_to_decimal(quote_balance)
-        # TODO: Are base_volume and quote_volume necessary?
-        self.base_volume = ZERO
-        self.quote_volume = ZERO
         self.base_fees = ZERO
         self.quote_fees = ZERO
         self.trade_count = 0
@@ -51,8 +46,6 @@ class DryRunExchange():
                 self.quote)
         self.base_balance += post_fee_base
         self.quote_balance -= post_fee_quote
-        self.base_volume += pre_fee_base
-        self.quote_volume += pre_fee_quote
         self.base_fees += pre_fee_base - post_fee_base
         self.quote_fees += post_fee_quote - pre_fee_quote
         self.trade_count += 1
@@ -74,7 +67,5 @@ class DryRunExchange():
                 self.base)
         self.base_balance -= base_amount
         self.quote_balance += post_fee_quote
-        self.base_volume += base_amount
-        self.quote_volume += pre_fee_quote
         self.quote_fees += pre_fee_quote - post_fee_quote
         self.trade_count += 1
