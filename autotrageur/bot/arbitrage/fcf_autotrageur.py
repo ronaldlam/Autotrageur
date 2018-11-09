@@ -42,7 +42,7 @@ from fp_libs.email_client.simple_email_client import send_all_emails
 from fp_libs.fiat_symbols import FIAT_SYMBOLS
 from fp_libs.twilio.twilio_client import TwilioClient
 from fp_libs.utilities import num_to_decimal
-from fp_libs.utils.logging_utils import fancy_log
+from fp_libs.logging.logging_utils import fancy_log
 
 # Default error message for phone call.
 DEFAULT_PHONE_MESSAGE = "Please check logs and e-mail for full stack trace."
@@ -267,7 +267,6 @@ class FCFAutotrageur(Autotrageur):
             'autotrageur_config_id': self._config.id,
             'autotrageur_config_start_timestamp': self._config.start_timestamp,
             'autotrageur_stop_timestamp': self._config.start_timestamp,
-            'central_currency': 'USD',
             'e1_start_bal_base': self.trader1.base_bal,
             'e1_close_bal_base': self.trader1.base_bal,
             'e2_start_bal_base': self.trader2.base_bal,

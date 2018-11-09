@@ -25,7 +25,7 @@ from fp_libs.security.encryption import decrypt
 from fp_libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
                                to_bytes, to_str)
 from fp_libs.utils.ccxt_utils import RetryableError, RetryCounter
-from fp_libs.utils.logging_utils import fancy_log
+from fp_libs.logging.logging_utils import fancy_log
 
 # Program argument constants.
 CONFIGFILE = 'CONFIGFILE'
