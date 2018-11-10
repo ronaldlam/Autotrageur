@@ -202,26 +202,40 @@ class Autotrageur(ABC):
                 logging.info("**Dry run: continuing with program")
                 return None
 
-    def __setup_dry_run_exchanges(self):
+    def __setup_dry_run_exchanges(self, resume_id):
         """Sets up the DryRunExchanges which emulate the exchanges and trade
         updates.
+
+        Args:
+            resume_id (str): The unique ID used to resume the bot from a
+                previous run.
 
         Returns:
             (tuple(DryRunExchange, DryRunExchange)): The DryRunExchanges for
                 E1 and E2 respectively.
         """
-        e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
-        e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
-        exchange1 = self._config.exchange1
-        exchange2 = self._config.exchange2
-        e1_base_balance = self._config.dryrun_e1_base
-        e1_quote_balance = self._config.dryrun_e1_quote
-        e2_base_balance = self._config.dryrun_e2_base
-        e2_quote_balance = self._config.dryrun_e2_quote
-        dry_e1 = DryRunExchange(exchange1, e1_base, e1_quote,
-                                e1_base_balance, e1_quote_balance)
-        dry_e2 = DryRunExchange(exchange2, e2_base, e2_quote,
-                                e2_base_balance, e2_quote_balance)
+        if resume_id:
+            # TODO: A design flaw as to where we should init the
+            # StatTracker.  It is initialized in the subclass, but
+            # we are using it here. Thus, the "no member" lint error.
+            #
+            # Perhaps we should strongly consider initializing Traders
+            # at fcf level too.
+            dry_e1 = self._stat_tracker.dry_run_e1
+            dry_e2 = self._stat_tracker.dry_run_e2
+        else:
+            e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
+            e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
+            exchange1 = self._config.exchange1
+            exchange2 = self._config.exchange2
+            e1_base_balance = self._config.dryrun_e1_base
+            e1_quote_balance = self._config.dryrun_e1_quote
+            e2_base_balance = self._config.dryrun_e2_base
+            e2_quote_balance = self._config.dryrun_e2_quote
+            dry_e1 = DryRunExchange(exchange1, e1_base, e1_quote,
+                                    e1_base_balance, e1_quote_balance)
+            dry_e2 = DryRunExchange(exchange2, e2_base, e2_quote,
+                                    e2_base_balance, e2_quote_balance)
         return dry_e1, dry_e2
 
     def __setup_traders(self, exchange_key_map, resume_id):
@@ -272,17 +286,7 @@ class Autotrageur(ABC):
 
         # Set up DryRunExchanges.
         if self._config.dryrun:
-            if resume_id:
-                # TODO: A design flaw as to where we should init the
-                # StatTracker.  It is initialized in the subclass, but
-                # we are using it here. Thus, the "no member" lint error.
-                #
-                # Perhaps we should strongly consider initializing Traders
-                # at fcf level too.
-                dry_e1 = self._stat_tracker.dry_run_e1
-                dry_e2 = self._stat_tracker.dry_run_e2
-            else:
-                dry_e1, dry_e2 = self.__setup_dry_run_exchanges()
+            dry_e1, dry_e2 = self.__setup_dry_run_exchanges(resume_id)
         else:
             dry_e1 = None
             dry_e2 = None

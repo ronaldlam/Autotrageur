@@ -182,8 +182,8 @@ def test_load_env_vars(mocker, mock_autotrageur, env_path_exists, env_path_loade
     result = mock_autotrageur._Autotrageur__load_env_vars()
     assert result is (env_path_exists and env_path_loaded and env_var_loaded)
 
-
-def test_setup_dry_run_exchanges(mocker, mock_autotrageur):
+@pytest.mark.parametrize('resume_id', [None, 'abcdef'])
+def test_setup_dry_run_exchanges(mocker, mock_autotrageur, resume_id):
     MOCK_E1 = 'Gemini'
     MOCK_E2 = 'Bithumb'
     MOCK_E1_PAIR = 'ETH/USD'
@@ -201,19 +201,24 @@ def test_setup_dry_run_exchanges(mocker, mock_autotrageur):
     mocker.patch.object(mock_autotrageur._config, 'dryrun_e1_quote', MOCK_E1_QUOTE_BAL)
     mocker.patch.object(mock_autotrageur._config, 'dryrun_e2_base', MOCK_E2_BASE_BAL)
     mocker.patch.object(mock_autotrageur._config, 'dryrun_e2_quote', MOCK_E2_QUOTE_BAL)
+    mock_stat_tracker = mocker.patch.object(mock_autotrageur, '_stat_tracker', create=True)
 
-    mock_dry_e1, mock_dry_e2 = mock_autotrageur._Autotrageur__setup_dry_run_exchanges()
+    mock_dry_e1, mock_dry_e2 = mock_autotrageur._Autotrageur__setup_dry_run_exchanges(resume_id)
 
-    assert mock_dry_e1.name == MOCK_E1
-    assert mock_dry_e1.base == 'ETH'
-    assert mock_dry_e1.quote == 'USD'
-    assert mock_dry_e1.base_balance == num_to_decimal(MOCK_E1_BASE_BAL)
-    assert mock_dry_e1.quote_balance == num_to_decimal(MOCK_E1_QUOTE_BAL)
-    assert mock_dry_e2.name == MOCK_E2
-    assert mock_dry_e2.base == 'ETH'
-    assert mock_dry_e2.quote == 'KRW'
-    assert mock_dry_e2.base_balance == num_to_decimal(MOCK_E2_BASE_BAL)
-    assert mock_dry_e2.quote_balance == num_to_decimal(MOCK_E2_QUOTE_BAL)
+    if resume_id:
+        assert mock_dry_e1 is mock_stat_tracker.dry_run_e1
+        assert mock_dry_e2 is mock_stat_tracker.dry_run_e2
+    else:
+        assert mock_dry_e1.name == MOCK_E1
+        assert mock_dry_e1.base == 'ETH'
+        assert mock_dry_e1.quote == 'USD'
+        assert mock_dry_e1.base_balance == num_to_decimal(MOCK_E1_BASE_BAL)
+        assert mock_dry_e1.quote_balance == num_to_decimal(MOCK_E1_QUOTE_BAL)
+        assert mock_dry_e2.name == MOCK_E2
+        assert mock_dry_e2.base == 'ETH'
+        assert mock_dry_e2.quote == 'KRW'
+        assert mock_dry_e2.base_balance == num_to_decimal(MOCK_E2_BASE_BAL)
+        assert mock_dry_e2.quote_balance == num_to_decimal(MOCK_E2_QUOTE_BAL)
 
 @pytest.mark.parametrize('exc_type', [ccxt.AuthenticationError, ccxt.ExchangeNotAvailable])
 @pytest.mark.parametrize('balance_check_success', [True, False])
@@ -258,13 +263,13 @@ def test_setup_traders(mocker, mock_autotrageur, dryrun, use_test_api,
         # For testing purposes, only need one trader to throw an exception.
         mock_trader1.update_wallet_balances.side_effect = exc_type
         with pytest.raises(AutotrageurAuthenticationError):
-            mock_autotrageur._Autotrageur__setup_traders(fake_exchange_key_map)
+            mock_autotrageur._Autotrageur__setup_traders(fake_exchange_key_map, None)
 
         # Expect called once and encountered exception.
         mock_trader1.update_wallet_balances.assert_called_once_with()
         mock_trader2.update_wallet_balances.assert_not_called()
     else:
-        mock_autotrageur._Autotrageur__setup_traders(fake_exchange_key_map)
+        mock_autotrageur._Autotrageur__setup_traders(fake_exchange_key_map, None)
         mock_trader1.update_wallet_balances.assert_called_once_with()
         mock_trader2.update_wallet_balances.assert_called_once_with()
         assert(mock_trader1.load_markets.call_count == 1)
@@ -292,7 +297,7 @@ def test_post_setup(mocker, mock_autotrageur):
 
     mock_autotrageur._post_setup(args)
     mock_parse_keyfile.assert_called_once_with(args['KEYFILE'], args['--pi_mode'])
-    mock_setup_traders.assert_called_once_with(MOCK_EXCHANGE_KEY_MAP)
+    mock_setup_traders.assert_called_once_with(MOCK_EXCHANGE_KEY_MAP, args['--resume_id'])
 
 
 @pytest.mark.parametrize('env_vars_loaded', [True, False])

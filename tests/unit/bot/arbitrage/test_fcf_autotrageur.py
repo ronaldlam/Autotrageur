@@ -19,6 +19,7 @@ import autotrageur.bot.arbitrage.arbseeker as arbseeker
 import autotrageur.bot.arbitrage.fcf_autotrageur
 import fp_libs.db.maria_db_handler as db_handler
 from autotrageur.bot.arbitrage.arbseeker import SpreadOpportunity
+from autotrageur.bot.arbitrage.fcf.fcf_stat_tracker import FCFStatTracker
 from autotrageur.bot.arbitrage.fcf.strategy import TradeMetadata
 from autotrageur.bot.arbitrage.fcf_autotrageur import (DEFAULT_PHONE_MESSAGE,
                                                        FCFAlertError,
@@ -598,11 +599,16 @@ def test_clean_up(mocker, no_patch_fcf_autotrageur):
 
 
 def test_export_state(mocker, no_patch_fcf_autotrageur, fcf_checkpoint):
-    FAKE_STAT_TRACKER = Mock()
+    mocker.patch.object(no_patch_fcf_autotrageur, 'trader1', create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur, 'trader2', create=True)
+    FAKE_STAT_TRACKER = FCFStatTracker(
+        None, no_patch_fcf_autotrageur.trader1, no_patch_fcf_autotrageur.trader2)
     mocker.patch.object(no_patch_fcf_autotrageur._config, 'id', FAKE_CONFIG_UUID)
     mocker.patch.object(no_patch_fcf_autotrageur._config, 'start_timestamp', FAKE_CURR_TIME)
     mocker.patch.object(no_patch_fcf_autotrageur, 'checkpoint', fcf_checkpoint, create=True)
     mocker.patch.object(no_patch_fcf_autotrageur, '_stat_tracker', FAKE_STAT_TRACKER, create=True)
+    mocker.patch.object(no_patch_fcf_autotrageur._stat_tracker, 'detach_traders')
+    mocker.patch.object(no_patch_fcf_autotrageur._stat_tracker, 'attach_traders')
 
     # Need to mock out to prevent test dying on logging call.
     mocker.patch.object(
@@ -633,8 +639,12 @@ def test_export_state(mocker, no_patch_fcf_autotrageur, fcf_checkpoint):
         autotrageur.bot.arbitrage.fcf.fcf_checkpoint.FCFCheckpoint,
         autotrageur.bot.arbitrage.fcf.fcf_checkpoint_utils.pickle_fcf_checkpoint)
 
+    no_patch_fcf_autotrageur._stat_tracker.detach_traders.assert_called_once_with()
+    assert no_patch_fcf_autotrageur.checkpoint._stat_tracker is FAKE_STAT_TRACKER
     db_handler.insert_row.assert_called_once_with(fcf_state_row_obj)
     db_handler.commit_all.assert_called_once_with()
+    no_patch_fcf_autotrageur._stat_tracker.attach_traders.assert_called_once_with(
+        no_patch_fcf_autotrageur.trader1, no_patch_fcf_autotrageur.trader2)
 
 
 @pytest.mark.parametrize('correct_state_obj_type', [True, False])
@@ -667,8 +677,11 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur):
     mock_strategy.poll_opportunity.assert_called_once_with()
 
 
-def test_post_setup(mocker, no_patch_fcf_autotrageur):
-    arguments = mocker.MagicMock()
+@pytest.mark.parametrize('resume_id', [None, 'abcdef'])
+def test_post_setup(mocker, no_patch_fcf_autotrageur, resume_id):
+    arguments = {
+        '--resume_id': resume_id
+    }
     FAKE_BALANCE_CHECKER = mocker.Mock()
     mocker.patch.object(no_patch_fcf_autotrageur, 'trader1', create=True)
     mocker.patch.object(no_patch_fcf_autotrageur, 'trader2', create=True)
@@ -683,6 +696,8 @@ def test_post_setup(mocker, no_patch_fcf_autotrageur):
         no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_config')
     mock_setup_stat_tracker = mocker.patch.object(
         no_patch_fcf_autotrageur, '_FCFAutotrageur__setup_stat_tracker')
+    mocker.patch.object(no_patch_fcf_autotrageur, '_stat_tracker')
+    mock_attach_traders = mocker.patch.object(no_patch_fcf_autotrageur._stat_tracker, 'attach_traders')
     mock_balance_checker_constructor = mocker.patch(
         'autotrageur.bot.arbitrage.fcf_autotrageur.FCFBalanceChecker',
         return_value=FAKE_BALANCE_CHECKER)
@@ -695,6 +710,11 @@ def test_post_setup(mocker, no_patch_fcf_autotrageur):
     mock_setup_forex.assert_called_once_with()
     mock_persist_config.assert_called_once_with()
     mock_setup_stat_tracker.assert_called_once_with(arguments['--resume_id'])
+    if resume_id:
+        mock_attach_traders.assert_called_once_with(
+            no_patch_fcf_autotrageur.trader1, no_patch_fcf_autotrageur.trader2)
+    else:
+        mock_attach_traders.assert_not_called()
     mock_balance_checker_constructor.assert_called_once_with(
         no_patch_fcf_autotrageur.trader1,
         no_patch_fcf_autotrageur.trader2,
