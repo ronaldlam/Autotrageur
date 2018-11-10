@@ -4,8 +4,8 @@ from autotrageur.bot.trader.dry_run import DryRunManager
 from autotrageur.version import VERSION
 
 # Constants
-MAJOR, MINOR, HOTFIX, *REMAINDER = VERSION
-CURRENT_FCF_CHECKPOINT_VERSION = '{}.{}'.format(MAJOR, MINOR)
+MAJOR, MINOR, HOTFIX, *REMAINDER = VERSION.split('.')
+CURRENT_FCF_CHECKPOINT_VERSION = '{}.{}.{}'.format(MAJOR, MINOR, HOTFIX)
 
 
 class FCFCheckpoint():
