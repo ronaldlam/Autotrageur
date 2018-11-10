@@ -147,23 +147,36 @@ def test_init_db(mocker, mock_autotrageur, mock_open_yaml):
     schedule.clear()
 
 
+def test_init_temp_logger(mocker, mock_autotrageur):
+    mock_setup_temp_logger = mocker.patch.object(
+        autotrageur.bot.arbitrage.autotrageur.bot_logging,
+        'setup_temporary_logger')
+
+    mock_autotrageur._Autotrageur__init_temp_logger()
+
+    assert mock_autotrageur.logger == mock_setup_temp_logger.return_value
+
+
 @pytest.mark.parametrize('dryrun, use_test_api, result_log_dir', [
     (True, True, 'dryrun-test'),
     (True, False, 'dryrun'),
     (False, True, 'test'),
     (False, False, 'live'),
 ])
-def test_init_logger(mocker, mock_autotrageur, dryrun, use_test_api,
+def test_init_complete_logger(mocker, mock_autotrageur, dryrun, use_test_api,
                      result_log_dir):
+    mock_logger = mocker.Mock()
+    mocker.patch.object(mock_autotrageur, 'logger', mock_logger, create=True)
     mocker.patch.object(mock_autotrageur._config, 'dryrun', dryrun)
     mocker.patch.object(mock_autotrageur._config, 'use_test_api', use_test_api)
     mock_setup_background_logger = mocker.patch.object(
         autotrageur.bot.arbitrage.autotrageur.bot_logging,
         'setup_background_logger')
 
-    mock_autotrageur._Autotrageur__init_logger()
+    mock_autotrageur._Autotrageur__init_complete_logger()
 
-    mock_setup_background_logger.assert_called_once_with(result_log_dir, mock_autotrageur._config.id)
+    mock_setup_background_logger.assert_called_once_with(
+        mock_logger, result_log_dir, mock_autotrageur._config.id)
     mock_setup_background_logger.return_value.queue_listener.start.assert_called_once()
 
 
@@ -288,7 +301,10 @@ def test_post_setup(mocker, mock_autotrageur):
     MOCK_EXCHANGE_KEY_MAP = mocker.Mock()
     mock_parse_keyfile = mocker.patch.object(
         mock_autotrageur, '_Autotrageur__parse_keyfile', return_value=MOCK_EXCHANGE_KEY_MAP)
-    mock_setup_traders = mocker.patch.object(mock_autotrageur, '_Autotrageur__setup_traders')
+    mock_setup_traders = mocker.patch.object(
+        mock_autotrageur, '_Autotrageur__setup_traders')
+    mock_init_logger = mocker.patch.object(
+        mock_autotrageur, '_Autotrageur__init_complete_logger')
 
     mock_autotrageur._post_setup(args)
     mock_parse_keyfile.assert_called_once_with(args['KEYFILE'], args['--pi_mode'])
@@ -298,7 +314,7 @@ def test_post_setup(mocker, mock_autotrageur):
 @pytest.mark.parametrize('env_vars_loaded', [True, False])
 def test_setup(mocker, mock_autotrageur, env_vars_loaded):
     args = mocker.MagicMock()
-    mock_init_logger = mocker.patch.object(mock_autotrageur, '_Autotrageur__init_logger')
+    mock_init_logger = mocker.patch.object(mock_autotrageur, '_Autotrageur__init_temp_logger')
     mock_load_env_vars = mocker.patch.object(
         mock_autotrageur, '_Autotrageur__load_env_vars', return_value=env_vars_loaded)
     mock_init_db = mocker.patch.object(mock_autotrageur, '_Autotrageur__init_db')

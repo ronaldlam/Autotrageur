@@ -21,11 +21,11 @@ from autotrageur.bot.trader.ccxt_trader import CCXTTrader
 from autotrageur.bot.trader.dry_run import DryRunExchange
 from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from fp_libs.logging import bot_logging
+from fp_libs.logging.logging_utils import fancy_log
 from fp_libs.security.encryption import decrypt
 from fp_libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
                                to_bytes, to_str)
 from fp_libs.utils.ccxt_utils import RetryableError, RetryCounter
-from fp_libs.logging.logging_utils import fancy_log
 
 # Program argument constants.
 CONFIGFILE = 'CONFIGFILE'
@@ -129,7 +129,11 @@ class Autotrageur(ABC):
             db_info[DB_NAME])
         schedule.every(7).hours.do(db_handler.ping_db)
 
-    def __init_logger(self):
+    def __init_temp_logger(self):
+        """Starts the temporary in-memory logger."""
+        self.logger = bot_logging.setup_temporary_logger()
+
+    def __init_complete_logger(self):
         """Starts the background logger.
 
         Note that configs must be loaded.
@@ -144,7 +148,7 @@ class Autotrageur(ABC):
             log_dir = 'live'
 
         self.logger = bot_logging.setup_background_logger(
-            log_dir, self._config.id)
+            self.logger, log_dir, self._config.id)
 
         # Start listening for logs.
         self.logger.queue_listener.start()
@@ -340,6 +344,9 @@ class Autotrageur(ABC):
         Args:
             arguments (dict): Map of the arguments passed to the program.
         """
+        # Complete the background logger setup.
+        self.__init_complete_logger()
+
         # Parse keyfile into a dict.
         exchange_key_map = self.__parse_keyfile(
             arguments[KEYFILE], arguments['--pi_mode'])
@@ -362,7 +369,7 @@ class Autotrageur(ABC):
         Args:
             arguments (dict): Map of the arguments passed to the program.
         """
-        self.__init_logger()
+        self.__init_temp_logger()
 
         # Load environment variables.
         if not self.__load_env_vars():
