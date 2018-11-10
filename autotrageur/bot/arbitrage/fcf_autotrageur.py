@@ -40,9 +40,10 @@ from fp_libs.constants.decimal_constants import TEN, ZERO
 from fp_libs.db.maria_db_handler import InsertRowObject
 from fp_libs.email_client.simple_email_client import send_all_emails
 from fp_libs.fiat_symbols import FIAT_SYMBOLS
+from fp_libs.logging import bot_logging
+from fp_libs.logging.logging_utils import fancy_log
 from fp_libs.twilio.twilio_client import TwilioClient
 from fp_libs.utilities import num_to_decimal
-from fp_libs.logging.logging_utils import fancy_log
 
 # Default error message for phone call.
 DEFAULT_PHONE_MESSAGE = "Please check logs and e-mail for full stack trace."
@@ -83,6 +84,26 @@ class FCFAutotrageur(Autotrageur):
     specified target high; vice versa if the calculated spread is less
     than the specified target low.
     """
+    def __init_logger(self):
+        """Starts the background logger.
+
+        Note that configs must be loaded.
+        """
+        if self._config.dryrun and self._config.use_test_api:
+            log_dir = 'dryrun-test'
+        elif self._config.dryrun:
+            log_dir = 'dryrun'
+        elif self._config.use_test_api:
+            log_dir = 'test'
+        else:
+            log_dir = 'live'
+
+        self.logger = bot_logging.setup_background_logger(
+            log_dir, self._config.id)
+
+        # Start listening for logs.
+        self.logger.queue_listener.start()
+
     def __load_twilio(self, twilio_cfg_path):
         """Loads the Twilio configuration file and tests the connection to
         Twilio APIs.
@@ -601,6 +622,10 @@ class FCFAutotrageur(Autotrageur):
         if resume_id:
             self._import_state(resume_id)
             self._config = self.checkpoint.config
+
+            # We need the config to initialize the logger, so we initialize it
+            # here after the config has been imported back.
+            self.__init_logger()
             self._strategy = self.__construct_strategy()
             self.checkpoint.restore_strategy(self._strategy)
             self._stat_tracker = self.checkpoint.stat_tracker
@@ -610,6 +635,8 @@ class FCFAutotrageur(Autotrageur):
                     self._strategy.state,
                     self._stat_tracker))
         else:
+            self.__init_logger()
+
             # Initialize a Checkpoint object to hold state.
             self.checkpoint = FCFCheckpoint(self._config)
 

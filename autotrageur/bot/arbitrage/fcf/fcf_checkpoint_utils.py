@@ -95,10 +95,11 @@ def unpickle_fcf_checkpoint(kwargs):
             attributes.
     """
     version = kwargs.pop('version', '1')
+    print("The version is: {}".format(version))
     # In the future, logic with different versions will be done here.
-    if v_convert(version) < v_convert('1.1.2'):
-        # FCFCheckpoint changed to contain a StatTracker object instead of
-        # a DryRunManager.  We just pop off the DryRunManager to make sure that
-        # the FCFCheckpoint at least constructs correctly.
-        kwargs.pop('dry_run_manager', None)
+    # if v_convert(version) < v_convert('1.1.2'):
+    #     # FCFCheckpoint changed to contain a StatTracker object instead of
+    #     # a DryRunManager.  We just pop off the DryRunManager to make sure that
+    #     # the FCFCheckpoint at least constructs correctly.
+    #     kwargs.pop('dry_run_manager', None)
     return FCFCheckpoint(**kwargs)
