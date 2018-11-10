@@ -20,7 +20,31 @@ class FCFStatTracker():
         self.id = new_id
         self.e1 = e1_trader
         self.e2 = e2_trader
+        self.dry_run_e1 = e1_trader.dry_run_exchange
+        self.dry_run_e2 = e2_trader.dry_run_exchange
         self.trade_count = 0
+
+    def attach_traders(self, e1_trader, e2_trader):
+        """Attaches initialized traders to the StatTracker.
+
+        Args:
+            e1_trader (CCXTTrader): The Trader object responsible for E1.  Used
+                to extract information specific to E1.
+            e2_trader (CCXTTrader): The Trader object responsible for e2.  Used
+                to extract information specific to E2.
+        """
+        self.e1 = e1_trader
+        self.e2 = e2_trader
+
+    def detach_traders(self):
+        """Removes the Trader objects to prepare the StatTracker for
+        pickling.
+
+        NOTE: The Trader objects are not able to be pickled, and we do not have
+        any intention to persist them.
+        """
+        del self.e1
+        del self.e2
 
     def log_balances(self):
         """Log the current balances of each exchange."""

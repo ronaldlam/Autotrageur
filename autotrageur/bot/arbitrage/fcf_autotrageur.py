@@ -463,6 +463,10 @@ class FCFAutotrageur(Autotrageur):
         # (See 'fcf_checkpoint_utils' module for more details)
         copyreg.pickle(FCFCheckpoint, pickle_fcf_checkpoint)
 
+        # Detach the Traders from StatTracker and attach it to the Checkpoint.
+        self._stat_tracker.detach_traders()
+        self.checkpoint.stat_tracker = self._stat_tracker
+
         # The generated ID can be used as the `resume_id` to resume the bot
         # from the saved state.
         fcf_state_map = {
@@ -482,6 +486,9 @@ class FCFAutotrageur(Autotrageur):
             (FCF_STATE_PRIM_KEY_ID,))
         db_handler.insert_row(fcf_state_row_obj)
         db_handler.commit_all()
+
+        # Reattach the Traders for further use in current bot run.
+        self._stat_tracker.attach_traders(self.trader1, self.trader2)
 
     # @Override
     def _import_state(self, resume_id):
@@ -549,8 +556,10 @@ class FCFAutotrageur(Autotrageur):
         # Persist the configuration.
         self.__persist_config()
 
-        # Initialize StatTracker component.
+        # Initialize StatTracker component and attach it to the Checkpoint.
         self.__setup_stat_tracker(arguments['--resume_id'])
+        if arguments['--resume_id']:
+            self._stat_tracker.attach_traders(self.trader1, self.trader2)
 
         # Initialize a Balance Checker.
         self.balance_checker = FCFBalanceChecker(

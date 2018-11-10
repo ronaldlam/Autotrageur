@@ -43,7 +43,7 @@ class CCXTTrader():
     """CCXT Trader for performing trades."""
 
     def __init__(self, base, quote, exchange_name, exchange_id, slippage,
-        exchange_config={}, dry_run=None):
+        exchange_config={}, dry_run_exchange=None):
         """Constructor.
 
         The trading client for interacting with the CCXT library.
@@ -68,7 +68,7 @@ class CCXTTrader():
                     "secret": [SOME_API_SECRET]
                     "verbose": False,
                 }
-            dry_run (DryRunExchange): The object to hold the state of
+            dry_run_exchange (DryRunExchange): The object to hold the state of
                 the dry run for the associated exchange. Is None if not
                 a dry run.
         """
@@ -87,10 +87,11 @@ class CCXTTrader():
         self.exchange_id = exchange_id
         self.fetcher = CCXTFetcher(self.ccxt_exchange)
         self.slippage = slippage
+        self.dry_run_exchange = dry_run_exchange
 
-        if dry_run:
+        if dry_run_exchange:
             self.executor = DryRunExecutor(
-                self.ccxt_exchange, self.fetcher, dry_run)
+                self.ccxt_exchange, self.fetcher, dry_run_exchange)
         else:
             self.executor = CCXTExecutor(self.ccxt_exchange)
 

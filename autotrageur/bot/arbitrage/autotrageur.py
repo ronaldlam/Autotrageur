@@ -224,12 +224,14 @@ class Autotrageur(ABC):
                                 e2_base_balance, e2_quote_balance)
         return dry_e1, dry_e2
 
-    def __setup_traders(self, exchange_key_map):
+    def __setup_traders(self, exchange_key_map, resume_id):
         """Sets up the Traders to interface with exchanges.
 
         Args:
             exchange_key_map (dict): A map containing authentication
                 information necessary to connect with the exchange APIs.
+            resume_id (str): The unique ID used to resume the bot from a
+                previous run.
 
         Raises:
             AutotrageurAuthenticationError: Raised when given incorrect
@@ -270,7 +272,17 @@ class Autotrageur(ABC):
 
         # Set up DryRunExchanges.
         if self._config.dryrun:
-            dry_e1, dry_e2 = self.__setup_dry_run_exchanges()
+            if resume_id:
+                # TODO: A design flaw as to where we should init the
+                # StatTracker.  It is initialized in the subclass, but
+                # we are using it here. Thus, the "no member" lint error.
+                #
+                # Perhaps we should strongly consider initializing Traders
+                # at fcf level too.
+                dry_e1 = self._stat_tracker.dry_run_e1
+                dry_e2 = self._stat_tracker.dry_run_e2
+            else:
+                dry_e1, dry_e2 = self.__setup_dry_run_exchanges()
         else:
             dry_e1 = None
             dry_e2 = None
@@ -345,7 +357,7 @@ class Autotrageur(ABC):
             arguments[KEYFILE], arguments['--pi_mode'])
 
         # Set up the Traders for interfacing with exchange APIs.
-        self.__setup_traders(exchange_key_map)
+        self.__setup_traders(exchange_key_map, arguments['--resume_id'])
 
     def _setup(self, arguments):
         """Initializes the autotrageur bot for use by setting up core
