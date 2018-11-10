@@ -1,0 +1,82 @@
+# (bool) Override the config object.
+config_override: True
+
+# (map) The Configuration map.  Should be the same as `arb_config_sample`
+config_map:
+  # Dry Run functionality.
+  dryrun: true # If True, will log trades instead of executing them.
+  dryrun_e1_base: 8989
+  dryrun_e1_quote: 898969
+  dryrun_e2_base: 6
+  dryrun_e2_quote: 97987
+
+  # Email configuration, and email options.
+  email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to send e-mails on arb opportunities.
+
+  # Exchange 1
+  exchange1: kraken
+  exchange1_pair: BTC/USD
+
+  # Exchange 2
+  exchange2: bithumb
+  exchange2_pair: BTC/KRW
+
+  use_test_api: false
+
+  # Poll intervals in seconds
+  poll_wait_default: 5
+  poll_wait_short: 2 # Used when trade is chunked and in progress.
+
+  # Historical max spread to exchange 1.
+  h_to_e1_max: 0.2
+  # Historical max spread to exchange 2.
+  h_to_e2_max: 0.2
+  # The maximum USD value of any given trade.
+  max_trade_size: 3000
+  # The minimum spread increment for considering trade targets.
+  spread_min: 0.79
+  # The minimum volume trade in USD.
+  vol_min: 6789
+  # Percentage downside of limit order slippage tolerable for market order emulations
+  slippage: 0 # Important for Gemini, eg. 3
+
+  # ----------------TWILIO SETTINGS----------------------------------------------
+  # Path for the twilio config file.
+  twilio_cfg_path: configs/twilio/dwei_twilio.yaml
+
+
+
+# (bool) Override the strategy state object.
+strategy_state_override: True
+
+# (bool) Override the target tracker object.
+target_tracker_override: True
+
+# (bool) Override the trade chunker object.
+trade_chunker_override: True
+
+# (map) The strategy state map.
+strategy_state_map:
+  has_started: False
+  h_to_e1_max: 99999
+  h_to_e2_max:
+  momentum:
+
+# e1 and e2 targets.
+e1_targets:
+  - [2.3456, 2.678]
+  - [2.3457, 2.679]
+  - [2.3458, 2.680]
+e2_targets:
+
+# ----------------TARGET TRACKER---------------------------------------------
+target_tracker_map:
+  _target_index: 0
+  _last_target_index: 0
+
+# ----------------TRADE CHUNKER----------------------------------------------
+trade_chunker_map:
+  _max_trade_size: 777
+  _target:
+  _current_trade_size:
+  trade_completed:

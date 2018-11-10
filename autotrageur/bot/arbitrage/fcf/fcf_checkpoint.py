@@ -4,8 +4,8 @@ from autotrageur.bot.arbitrage.fcf.fcf_stat_tracker import FCFStatTracker
 from autotrageur.version import VERSION
 
 # Constants
-MAJOR, MINOR, HOTFIX, *REMAINDER = VERSION
-CURRENT_FCF_CHECKPOINT_VERSION = '{}.{}'.format(MAJOR, MINOR)
+MAJOR, MINOR, HOTFIX, *REMAINDER = VERSION.split('.')
+CURRENT_FCF_CHECKPOINT_VERSION = '{}.{}.{}'.format(MAJOR, MINOR, HOTFIX)
 
 
 class FCFCheckpoint():
