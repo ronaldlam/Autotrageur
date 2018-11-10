@@ -1,4 +1,5 @@
 import copyreg
+import getpass
 import logging
 import os
 import pickle
@@ -7,6 +8,7 @@ import time
 import traceback
 import uuid
 
+import ccxt
 import schedule
 import yaml
 
@@ -36,16 +38,27 @@ from autotrageur.bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                                  TRADES_PRIM_KEY_SIDE,
                                                  TRADES_PRIM_KEY_TRADE_OPP_ID,
                                                  TRADES_TABLE)
+from autotrageur.bot.trader.ccxt_trader import CCXTTrader
+from autotrageur.bot.trader.dry_run import DryRunExchange
+from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from fp_libs.constants.decimal_constants import TEN, ZERO
 from fp_libs.db.maria_db_handler import InsertRowObject
 from fp_libs.email_client.simple_email_client import send_all_emails
 from fp_libs.fiat_symbols import FIAT_SYMBOLS
-from fp_libs.twilio.twilio_client import TwilioClient
-from fp_libs.utilities import num_to_decimal
 from fp_libs.logging.logging_utils import fancy_log
+from fp_libs.security.encryption import decrypt
+from fp_libs.twilio.twilio_client import TwilioClient
+from fp_libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
+                               to_bytes, to_str)
 
 # Default error message for phone call.
 DEFAULT_PHONE_MESSAGE = "Please check logs and e-mail for full stack trace."
+
+
+class AutotrageurAuthenticationError(Exception):
+    """Incorrect credentials or exchange unavailable when attempting to
+    communicate through an exchange's API."""
+    pass
 
 
 class FCFAlertError(Exception):
@@ -99,6 +112,42 @@ class FCFAutotrageur(Autotrageur):
         # Make sure there is a valid connection as notifications are a critical
         # service to the bot.
         self.twilio_client.test_connection()
+
+    def __parse_keyfile(self, keyfile_path, pi_mode=False):
+        """Parses the keyfile given in the arguments.
+
+        Prompts user for a passphrase to decrypt the encrypted keyfile.
+
+        Args:
+            keyfile_path (str): The path to the keyfile.
+            pi_mode (bool): Whether to decrypt with memory limitations to
+                accommodate raspberry pi.  Default is False.
+
+        Raises:
+            IOError: If the encrypted keyfile does not open, and not in
+                dryrun mode.
+
+        Returns:
+            dict: Map of the keyfile contents, or None if dryrun and
+                unavailable.
+        """
+        try:
+            pw = getpass.getpass(prompt="Enter keyfile password:")
+            with open(keyfile_path, "rb") as in_file:
+                keys = decrypt(
+                    in_file.read(),
+                    to_bytes(pw),
+                    pi_mode=pi_mode)
+
+            str_keys = to_str(keys)
+            return keyfile_to_map(str_keys)
+        except Exception:
+            logging.error("Unable to load keyfile.", exc_info=True)
+            if not self._config.dryrun:
+                raise IOError("Unable to open file: %s" % keyfile_path)
+            else:
+                logging.info("**Dry run: continuing with program")
+                return None
 
     def __persist_config(self):
         """Persists the configuration for this `fcf_autotrageur` run."""
@@ -210,6 +259,37 @@ class FCFAutotrageur(Autotrageur):
             .build()
         )
 
+    def __setup_dry_run_exchanges(self, resume_id):
+        """Sets up the DryRunExchanges which emulate the exchanges and trade
+        updates.
+
+        Args:
+            resume_id (str): The unique ID used to resume the bot from a
+                previous run.
+
+        Returns:
+            (tuple(DryRunExchange, DryRunExchange)): The DryRunExchanges for
+                E1 and E2 respectively.
+        """
+        if resume_id:
+            dry_e1 = self._stat_tracker.dry_run_e1
+            dry_e2 = self._stat_tracker.dry_run_e2
+        else:
+            e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
+            e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
+            exchange1 = self._config.exchange1
+            exchange2 = self._config.exchange2
+            e1_base_balance = self._config.dryrun_e1_base
+            e1_quote_balance = self._config.dryrun_e1_quote
+            e2_base_balance = self._config.dryrun_e2_base
+            e2_quote_balance = self._config.dryrun_e2_quote
+            dry_e1 = DryRunExchange(exchange1, e1_base, e1_quote,
+                                    e1_base_balance, e1_quote_balance)
+            dry_e2 = DryRunExchange(exchange2, e2_base, e2_quote,
+                                    e2_base_balance, e2_quote_balance)
+        return dry_e1, dry_e2
+
+
     def __setup_forex(self):
         """Sets up any forex services for fiat conversion, if necessary."""
         # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
@@ -284,6 +364,98 @@ class FCFAutotrageur(Autotrageur):
             (FCF_MEASURES_PRIM_KEY_ID,))
         db_handler.insert_row(stat_tracker_row_obj)
         db_handler.commit_all()
+
+    def __setup_traders(self, exchange_key_map, resume_id):
+        """Sets up the Traders to interface with exchanges.
+
+        Args:
+            exchange_key_map (dict): A map containing authentication
+                information necessary to connect with the exchange APIs.
+            resume_id (str): The unique ID used to resume the bot from a
+                previous run.
+
+        Raises:
+            AutotrageurAuthenticationError: Raised when given incorrect
+                credentials or exchange unavailable when attempting to
+                communicate through an exchange's API.
+        """
+        # TODO: Looks suitable for a design pattern here to create the Traders
+        # as their creation is complex enough.
+
+        # Extract the pairs.
+        e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
+        e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
+
+        exchange1 = self._config.exchange1
+        exchange2 = self._config.exchange2
+
+        # Get exchange configuration settings.
+        exchange1_configs = {
+            "nonce": ccxt.Exchange.milliseconds
+        }
+        exchange2_configs = {
+            "nonce": ccxt.Exchange.milliseconds
+        }
+
+        if exchange_key_map:
+            exchange1_configs['apiKey'] = (
+                exchange_key_map[exchange1][API_KEY])
+            exchange1_configs['secret'] = (
+                exchange_key_map[exchange1][API_SECRET])
+            exchange1_configs['password'] = (
+                exchange_key_map[exchange1][PASSWORD])
+            exchange2_configs['apiKey'] = (
+                exchange_key_map[exchange2][API_KEY])
+            exchange2_configs['secret'] = (
+                exchange_key_map[exchange2][API_SECRET])
+            exchange2_configs['password'] = (
+                exchange_key_map[exchange2][PASSWORD])
+
+        # Set up DryRunExchanges.
+        if self._config.dryrun:
+            dry_e1, dry_e2 = self.__setup_dry_run_exchanges(resume_id)
+        else:
+            dry_e1 = None
+            dry_e2 = None
+
+        self.trader1 = CCXTTrader(
+            e1_base,
+            e1_quote,
+            exchange1,
+            'e1',
+            num_to_decimal(self._config.slippage),
+            exchange1_configs,
+            dry_e1)
+        self.trader2 = CCXTTrader(
+            e2_base,
+            e2_quote,
+            exchange2,
+            'e2',
+            num_to_decimal(self._config.slippage),
+            exchange2_configs,
+            dry_e2)
+
+        # Set to run against test API, if applicable.
+        if not self._config.use_test_api:
+            fancy_log("Starting bot against LIVE exchange APIs.")
+            self.is_test_run = False
+        else:
+            fancy_log("Starting bot against TEST exchange APIs.")
+            self.trader1.connect_test_api()
+            self.trader2.connect_test_api()
+            self.is_test_run = True
+
+        # Load the available markets for the exchange.
+        self.trader1.load_markets()
+        self.trader2.load_markets()
+
+        try:
+            # Dry run uses balances set in the configuration files.
+            self.trader1.update_wallet_balances()
+            self.trader2.update_wallet_balances()
+        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
+            logging.error(auth_error)
+            raise AutotrageurAuthenticationError(auth_error)
 
     def __verify_sold_amount(
             self, bought_amount, sell_trader, buy_response, sell_response):
@@ -491,6 +663,12 @@ class FCFAutotrageur(Autotrageur):
         self._stat_tracker.attach_traders(self.trader1, self.trader2)
 
     # @Override
+    def _final_log(self):
+        """Produces a final log and console output during the finality of the
+        bot."""
+        self._stat_tracker.log_all()
+
+    # @Override
     def _import_state(self, resume_id):
         """Imports the state of a previous autotrageur run.
 
@@ -535,9 +713,11 @@ class FCFAutotrageur(Autotrageur):
         components.
 
         Components initialized:
+        - setting up traders to interface with exchange APIs (parses the
+            keyfile for relevant authentication first)
+        - BalanceChecker
         - Twilio Client
         - Forex Client
-        - BalanceChecker
 
         Other responsibilities:
         - Persists Configuration and Forex in the database.
@@ -545,16 +725,15 @@ class FCFAutotrageur(Autotrageur):
         Args:
             arguments (dict): Map of the arguments passed to the program.
         """
-        super()._post_setup(arguments)
-
-        # Set up Twilio Client.
-        self.__load_twilio(self._config.twilio_cfg_path)
-
-        # Set up Forex client.
-        self.__setup_forex()
-
         # Persist the configuration.
         self.__persist_config()
+
+        # Parse keyfile into a dict.
+        exchange_key_map = self.__parse_keyfile(
+            arguments['KEYFILE'], arguments['--pi_mode'])
+
+        # Set up the Traders for interfacing with exchange APIs.
+        self.__setup_traders(exchange_key_map, arguments['--resume_id'])
 
         # Initialize StatTracker component and attach it to the Checkpoint.
         self.__setup_stat_tracker(arguments['--resume_id'])
@@ -564,6 +743,13 @@ class FCFAutotrageur(Autotrageur):
         # Initialize a Balance Checker.
         self.balance_checker = FCFBalanceChecker(
             self.trader1, self.trader2, self._send_email)
+
+        # Set up Twilio Client.
+        self.__load_twilio(self._config.twilio_cfg_path)
+
+        # Set up Forex client.
+        self.__setup_forex()
+
 
     def _send_email(self, subject, msg):
         """Send email alert to preconfigured emails.

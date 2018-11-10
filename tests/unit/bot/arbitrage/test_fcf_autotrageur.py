@@ -2,6 +2,7 @@
 import builtins
 import copy
 import copyreg
+import getpass
 import os
 import pickle
 import time
@@ -10,6 +11,7 @@ import uuid
 from decimal import Decimal
 from unittest.mock import Mock
 
+import ccxt
 import pytest
 import schedule
 import yaml
@@ -22,6 +24,7 @@ from autotrageur.bot.arbitrage.arbseeker import SpreadOpportunity
 from autotrageur.bot.arbitrage.fcf.fcf_stat_tracker import FCFStatTracker
 from autotrageur.bot.arbitrage.fcf.strategy import TradeMetadata
 from autotrageur.bot.arbitrage.fcf_autotrageur import (DEFAULT_PHONE_MESSAGE,
+                                                       AutotrageurAuthenticationError,
                                                        FCFAlertError,
                                                        FCFAutotrageur,
                                                        FCFCheckpoint,
@@ -46,6 +49,8 @@ from autotrageur.bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                                  TRADES_PRIM_KEY_TRADE_OPP_ID,
                                                  TRADES_TABLE)
 from autotrageur.bot.common.notification_constants import SUBJECT_LIVE_FAILURE
+from autotrageur.bot.trader.dry_run import DryRunExchange
+from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from fp_libs.db.maria_db_handler import InsertRowObject
 from fp_libs.utilities import num_to_decimal
 
@@ -141,6 +146,42 @@ def test_load_twilio(mocker, no_patch_fcf_autotrageur):
         os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'),
         no_patch_fcf_autotrageur.logger)
     fake_test_connection.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    "decrypt_success, dryrun", [
+        (True, True),
+        (True, False),
+        (False, True),
+        pytest.param(False, False,
+            marks=pytest.mark.xfail(strict=True, raises=IOError)),
+    ]
+)
+def test_parse_keyfile(mocker, no_patch_fcf_autotrageur, decrypt_success, dryrun):
+    args = mocker.MagicMock()
+    mocker.patch('getpass.getpass')
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'dryrun', dryrun)
+    mock_decrypt = mocker.patch.object(autotrageur.bot.arbitrage.fcf_autotrageur, 'decrypt')
+    mock_kf_to_map = mocker.patch.object(autotrageur.bot.arbitrage.fcf_autotrageur, 'keyfile_to_map')
+
+    if not decrypt_success:
+        mock_decrypt.side_effect = Exception
+
+    key_map = no_patch_fcf_autotrageur._FCFAutotrageur__parse_keyfile(args)
+
+    getpass.getpass.assert_called_once_with(prompt="Enter keyfile password:")   # pylint: disable=E1101
+    if decrypt_success:
+        mock_decrypt.assert_called_once()
+        mock_kf_to_map.assert_called_once()
+        assert(key_map)
+    elif not dryrun:
+        mock_decrypt.assert_called_once()
+        mock_kf_to_map.assert_not_called()
+        assert key_map is None
+    else:
+        mock_decrypt.assert_called_once()
+        mock_kf_to_map.assert_not_called()
+        assert not (key_map)
 
 
 def test_persist_config(mocker, no_patch_fcf_autotrageur):
@@ -267,6 +308,45 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
     db_handler.commit_all.assert_called_once_with()
 
 
+@pytest.mark.parametrize('resume_id', [None, 'abcdef'])
+def test_setup_dry_run_exchanges(mocker, no_patch_fcf_autotrageur, resume_id):
+    MOCK_E1 = 'Gemini'
+    MOCK_E2 = 'Bithumb'
+    MOCK_E1_PAIR = 'ETH/USD'
+    MOCK_E2_PAIR = 'ETH/KRW'
+    MOCK_E1_BASE_BAL = 5
+    MOCK_E1_QUOTE_BAL = 2000
+    MOCK_E2_BASE_BAL = 10
+    MOCK_E2_QUOTE_BAL = 20000
+
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'exchange1', MOCK_E1)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'exchange2', MOCK_E2)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'exchange1_pair', MOCK_E1_PAIR)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'exchange2_pair', MOCK_E2_PAIR)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'dryrun_e1_base', MOCK_E1_BASE_BAL)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'dryrun_e1_quote', MOCK_E1_QUOTE_BAL)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'dryrun_e2_base', MOCK_E2_BASE_BAL)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'dryrun_e2_quote', MOCK_E2_QUOTE_BAL)
+    mock_stat_tracker = mocker.patch.object(no_patch_fcf_autotrageur, '_stat_tracker', create=True)
+
+    mock_dry_e1, mock_dry_e2 = no_patch_fcf_autotrageur._FCFAutotrageur__setup_dry_run_exchanges(resume_id)
+
+    if resume_id:
+        assert mock_dry_e1 is mock_stat_tracker.dry_run_e1
+        assert mock_dry_e2 is mock_stat_tracker.dry_run_e2
+    else:
+        assert mock_dry_e1.name == MOCK_E1
+        assert mock_dry_e1.base == 'ETH'
+        assert mock_dry_e1.quote == 'USD'
+        assert mock_dry_e1.base_balance == num_to_decimal(MOCK_E1_BASE_BAL)
+        assert mock_dry_e1.quote_balance == num_to_decimal(MOCK_E1_QUOTE_BAL)
+        assert mock_dry_e2.name == MOCK_E2
+        assert mock_dry_e2.base == 'ETH'
+        assert mock_dry_e2.quote == 'KRW'
+        assert mock_dry_e2.base_balance == num_to_decimal(MOCK_E2_BASE_BAL)
+        assert mock_dry_e2.quote_balance == num_to_decimal(MOCK_E2_QUOTE_BAL)
+
+
 @pytest.mark.parametrize("client_quote_usd", [True, False])
 def test_setup_forex(mocker, no_patch_fcf_autotrageur, client_quote_usd):
     trader1 = mocker.patch.object(no_patch_fcf_autotrageur, 'trader1',
@@ -368,6 +448,74 @@ def test_setup_stat_tracker(mocker, no_patch_fcf_autotrageur, resume_id, dryrun,
                 MOCK_FCF_MEASURES_ROW_DATA,
                 (FCF_MEASURES_PRIM_KEY_ID,)))
         mock_commit_all.assert_called_once_with()
+
+
+@pytest.mark.parametrize('exc_type', [ccxt.AuthenticationError, ccxt.ExchangeNotAvailable])
+@pytest.mark.parametrize('balance_check_success', [True, False])
+@pytest.mark.parametrize('use_test_api', [True, False])
+@pytest.mark.parametrize('dryrun', [True, False])
+def test_setup_traders(mocker, no_patch_fcf_autotrageur, dryrun, use_test_api,
+                       balance_check_success, exc_type):
+    fake_slippage = 0.25
+    fake_pair = 'fake/pair'
+    fake_exchange_key_map = {
+        'fake': {
+            API_KEY: 'API_KEY',
+            API_SECRET: 'API_SECRET',
+            PASSWORD: 'PASSWORD'
+        },
+        'pair': {
+            API_KEY: 'API_KEY',
+            API_SECRET: 'API_SECRET',
+            PASSWORD: 'PASSWORD'
+        }
+    }
+    placeholder = 'fake'
+    mock_trader1 = mocker.Mock()
+    mock_trader2 = mocker.Mock()
+    mock_ccxt_trader_constructor = mocker.patch('autotrageur.bot.arbitrage.fcf_autotrageur.CCXTTrader')
+    mock_ccxt_trader_constructor.side_effect = [mock_trader1, mock_trader2]
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'exchange1_pair', fake_pair)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'exchange2_pair', fake_pair)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'exchange1', placeholder)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'exchange2', placeholder)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'slippage', fake_slippage)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'use_test_api', use_test_api)
+    mocker.patch.object(no_patch_fcf_autotrageur._config, 'dryrun', dryrun)
+    mock_setup_dr_exchanges = mocker.patch.object(
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__setup_dry_run_exchanges')
+    if dryrun:
+        mock_setup_dr_exchanges.return_value = mocker.Mock(), mocker.Mock()
+
+    # If wallet balance fetch fails, expect either ccxt.AuthenticationError or
+    # ccxt.ExchangeNotAvailable to be raised.
+    if balance_check_success is False:
+        # For testing purposes, only need one trader to throw an exception.
+        mock_trader1.update_wallet_balances.side_effect = exc_type
+        with pytest.raises(AutotrageurAuthenticationError):
+            no_patch_fcf_autotrageur._FCFAutotrageur__setup_traders(fake_exchange_key_map, None)
+
+        # Expect called once and encountered exception.
+        mock_trader1.update_wallet_balances.assert_called_once_with()
+        mock_trader2.update_wallet_balances.assert_not_called()
+    else:
+        no_patch_fcf_autotrageur._FCFAutotrageur__setup_traders(fake_exchange_key_map, None)
+        mock_trader1.update_wallet_balances.assert_called_once_with()
+        mock_trader2.update_wallet_balances.assert_called_once_with()
+        assert(mock_trader1.load_markets.call_count == 1)
+        assert(mock_trader2.load_markets.call_count == 1)
+
+    if dryrun:
+        assert mock_setup_dr_exchanges.call_count == 1
+    else:
+        assert mock_setup_dr_exchanges.call_count == 0
+
+    if use_test_api:
+        assert(mock_trader1.connect_test_api.call_count == 1)
+        assert(mock_trader2.connect_test_api.call_count == 1)
+    else:
+        assert(mock_trader1.connect_test_api.call_count == 0)
+        assert(mock_trader2.connect_test_api.call_count == 0)
 
 
 class TestVerifySoldAmount:
@@ -680,14 +828,20 @@ def test_poll_opportunity(mocker, no_patch_fcf_autotrageur):
 @pytest.mark.parametrize('resume_id', [None, 'abcdef'])
 def test_post_setup(mocker, no_patch_fcf_autotrageur, resume_id):
     arguments = {
-        '--resume_id': resume_id
+        'KEYFILE': mocker.Mock(),
+        '--resume_id': resume_id,
+        '--pi_mode': mocker.Mock()
     }
     FAKE_BALANCE_CHECKER = mocker.Mock()
+    MOCK_EXCHANGE_KEY_MAP = mocker.Mock()
     mocker.patch.object(no_patch_fcf_autotrageur, 'trader1', create=True)
     mocker.patch.object(no_patch_fcf_autotrageur, 'trader2', create=True)
+    mock_parse_keyfile = mocker.patch.object(
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__parse_keyfile', return_value=MOCK_EXCHANGE_KEY_MAP)
+    mock_setup_traders = mocker.patch.object(
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__setup_traders')
     mock_send_email = mocker.patch.object(no_patch_fcf_autotrageur, '_send_email')
     mocker.patch.object(no_patch_fcf_autotrageur._config, 'twilio_cfg_path')
-    parent_super = mocker.patch.object(builtins, 'super')
     mock_load_twilio = mocker.patch.object(
         no_patch_fcf_autotrageur, '_FCFAutotrageur__load_twilio')
     mock_setup_forex = mocker.patch.object(
@@ -704,7 +858,8 @@ def test_post_setup(mocker, no_patch_fcf_autotrageur, resume_id):
 
     no_patch_fcf_autotrageur._post_setup(arguments)
 
-    parent_super.return_value._post_setup.assert_called_once_with(arguments)
+    mock_parse_keyfile.assert_called_once_with(arguments['KEYFILE'], arguments['--pi_mode'])
+    mock_setup_traders.assert_called_once_with(MOCK_EXCHANGE_KEY_MAP, arguments['--resume_id'])
     mock_load_twilio.assert_called_once_with(
         no_patch_fcf_autotrageur._config.twilio_cfg_path)
     mock_setup_forex.assert_called_once_with()

@@ -14,7 +14,7 @@ class FCFStatTracker():
             new_id (str): The unique ID for this Stat Tracker.
             e1_trader (CCXTTrader): The Trader object responsible for E1.  Used
                 to extract information specific to E1.
-            e2_trader (CCXTTrader): The Trader object responsible for e2.  Used
+            e2_trader (CCXTTrader): The Trader object responsible for E2.  Used
                 to extract information specific to E2.
         """
         self.id = new_id
@@ -30,7 +30,7 @@ class FCFStatTracker():
         Args:
             e1_trader (CCXTTrader): The Trader object responsible for E1.  Used
                 to extract information specific to E1.
-            e2_trader (CCXTTrader): The Trader object responsible for e2.  Used
+            e2_trader (CCXTTrader): The Trader object responsible for E2.  Used
                 to extract information specific to E2.
         """
         self.e1 = e1_trader

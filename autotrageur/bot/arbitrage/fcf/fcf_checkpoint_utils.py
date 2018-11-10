@@ -54,7 +54,7 @@ def pickle_fcf_checkpoint(checkpoint):
             any additional kwargs such as version).
     """
     attr_map = _form_fcf_attr_map(checkpoint)
-    attr_map['version'] = str(CURRENT_FCF_CHECKPOINT_VERSION)
+    attr_map['version'] = CURRENT_FCF_CHECKPOINT_VERSION
     return unpickle_fcf_checkpoint, (attr_map,)
 
 
