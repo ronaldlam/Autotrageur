@@ -1,4 +1,5 @@
 import copyreg
+import getpass
 import logging
 import os
 import pickle
@@ -7,6 +8,7 @@ import time
 import traceback
 import uuid
 
+import ccxt
 import schedule
 import yaml
 
@@ -15,31 +17,48 @@ import fp_libs.db.maria_db_handler as db_handler
 from autotrageur.bot.arbitrage.autotrageur import Autotrageur
 from autotrageur.bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
-from autotrageur.bot.arbitrage.fcf.fcf_checkpoint_utils import pickle_fcf_checkpoint
+from autotrageur.bot.arbitrage.fcf.fcf_checkpoint_utils import \
+    pickle_fcf_checkpoint
+from autotrageur.bot.arbitrage.fcf.fcf_stat_tracker import FCFStatTracker
 from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyBuilder
 from autotrageur.bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
-                                         TWILIO_SENDER_NUMBER)
+                                                     TWILIO_SENDER_NUMBER)
 from autotrageur.bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
-                                     FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
-                                     FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS,
-                                     FCF_AUTOTRAGEUR_CONFIG_TABLE,
-                                     FCF_STATE_PRIM_KEY_ID, FCF_STATE_TABLE,
-                                     FOREX_RATE_PRIM_KEY_ID, FOREX_RATE_TABLE,
-                                     TRADE_OPPORTUNITY_PRIM_KEY_ID,
-                                     TRADE_OPPORTUNITY_TABLE,
-                                     TRADES_PRIM_KEY_SIDE,
-                                     TRADES_PRIM_KEY_TRADE_OPP_ID,
-                                     TRADES_TABLE)
+                                                 FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
+                                                 FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS,
+                                                 FCF_AUTOTRAGEUR_CONFIG_TABLE,
+                                                 FCF_MEASURES_PRIM_KEY_ID,
+                                                 FCF_MEASURES_TABLE,
+                                                 FCF_STATE_PRIM_KEY_ID,
+                                                 FCF_STATE_TABLE,
+                                                 FOREX_RATE_PRIM_KEY_ID,
+                                                 FOREX_RATE_TABLE,
+                                                 TRADE_OPPORTUNITY_PRIM_KEY_ID,
+                                                 TRADE_OPPORTUNITY_TABLE,
+                                                 TRADES_PRIM_KEY_SIDE,
+                                                 TRADES_PRIM_KEY_TRADE_OPP_ID,
+                                                 TRADES_TABLE)
+from autotrageur.bot.trader.ccxt_trader import CCXTTrader
+from autotrageur.bot.trader.dry_run import DryRunExchange
+from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from fp_libs.constants.decimal_constants import TEN, ZERO
 from fp_libs.db.maria_db_handler import InsertRowObject
 from fp_libs.email_client.simple_email_client import send_all_emails
 from fp_libs.fiat_symbols import FIAT_SYMBOLS
+from fp_libs.logging.logging_utils import fancy_log
+from fp_libs.security.encryption import decrypt
 from fp_libs.twilio.twilio_client import TwilioClient
-from fp_libs.utilities import num_to_decimal
-
+from fp_libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
+                               to_bytes, to_str)
 
 # Default error message for phone call.
 DEFAULT_PHONE_MESSAGE = "Please check logs and e-mail for full stack trace."
+
+
+class AutotrageurAuthenticationError(Exception):
+    """Incorrect credentials or exchange unavailable when attempting to
+    communicate through an exchange's API."""
+    pass
 
 
 class FCFAlertError(Exception):
@@ -93,6 +112,42 @@ class FCFAutotrageur(Autotrageur):
         # Make sure there is a valid connection as notifications are a critical
         # service to the bot.
         self.twilio_client.test_connection()
+
+    def __parse_keyfile(self, keyfile_path, pi_mode=False):
+        """Parses the keyfile given in the arguments.
+
+        Prompts user for a passphrase to decrypt the encrypted keyfile.
+
+        Args:
+            keyfile_path (str): The path to the keyfile.
+            pi_mode (bool): Whether to decrypt with memory limitations to
+                accommodate raspberry pi.  Default is False.
+
+        Raises:
+            IOError: If the encrypted keyfile does not open, and not in
+                dryrun mode.
+
+        Returns:
+            dict: Map of the keyfile contents, or None if dryrun and
+                unavailable.
+        """
+        try:
+            pw = getpass.getpass(prompt="Enter keyfile password:")
+            with open(keyfile_path, "rb") as in_file:
+                keys = decrypt(
+                    in_file.read(),
+                    to_bytes(pw),
+                    pi_mode=pi_mode)
+
+            str_keys = to_str(keys)
+            return keyfile_to_map(str_keys)
+        except Exception:
+            logging.error("Unable to load keyfile.", exc_info=True)
+            if not self._config.dryrun:
+                raise IOError("Unable to open file: %s" % keyfile_path)
+            else:
+                logging.info("**Dry run: continuing with program")
+                return None
 
     def __persist_config(self):
         """Persists the configuration for this `fcf_autotrageur` run."""
@@ -204,6 +259,37 @@ class FCFAutotrageur(Autotrageur):
             .build()
         )
 
+    def __setup_dry_run_exchanges(self, resume_id):
+        """Sets up DryRunExchanges which emulate Exchanges.  Trades, wallet
+        balances, other exchange-related state is then recorded.
+
+        Args:
+            resume_id (str): The unique ID used to resume the bot from a
+                previous run.
+
+        Returns:
+            (tuple(DryRunExchange, DryRunExchange)): The DryRunExchanges for
+                E1 and E2 respectively.
+        """
+        if resume_id:
+            dry_e1 = self._stat_tracker.dry_run_e1
+            dry_e2 = self._stat_tracker.dry_run_e2
+        else:
+            e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
+            e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
+            exchange1 = self._config.exchange1
+            exchange2 = self._config.exchange2
+            e1_base_balance = self._config.dryrun_e1_base
+            e1_quote_balance = self._config.dryrun_e1_quote
+            e2_base_balance = self._config.dryrun_e2_base
+            e2_quote_balance = self._config.dryrun_e2_quote
+            dry_e1 = DryRunExchange(exchange1, e1_base, e1_quote,
+                                    e1_base_balance, e1_quote_balance)
+            dry_e2 = DryRunExchange(exchange2, e2_base, e2_quote,
+                                    e2_base_balance, e2_quote_balance)
+        return dry_e1, dry_e2
+
+
     def __setup_forex(self):
         """Sets up any forex services for fiat conversion, if necessary."""
         # Bot considers stablecoin (USDT - Tether) prices as roughly equivalent
@@ -219,6 +305,157 @@ class FCFAutotrageur(Autotrageur):
                 self.__update_forex(trader)
                 # TODO: Adjust interval once real-time forex implemented.
                 schedule.every().hour.do(self.__update_forex, trader)
+
+    def __setup_stat_tracker(self, resume_id=None):
+        """Sets up the bot's StatTracker.
+
+        Used for internal tracking and also for persisting simple statistics
+        into the database for reporting and analysis.
+
+        If resuming a bot, simply logs and returns without any additional
+        setup.
+
+        Args:
+            resume_id (str, optional): The resume id used when resuming a run.
+                Defaults to None.
+        """
+        new_stat_tracker_id = str(uuid.uuid4())
+        if resume_id:
+            if self._config.use_test_api:
+                fancy_log("Resumed bot running against TEST Exchange APIs.")
+            else:
+                fancy_log("Resumed bot running against LIVE Exchange APIs.")
+
+            if self._config.dryrun:
+                fancy_log(
+                    "Resumed - DRY RUN mode. Trades will NOT execute on actual "
+                    "exchanges.")
+            return
+        else:
+            if self._config.dryrun:
+                fancy_log(
+                    "DRY RUN mode initiated. Trades will NOT execute on actual"
+                    " exchanges.")
+
+            self._stat_tracker = FCFStatTracker(
+                new_id=new_stat_tracker_id,
+                e1_trader=self.trader1,
+                e2_trader=self.trader2)
+
+        row_data = {
+            'id': new_stat_tracker_id,
+            'autotrageur_config_id': self._config.id,
+            'autotrageur_config_start_timestamp': self._config.start_timestamp,
+            'autotrageur_stop_timestamp': None,
+            'e1_start_bal_base': self.trader1.base_bal,
+            'e1_close_bal_base': self.trader1.base_bal,
+            'e2_start_bal_base': self.trader2.base_bal,
+            'e2_close_bal_base': self.trader2.base_bal,
+            'e1_start_bal_quote': self.trader1.quote_bal,
+            'e1_close_bal_quote': self.trader1.quote_bal,
+            'e2_start_bal_quote': self.trader2.quote_bal,
+            'e2_close_bal_quote': self.trader2.quote_bal,
+            'num_fatal_errors': 0,
+            'trade_count': 0
+        }
+        stat_tracker_row_obj = InsertRowObject(
+            FCF_MEASURES_TABLE,
+            row_data,
+            (FCF_MEASURES_PRIM_KEY_ID,))
+        db_handler.insert_row(stat_tracker_row_obj)
+        db_handler.commit_all()
+
+    def __setup_traders(self, exchange_key_map, resume_id):
+        """Sets up the Traders to interface with exchanges.
+
+        Args:
+            exchange_key_map (dict): A map containing authentication
+                information necessary to connect with the exchange APIs.
+            resume_id (str): The unique ID used to resume the bot from a
+                previous run.
+
+        Raises:
+            AutotrageurAuthenticationError: Raised when given incorrect
+                credentials or exchange unavailable when attempting to
+                communicate through an exchange's API.
+        """
+        # TODO: Looks suitable for a design pattern here to create the Traders
+        # as their creation is complex enough.
+
+        # Extract the pairs.
+        e1_base, e1_quote = split_symbol(self._config.exchange1_pair)
+        e2_base, e2_quote = split_symbol(self._config.exchange2_pair)
+
+        exchange1 = self._config.exchange1
+        exchange2 = self._config.exchange2
+
+        # Get exchange configuration settings.
+        exchange1_configs = {
+            "nonce": ccxt.Exchange.milliseconds
+        }
+        exchange2_configs = {
+            "nonce": ccxt.Exchange.milliseconds
+        }
+
+        if exchange_key_map:
+            exchange1_configs['apiKey'] = (
+                exchange_key_map[exchange1][API_KEY])
+            exchange1_configs['secret'] = (
+                exchange_key_map[exchange1][API_SECRET])
+            exchange1_configs['password'] = (
+                exchange_key_map[exchange1][PASSWORD])
+            exchange2_configs['apiKey'] = (
+                exchange_key_map[exchange2][API_KEY])
+            exchange2_configs['secret'] = (
+                exchange_key_map[exchange2][API_SECRET])
+            exchange2_configs['password'] = (
+                exchange_key_map[exchange2][PASSWORD])
+
+        # Set up DryRunExchanges.
+        if self._config.dryrun:
+            dry_e1, dry_e2 = self.__setup_dry_run_exchanges(resume_id)
+        else:
+            dry_e1 = None
+            dry_e2 = None
+
+        self.trader1 = CCXTTrader(
+            e1_base,
+            e1_quote,
+            exchange1,
+            'e1',
+            num_to_decimal(self._config.slippage),
+            exchange1_configs,
+            dry_e1)
+        self.trader2 = CCXTTrader(
+            e2_base,
+            e2_quote,
+            exchange2,
+            'e2',
+            num_to_decimal(self._config.slippage),
+            exchange2_configs,
+            dry_e2)
+
+        # Set to run against test API, if applicable.
+        if not self._config.use_test_api:
+            fancy_log("Starting bot against LIVE exchange APIs.")
+            self.is_test_run = False
+        else:
+            fancy_log("Starting bot against TEST exchange APIs.")
+            self.trader1.connect_test_api()
+            self.trader2.connect_test_api()
+            self.is_test_run = True
+
+        # Load the available markets for the exchange.
+        self.trader1.load_markets()
+        self.trader2.load_markets()
+
+        try:
+            # Dry run uses balances set in the configuration files.
+            self.trader1.update_wallet_balances()
+            self.trader2.update_wallet_balances()
+        except (ccxt.AuthenticationError, ccxt.ExchangeNotAvailable) as auth_error:
+            logging.error(auth_error)
+            raise AutotrageurAuthenticationError(auth_error)
 
     def __verify_sold_amount(
             self, bought_amount, sell_trader, buy_response, sell_response):
@@ -308,14 +545,17 @@ class FCFAutotrageur(Autotrageur):
             buy_response = arbseeker.execute_buy(
                 trade_metadata.buy_trader,
                 trade_metadata.buy_price)
+            self._stat_tracker.trade_count += 1
 
             executed_amount = buy_response['post_fee_base']
             sell_response = arbseeker.execute_sell(
                 trade_metadata.sell_trader,
                 trade_metadata.sell_price,
                 executed_amount)
+            self._stat_tracker.trade_count += 1
+
             self._strategy.finalize_trade(buy_response, sell_response)
-            self._dry_run_manager.log_balances()
+            self._stat_tracker.log_balances()
             self.__persist_trade_data(
                 buy_response, sell_response, trade_metadata)
             logging.debug("**Dry run - end fake execution")
@@ -330,6 +570,8 @@ class FCFAutotrageur(Autotrageur):
                 logging.error(exc, exc_info=True)
                 self._strategy.strategy_state = self.checkpoint.strategy_state
             else:
+                self._stat_tracker.trade_count += 1
+
                 # If an exception is thrown, we want the program to stop on the
                 # second trade.
                 try:
@@ -347,6 +589,7 @@ class FCFAutotrageur(Autotrageur):
                     logging.error(exc, exc_info=True)
                     raise
                 else:
+                    self._stat_tracker.trade_count += 1
                     self._strategy.finalize_trade(buy_response, sell_response)
                     self._send_email(
                         "TRADE SUMMARY",
@@ -359,17 +602,42 @@ class FCFAutotrageur(Autotrageur):
 
     # @Override
     def _export_state(self):
-        """Exports the state of the autotrageur to a database."""
+        """Exports the state of the autotrageur to a database.
+
+        NOTE: This method is only called when the fcf bot is stops due to a
+        fatal error or if it is killed manually."""
         logging.debug("#### Exporting bot's current state")
 
-        # Set the dry run state, if in dry run mode.
-        if self._config.dryrun:
-            self.checkpoint.dry_run_manager = self._dry_run_manager
+        # UPDATE the fcf_measures table with updated stats.
+        raw_update_result = db_handler.execute_parametrized_query(
+                "UPDATE fcf_measures SET "
+                "autotrageur_stop_timestamp = %s, "
+                "e1_close_bal_base = %s, "
+                "e2_close_bal_base = %s, "
+                "e1_close_bal_quote = %s, "
+                "e2_close_bal_quote = %s, "
+                "num_fatal_errors = num_fatal_errors + 1, "
+                "trade_count = %s "
+                "WHERE id = %s;",
+                (int(time.time()),
+                self._stat_tracker.e1.base_bal,
+                self._stat_tracker.e2.base_bal,
+                self._stat_tracker.e1.quote_bal,
+                self._stat_tracker.e2.quote_bal,
+                self._stat_tracker.trade_count,
+                self._stat_tracker.id))
+
+        logging.debug("UPDATE fcf_measures affected rows: {}".format(
+            raw_update_result))
 
         # Register copyreg.pickle with Checkpoint object and helper function
         # for better backwards-compatibility in pickling.
         # (See 'fcf_checkpoint_utils' module for more details)
         copyreg.pickle(FCFCheckpoint, pickle_fcf_checkpoint)
+
+        # Detach the Traders from StatTracker and attach it to the Checkpoint.
+        self._stat_tracker.detach_traders()
+        self.checkpoint.stat_tracker = self._stat_tracker
 
         # The generated ID can be used as the `resume_id` to resume the bot
         # from the saved state.
@@ -390,6 +658,15 @@ class FCFAutotrageur(Autotrageur):
             (FCF_STATE_PRIM_KEY_ID,))
         db_handler.insert_row(fcf_state_row_obj)
         db_handler.commit_all()
+
+        # Reattach the Traders for further use in current bot run.
+        self._stat_tracker.attach_traders(self.trader1, self.trader2)
+
+    # @Override
+    def _final_log(self):
+        """Produces a final log and console output during the finality of the
+        bot."""
+        self._stat_tracker.log_all()
 
     # @Override
     def _import_state(self, resume_id):
@@ -423,6 +700,8 @@ class FCFAutotrageur(Autotrageur):
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
 
+        Any Exception is re-raised after collecting stats.
+
         Returns:
             bool: Whether there is an opportunity.
         """
@@ -434,17 +713,41 @@ class FCFAutotrageur(Autotrageur):
         components.
 
         Components initialized:
+        - Traders to interface with exchange APIs (parses the keyfile for
+            relevant authentication first)
+        - BalanceChecker
         - Twilio Client
         - Forex Client
-        - BalanceChecker
 
         Other responsibilities:
         - Persists Configuration and Forex in the database.
+
+        NOTE: The order of these calls matters.  For example, the StatTracker
+        relies on instantiated Traders, and a persisted Configuration entry.
 
         Args:
             arguments (dict): Map of the arguments passed to the program.
         """
         super()._post_setup(arguments)
+
+        # Persist the configuration.
+        self.__persist_config()
+
+        # Parse keyfile into a dict.
+        exchange_key_map = self.__parse_keyfile(
+            arguments['KEYFILE'], arguments['--pi_mode'])
+
+        # Set up the Traders for interfacing with exchange APIs.
+        self.__setup_traders(exchange_key_map, arguments['--resume_id'])
+
+        # Initialize StatTracker component and attach it to the Checkpoint.
+        self.__setup_stat_tracker(arguments['--resume_id'])
+        if arguments['--resume_id']:
+            self._stat_tracker.attach_traders(self.trader1, self.trader2)
+
+        # Initialize a Balance Checker.
+        self.balance_checker = FCFBalanceChecker(
+            self.trader1, self.trader2, self._send_email)
 
         # Set up Twilio Client.
         self.__load_twilio(self._config.twilio_cfg_path)
@@ -452,12 +755,6 @@ class FCFAutotrageur(Autotrageur):
         # Set up Forex client.
         self.__setup_forex()
 
-        # Persist the configuration.
-        self.__persist_config()
-
-        # Initialize a Balance Checker.
-        self.balance_checker = FCFBalanceChecker(
-            self.trader1, self.trader2, self._send_email)
 
     def _send_email(self, subject, msg):
         """Send email alert to preconfigured emails.
@@ -497,12 +794,12 @@ class FCFAutotrageur(Autotrageur):
             self._config = self.checkpoint.config
             self._strategy = self.__construct_strategy()
             self.checkpoint.restore_strategy(self._strategy)
-            self._dry_run_manager = self.checkpoint.dry_run_manager
+            self._stat_tracker = self.checkpoint.stat_tracker
             logging.debug(
                 '#### Restored State objects: {0!r}\n{1!r}\n{2!r}'.format(
                     self._config,
                     self._strategy.state,
-                    self._dry_run_manager))
+                    self._stat_tracker))
         else:
             # Initialize a Checkpoint object to hold state.
             self.checkpoint = FCFCheckpoint(self._config)

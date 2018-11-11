@@ -72,6 +72,7 @@ class TestCCXTTraderInit:
         assert trader.slippage == slippage
         assert trader.ccxt_exchange is exchange_obj
         assert trader.fetcher is ccxtfetcher_binance
+        assert trader.dry_run_exchange is dry_run
 
         # Initialized variables not from config.
         assert trader.quote_target_amount == num_to_decimal(0.0)

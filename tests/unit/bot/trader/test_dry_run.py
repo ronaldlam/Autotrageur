@@ -30,8 +30,6 @@ class TestDryRunExchange:
         assert exchange.trade_count == 0
         assert isinstance(exchange.base_balance, Decimal)
         assert isinstance(exchange.quote_balance, Decimal)
-        assert isinstance(exchange.base_volume, Decimal)
-        assert isinstance(exchange.quote_volume, Decimal)
         assert isinstance(exchange.base_fees, Decimal)
         assert isinstance(exchange.quote_fees, Decimal)
 
@@ -47,8 +45,6 @@ class TestDryRunExchange:
 
         assert exchange.base_balance == START_BALANCE + post_fee_base
         assert exchange.quote_balance == START_BALANCE - post_fee_quote
-        assert exchange.base_volume == pre_fee_base
-        assert exchange.quote_volume == pre_fee_quote
         assert exchange.base_fees == pre_fee_base - post_fee_base
         assert exchange.quote_fees == post_fee_quote - pre_fee_quote
         assert exchange.trade_count == 1
@@ -75,8 +71,6 @@ class TestDryRunExchange:
 
         assert exchange.base_balance == START_BALANCE - base_amount
         assert exchange.quote_balance == START_BALANCE + post_fee_quote
-        assert exchange.base_volume == base_amount
-        assert exchange.quote_volume == pre_fee_quote
         assert exchange.base_fees == Decimal('0')
         assert exchange.quote_fees == pre_fee_quote - post_fee_quote
         assert exchange.trade_count == 1

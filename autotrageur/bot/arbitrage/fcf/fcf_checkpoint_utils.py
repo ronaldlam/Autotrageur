@@ -8,7 +8,8 @@ carefully.  The two functions are both responsible for pickling/exporting and
 restoring an FCFCheckpoint object in a way that is backwards-compatible.
 """
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import (CURRENT_FCF_CHECKPOINT_VERSION,
-                                              FCFCheckpoint)
+                                                          FCFCheckpoint)
+from fp_libs.utilities import version_convert_to_compare as v_convert
 
 
 def _form_fcf_attr_map(checkpoint):
@@ -24,7 +25,7 @@ def _form_fcf_attr_map(checkpoint):
     return {
         'config': checkpoint.config,
         'strategy_state': checkpoint.strategy_state,
-        'dry_run_manager': checkpoint.dry_run_manager
+        'stat_tracker': checkpoint.stat_tracker
     }
 
 def pickle_fcf_checkpoint(checkpoint):
@@ -93,6 +94,11 @@ def unpickle_fcf_checkpoint(kwargs):
         FCFCheckpoint: An FCFCheckpoint object, restored with the serialized
             attributes.
     """
-    version = kwargs.pop('version', 1)
+    version = kwargs.pop('version', '1')
     # In the future, logic with different versions will be done here.
+    if v_convert(version) < v_convert('1.1.2'):
+        # FCFCheckpoint changed to contain a StatTracker object instead of
+        # a DryRunManager.  We just pop off the DryRunManager to make sure that
+        # the FCFCheckpoint at least constructs correctly.
+        kwargs.pop('dry_run_manager', None)
     return FCFCheckpoint(**kwargs)

@@ -1,5 +1,3 @@
-import logging
-
 from fp_libs.constants.decimal_constants import ZERO
 from fp_libs.utilities import num_to_decimal
 
@@ -27,8 +25,6 @@ class DryRunExchange():
         self.quote = quote
         self.base_balance = num_to_decimal(base_balance)
         self.quote_balance = num_to_decimal(quote_balance)
-        self.base_volume = ZERO
-        self.quote_volume = ZERO
         self.base_fees = ZERO
         self.quote_fees = ZERO
         self.trade_count = 0
@@ -50,8 +46,6 @@ class DryRunExchange():
                 self.quote)
         self.base_balance += post_fee_base
         self.quote_balance -= post_fee_quote
-        self.base_volume += pre_fee_base
-        self.quote_volume += pre_fee_quote
         self.base_fees += pre_fee_base - post_fee_base
         self.quote_fees += post_fee_quote - pre_fee_quote
         self.trade_count += 1
@@ -73,51 +67,5 @@ class DryRunExchange():
                 self.base)
         self.base_balance -= base_amount
         self.quote_balance += post_fee_quote
-        self.base_volume += base_amount
-        self.quote_volume += pre_fee_quote
         self.quote_fees += pre_fee_quote - post_fee_quote
         self.trade_count += 1
-
-
-class DryRunManager():
-    """An object to manage and hold the dry run state of the bot."""
-
-    def __init__(self, exchange1, exchange2):
-        """Constructor.
-
-        Args:
-            exchange1 (DryRunExchange): The object to hold dry run
-                execution state for the first exchange.
-            exchange2 (DryRunExchange): The object to hold dry run
-                execution state for the second exchange.
-        """
-        self.e1 = exchange1
-        self.e2 = exchange2
-
-    def __repr__(self):
-        """Printable representation of the DryRunManager, for debugging."""
-        return "E1: {}\nE2: {}".format(
-            str(self.e1.__dict__),
-            str(self.e2.__dict__))
-
-    def log_balances(self):
-        """Log the current balances of the run."""
-        logging.info('Balances:')
-        logging.info(self.e1.name)
-        logging.info('base: %s %s', self.e1.base_balance, self.e1.base)
-        logging.info('quote: %s %s', self.e1.quote_balance, self.e1.quote)
-        logging.info(self.e2.name)
-        logging.info('base: %s %s', self.e2.base_balance, self.e2.base)
-        logging.info('quote: %s %s', self.e2.quote_balance, self.e2.quote)
-
-    def log_all(self):
-        """Log all state of the run."""
-        self.log_balances()
-        logging.info(self.e1.name)
-        logging.info('%s volume: %s', self.e1.base, self.e1.base_volume)
-        logging.info('%s volume: %s', self.e1.quote, self.e1.quote_volume)
-        logging.info('trade count: %s', self.e1.trade_count)
-        logging.info(self.e2.name)
-        logging.info('%s volume: %s', self.e2.base, self.e2.base_volume)
-        logging.info('%s volume: %s', self.e2.quote, self.e2.quote_volume)
-        logging.info('trade count: %s', self.e2.trade_count)

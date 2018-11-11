@@ -9,11 +9,10 @@ import yaml
 
 import autotrageur.bot.arbitrage.autotrageur
 import fp_libs.db.maria_db_handler as db_handler
-from autotrageur.bot.arbitrage.autotrageur import (Autotrageur,
-                                       AutotrageurAuthenticationError)
+from autotrageur.bot.arbitrage.autotrageur import Autotrageur
+from autotrageur.bot.arbitrage.fcf_autotrageur import \
+    AutotrageurAuthenticationError
 from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
-from autotrageur.bot.trader.dry_run import DryRunExchange, DryRunManager
-from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from fp_libs.utils.ccxt_utils import RetryableError
 
 OpenAndSafeLoad = namedtuple('OpenAndSafeLoad', ['open', 'safe_load'])
@@ -40,6 +39,11 @@ class Mocktrageur(Autotrageur):
     def _import_state(self, previous_state):
         pass
 
+    def _final_log(self):
+        pass
+
+    def _post_setup(self):
+        pass
 
 @pytest.fixture(scope='module')
 def mock_autotrageur():
@@ -62,42 +66,6 @@ def test_parse_config_file(mocker, mock_autotrageur, mock_open_yaml):
     assert(parsed_config != {})
     mock_open_yaml.open.assert_called_once_with(file_name, 'r')
     mock_open_yaml.safe_load.assert_called_once()
-
-
-@pytest.mark.parametrize(
-    "decrypt_success, dryrun", [
-        (True, True),
-        (True, False),
-        (False, True),
-        pytest.param(False, False,
-            marks=pytest.mark.xfail(strict=True, raises=IOError)),
-    ]
-)
-def test_parse_keyfile(mocker, mock_autotrageur, decrypt_success, dryrun):
-    args = mocker.MagicMock()
-    mocker.patch('getpass.getpass')
-    mocker.patch.object(mock_autotrageur._config, 'dryrun', dryrun)
-    mock_decrypt = mocker.patch.object(autotrageur.bot.arbitrage.autotrageur, 'decrypt')
-    mock_kf_to_map = mocker.patch.object(autotrageur.bot.arbitrage.autotrageur, 'keyfile_to_map')
-
-    if not decrypt_success:
-        mock_decrypt.side_effect = Exception
-
-    key_map = mock_autotrageur._Autotrageur__parse_keyfile(args)
-
-    getpass.getpass.assert_called_once_with(prompt="Enter keyfile password:")   # pylint: disable=E1101
-    if decrypt_success:
-        mock_decrypt.assert_called_once()
-        mock_kf_to_map.assert_called_once()
-        assert(key_map)
-    elif not dryrun:
-        mock_decrypt.assert_called_once()
-        mock_kf_to_map.assert_not_called()
-        assert key_map is None
-    else:
-        mock_decrypt.assert_called_once()
-        mock_kf_to_map.assert_not_called()
-        assert not (key_map)
 
 
 def test_load_configs(mocker, mock_autotrageur):
@@ -146,23 +114,36 @@ def test_init_db(mocker, mock_autotrageur, mock_open_yaml):
     schedule.clear()
 
 
+def test_init_temp_logger(mocker, mock_autotrageur):
+    mock_setup_temp_logger = mocker.patch.object(
+        autotrageur.bot.arbitrage.autotrageur.bot_logging,
+        'setup_temporary_logger')
+
+    mock_autotrageur._Autotrageur__init_temp_logger()
+
+    assert mock_autotrageur.logger == mock_setup_temp_logger.return_value
+
+
 @pytest.mark.parametrize('dryrun, use_test_api, result_log_dir', [
     (True, True, 'dryrun-test'),
     (True, False, 'dryrun'),
     (False, True, 'test'),
     (False, False, 'live'),
 ])
-def test_init_logger(mocker, mock_autotrageur, dryrun, use_test_api,
+def test_init_complete_logger(mocker, mock_autotrageur, dryrun, use_test_api,
                      result_log_dir):
+    mock_logger = mocker.Mock()
+    mocker.patch.object(mock_autotrageur, 'logger', mock_logger, create=True)
     mocker.patch.object(mock_autotrageur._config, 'dryrun', dryrun)
     mocker.patch.object(mock_autotrageur._config, 'use_test_api', use_test_api)
     mock_setup_background_logger = mocker.patch.object(
         autotrageur.bot.arbitrage.autotrageur.bot_logging,
         'setup_background_logger')
 
-    mock_autotrageur._Autotrageur__init_logger()
+    mock_autotrageur._Autotrageur__init_complete_logger()
 
-    mock_setup_background_logger.assert_called_once_with(result_log_dir, mock_autotrageur._config.id)
+    mock_setup_background_logger.assert_called_once_with(
+        mock_logger, result_log_dir, mock_autotrageur._config.id)
     mock_setup_background_logger.return_value.queue_listener.start.assert_called_once()
 
 
@@ -182,112 +163,10 @@ def test_load_env_vars(mocker, mock_autotrageur, env_path_exists, env_path_loade
     assert result is (env_path_exists and env_path_loaded and env_var_loaded)
 
 
-@pytest.mark.parametrize("resume_id", [None, 'abcdef'])
-@pytest.mark.parametrize("dryrun", [True, False])
-def test_setup_dry_run(mocker, mock_autotrageur, resume_id, dryrun):
-    dry_run_exchange_init = mocker.patch.object(
-        DryRunExchange, '__init__', return_value=None)
-    dry_run_manager_init = mocker.patch.object(
-        DryRunManager, '__init__', return_value=None)
-    mocker.patch.object(mock_autotrageur._config, 'dryrun', dryrun)
-    mocker.patch.object(mock_autotrageur._config, 'exchange1_pair', 'ETH/USD')
-    mocker.patch.object(mock_autotrageur._config, 'exchange2_pair', 'ETH/KRW')
-
-    mock_autotrageur._Autotrageur__setup_dry_run(resume_id)
-
-    if resume_id and dryrun:
-        assert dry_run_exchange_init.call_count == 0
-        assert dry_run_manager_init.call_count == 0
-    elif dryrun:
-        assert dry_run_exchange_init.call_count == 2
-        assert dry_run_manager_init.call_count == 1
-        assert isinstance(mock_autotrageur._dry_run_manager, DryRunManager)
-    else:
-        assert mock_autotrageur._dry_run_manager is None
-
-@pytest.mark.parametrize('exc_type', [ccxt.AuthenticationError, ccxt.ExchangeNotAvailable])
-@pytest.mark.parametrize('balance_check_success', [True, False])
-@pytest.mark.parametrize('use_test_api', [True, False])
-@pytest.mark.parametrize('dryrun', [True, False])
-def test_setup_traders(mocker, mock_autotrageur, dryrun, use_test_api,
-                       balance_check_success, exc_type):
-    fake_slippage = 0.25
-    fake_pair = 'fake/pair'
-    fake_exchange_key_map = {
-        'fake': {
-            API_KEY: 'API_KEY',
-            API_SECRET: 'API_SECRET',
-            PASSWORD: 'PASSWORD'
-        },
-        'pair': {
-            API_KEY: 'API_KEY',
-            API_SECRET: 'API_SECRET',
-            PASSWORD: 'PASSWORD'
-        }
-    }
-    placeholder = 'fake'
-    mock_trader1 = mocker.Mock()
-    mock_trader2 = mocker.Mock()
-    mock_ccxt_trader_constructor = mocker.patch('autotrageur.bot.arbitrage.autotrageur.CCXTTrader')
-    mock_ccxt_trader_constructor.side_effect = [mock_trader1, mock_trader2]
-    mocker.patch.object(mock_autotrageur._config, 'exchange1_pair', fake_pair)
-    mocker.patch.object(mock_autotrageur._config, 'exchange2_pair', fake_pair)
-    mocker.patch.object(mock_autotrageur._config, 'exchange1', placeholder)
-    mocker.patch.object(mock_autotrageur._config, 'exchange2', placeholder)
-    mocker.patch.object(mock_autotrageur._config, 'slippage', fake_slippage)
-    mocker.patch.object(mock_autotrageur._config, 'use_test_api', use_test_api)
-    mocker.patch.object(mock_autotrageur._config, 'dryrun', dryrun)
-    if dryrun:
-        mocker.patch.object(
-            mock_autotrageur,
-            '_dry_run_manager',
-            DryRunManager(mocker.Mock(), mocker.Mock()),
-            create=True)
-
-    # If wallet balance fetch fails, expect either ccxt.AuthenticationError or
-    # ccxt.ExchangeNotAvailable to be raised.
-    if balance_check_success is False:
-        # For testing purposes, only need one trader to throw an exception.
-        mock_trader1.update_wallet_balances.side_effect = exc_type
-        with pytest.raises(AutotrageurAuthenticationError):
-            mock_autotrageur._Autotrageur__setup_traders(fake_exchange_key_map)
-
-        # Expect called once and encountered exception.
-        mock_trader1.update_wallet_balances.assert_called_once_with()
-        mock_trader2.update_wallet_balances.assert_not_called()
-    else:
-        mock_autotrageur._Autotrageur__setup_traders(fake_exchange_key_map)
-        mock_trader1.update_wallet_balances.assert_called_once_with()
-        mock_trader2.update_wallet_balances.assert_called_once_with()
-        assert(mock_trader1.load_markets.call_count == 1)
-        assert(mock_trader2.load_markets.call_count == 1)
-
-    if use_test_api:
-        assert(mock_trader1.connect_test_api.call_count == 1)
-        assert(mock_trader2.connect_test_api.call_count == 1)
-    else:
-        assert(mock_trader1.connect_test_api.call_count == 0)
-        assert(mock_trader2.connect_test_api.call_count == 0)
-
-
-def test_post_setup(mocker, mock_autotrageur):
-    args = mocker.MagicMock()
-    MOCK_EXCHANGE_KEY_MAP = mocker.Mock()
-    mock_parse_keyfile = mocker.patch.object(
-        mock_autotrageur, '_Autotrageur__parse_keyfile', return_value=MOCK_EXCHANGE_KEY_MAP)
-    mock_setup_dry_run = mocker.patch.object(mock_autotrageur, '_Autotrageur__setup_dry_run')
-    mock_setup_traders = mocker.patch.object(mock_autotrageur, '_Autotrageur__setup_traders')
-
-    mock_autotrageur._post_setup(args)
-    mock_parse_keyfile.assert_called_once_with(args['KEYFILE'], args['--pi_mode'])
-    mock_setup_dry_run.assert_called_once_with(args['--resume_id'])
-    mock_setup_traders.assert_called_once_with(MOCK_EXCHANGE_KEY_MAP)
-
-
 @pytest.mark.parametrize('env_vars_loaded', [True, False])
 def test_setup(mocker, mock_autotrageur, env_vars_loaded):
     args = mocker.MagicMock()
-    mock_init_logger = mocker.patch.object(mock_autotrageur, '_Autotrageur__init_logger')
+    mock_init_logger = mocker.patch.object(mock_autotrageur, '_Autotrageur__init_temp_logger')
     mock_load_env_vars = mocker.patch.object(
         mock_autotrageur, '_Autotrageur__load_env_vars', return_value=env_vars_loaded)
     mock_init_db = mocker.patch.object(mock_autotrageur, '_Autotrageur__init_db')
@@ -337,6 +216,8 @@ class TestRunAutotrageur:
             None, None, None, None, SystemExit
         ])
         mocker.patch.object(mock_autotrageur, '_load_configs')
+        mocker.patch.object(mock_autotrageur, '_export_state')
+        mocker.patch.object(mock_autotrageur, '_final_log')
 
     @pytest.mark.parametrize("resume_or_new_args", [
         FAKE_ARGS_NEW_RUN,
@@ -356,7 +237,6 @@ class TestRunAutotrageur:
         mock_autotrageur._alert.assert_not_called()
         mock_autotrageur._setup.assert_called_once_with(resume_or_new_args)
         mock_autotrageur._post_setup.assert_called_once_with(resume_or_new_args)
-        mock_autotrageur._export_state.assert_not_called()
         assert mock_autotrageur._clean_up.call_count == 5
         assert mock_autotrageur._wait.call_count == 5
         assert mock_autotrageur._poll_opportunity.call_count == 5
@@ -378,8 +258,8 @@ class TestRunAutotrageur:
         retry_counter_instance = mock_counter.return_value
 
         if dryrun:
-            mocker.patch.object(mock_autotrageur, '_dry_run_manager', create=True)
-            mocker.patch.object(mock_autotrageur._dry_run_manager, 'log_all', create=True)
+            mocker.patch.object(mock_autotrageur, '_stat_tracker', create=True)
+            mocker.patch.object(mock_autotrageur, '_final_log')
             mock_autotrageur.run_autotrageur(self.FAKE_ARGS_NEW_RUN)
         else:
             with pytest.raises(KeyboardInterrupt):
@@ -389,15 +269,15 @@ class TestRunAutotrageur:
         mock_autotrageur._setup.assert_called_once_with(self.FAKE_ARGS_NEW_RUN)
         mock_autotrageur._post_setup.assert_called_once_with(self.FAKE_ARGS_NEW_RUN)
         mock_autotrageur._load_configs.assert_called_with(self.FAKE_ARGS_NEW_RUN['CONFIGFILE'])
-        mock_autotrageur._export_state.assert_called_once_with()
         assert mock_autotrageur._clean_up.call_count == 4
         assert mock_autotrageur._wait.call_count == 3
         assert mock_autotrageur._poll_opportunity.call_count == 4
         assert mock_autotrageur._execute_trade.call_count == 2
         assert retry_counter_instance.increment.call_count == 3
 
-        if dryrun:
-            mock_autotrageur._dry_run_manager.log_all.assert_called_once_with()
+        # Finally clause.
+        mock_autotrageur._export_state.assert_called_once_with()
+        mock_autotrageur._final_log.assert_called_once_with()
 
     @pytest.mark.parametrize("exc_type", [
         AutotrageurAuthenticationError,
@@ -414,7 +294,6 @@ class TestRunAutotrageur:
         mocker.patch.object(mock_autotrageur._config, 'dryrun', dryrun)
 
         if dryrun:
-            mocker.patch.object(mock_autotrageur, '_dry_run_manager', create=True)
             with pytest.raises(exc_type):
                 mock_autotrageur.run_autotrageur(self.FAKE_ARGS_NEW_RUN)
             mock_autotrageur._alert.assert_called_once()
@@ -424,7 +303,7 @@ class TestRunAutotrageur:
 
             mocker.spy(mock_autotrageur, 'original_run_autotrageur')
             mocker.patch.object(mock_autotrageur, 'run_autotrageur')
-            mocker.patch.object(mock_autotrageur, '_dry_run_manager', None, create=True)
+
             mock_autotrageur.original_run_autotrageur(self.FAKE_ARGS_NEW_RUN)
 
             mock_autotrageur._alert.assert_called_once()
@@ -439,11 +318,14 @@ class TestRunAutotrageur:
         mock_autotrageur._setup.assert_called_once_with(self.FAKE_ARGS_NEW_RUN)
         mock_autotrageur._post_setup.assert_called_once_with(self.FAKE_ARGS_NEW_RUN)
         mock_autotrageur._load_configs.assert_called_with(self.FAKE_ARGS_NEW_RUN['CONFIGFILE'])
-        mock_autotrageur._export_state.assert_called_once_with()
         assert mock_autotrageur._clean_up.call_count == 2
         assert mock_autotrageur._wait.call_count == 1
         assert mock_autotrageur._poll_opportunity.call_count == 2
         assert mock_autotrageur._execute_trade.call_count == 1
+
+        # Finally clause.
+        mock_autotrageur._export_state.assert_called_once_with()
+        mock_autotrageur._final_log.assert_called_once_with()
 
     @pytest.mark.parametrize("decrement_returns", [
         [True, True, False], [True, True, True]])
@@ -480,3 +362,7 @@ class TestRunAutotrageur:
         mock_autotrageur._load_configs.assert_called_with(self.FAKE_ARGS_NEW_RUN['CONFIGFILE'])
         assert mock_autotrageur._execute_trade.call_count == 1
         assert retry_counter_instance.increment.call_count == 1
+
+        # Finally clause.
+        mock_autotrageur._export_state.assert_called_once_with()
+        mock_autotrageur._final_log.assert_called_once_with()
