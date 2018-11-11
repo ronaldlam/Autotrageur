@@ -88,7 +88,7 @@ class FCFCheckpoint():
             TypeError: Raised if not a class or subclass of FCFStatTracker.
         """
         if not isinstance(stat_tracker, FCFStatTracker):
-            raise TypeError("a stat tracker must be a subclass of "
+            raise TypeError("a stat tracker must be a class or subclass of "
                 "FCFStatTracker.")
         self._stat_tracker = stat_tracker
 

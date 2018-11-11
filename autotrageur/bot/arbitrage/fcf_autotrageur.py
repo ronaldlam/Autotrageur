@@ -260,8 +260,8 @@ class FCFAutotrageur(Autotrageur):
         )
 
     def __setup_dry_run_exchanges(self, resume_id):
-        """Sets up the DryRunExchanges which emulate the exchanges and trade
-        updates.
+        """Sets up DryRunExchanges which emulate Exchanges, trades, wallet
+        balances, etc.
 
         Args:
             resume_id (str): The unique ID used to resume the bot from a
@@ -346,7 +346,7 @@ class FCFAutotrageur(Autotrageur):
             'id': new_stat_tracker_id,
             'autotrageur_config_id': self._config.id,
             'autotrageur_config_start_timestamp': self._config.start_timestamp,
-            'autotrageur_stop_timestamp': self._config.start_timestamp,
+            'autotrageur_stop_timestamp': None,
             'e1_start_bal_base': self.trader1.base_bal,
             'e1_close_bal_base': self.trader1.base_bal,
             'e2_start_bal_base': self.trader2.base_bal,
@@ -713,14 +713,17 @@ class FCFAutotrageur(Autotrageur):
         components.
 
         Components initialized:
-        - setting up traders to interface with exchange APIs (parses the
-            keyfile for relevant authentication first)
+        - Traders to interface with exchange APIs (parses the keyfile for
+            relevant authentication first)
         - BalanceChecker
         - Twilio Client
         - Forex Client
 
         Other responsibilities:
         - Persists Configuration and Forex in the database.
+
+        NOTE: The order of these calls matters.  For example, the StatTracker
+        relies on instantiated Traders, and a persisted Configuration entry.
 
         Args:
             arguments (dict): Map of the arguments passed to the program.

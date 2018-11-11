@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS fcf_measures (
     id VARCHAR(36) NOT NULL,
     autotrageur_config_id VARCHAR(36) NOT NULL,
     autotrageur_config_start_timestamp INT(11) UNSIGNED NOT NULL,
-    autotrageur_stop_timestamp INT(11) UNSIGNED NOT NULL,
+    autotrageur_stop_timestamp INT(11) UNSIGNED,
     e1_start_bal_base DECIMAL(27, 8) NOT NULL,
     e1_close_bal_base DECIMAL(27, 8) NOT NULL,
     e2_start_bal_base DECIMAL(27, 8) NOT NULL,
