@@ -216,6 +216,8 @@ class TestRunAutotrageur:
             None, None, None, None, SystemExit
         ])
         mocker.patch.object(mock_autotrageur, '_load_configs')
+        mocker.patch.object(mock_autotrageur, '_export_state')
+        mocker.patch.object(mock_autotrageur, '_final_log')
 
     @pytest.mark.parametrize("resume_or_new_args", [
         FAKE_ARGS_NEW_RUN,
@@ -235,7 +237,6 @@ class TestRunAutotrageur:
         mock_autotrageur._alert.assert_not_called()
         mock_autotrageur._setup.assert_called_once_with(resume_or_new_args)
         mock_autotrageur._post_setup.assert_called_once_with(resume_or_new_args)
-        mock_autotrageur._export_state.assert_not_called()
         assert mock_autotrageur._clean_up.call_count == 5
         assert mock_autotrageur._wait.call_count == 5
         assert mock_autotrageur._poll_opportunity.call_count == 5
@@ -268,15 +269,15 @@ class TestRunAutotrageur:
         mock_autotrageur._setup.assert_called_once_with(self.FAKE_ARGS_NEW_RUN)
         mock_autotrageur._post_setup.assert_called_once_with(self.FAKE_ARGS_NEW_RUN)
         mock_autotrageur._load_configs.assert_called_with(self.FAKE_ARGS_NEW_RUN['CONFIGFILE'])
-        mock_autotrageur._export_state.assert_called_once_with()
         assert mock_autotrageur._clean_up.call_count == 4
         assert mock_autotrageur._wait.call_count == 3
         assert mock_autotrageur._poll_opportunity.call_count == 4
         assert mock_autotrageur._execute_trade.call_count == 2
         assert retry_counter_instance.increment.call_count == 3
 
-        if dryrun:
-            mock_autotrageur._final_log.assert_called_once_with()
+        # Finally clause.
+        mock_autotrageur._export_state.assert_called_once_with()
+        mock_autotrageur._final_log.assert_called_once_with()
 
     @pytest.mark.parametrize("exc_type", [
         AutotrageurAuthenticationError,
@@ -317,11 +318,14 @@ class TestRunAutotrageur:
         mock_autotrageur._setup.assert_called_once_with(self.FAKE_ARGS_NEW_RUN)
         mock_autotrageur._post_setup.assert_called_once_with(self.FAKE_ARGS_NEW_RUN)
         mock_autotrageur._load_configs.assert_called_with(self.FAKE_ARGS_NEW_RUN['CONFIGFILE'])
-        mock_autotrageur._export_state.assert_called_once_with()
         assert mock_autotrageur._clean_up.call_count == 2
         assert mock_autotrageur._wait.call_count == 1
         assert mock_autotrageur._poll_opportunity.call_count == 2
         assert mock_autotrageur._execute_trade.call_count == 1
+
+        # Finally clause.
+        mock_autotrageur._export_state.assert_called_once_with()
+        mock_autotrageur._final_log.assert_called_once_with()
 
     @pytest.mark.parametrize("decrement_returns", [
         [True, True, False], [True, True, True]])
@@ -358,3 +362,7 @@ class TestRunAutotrageur:
         mock_autotrageur._load_configs.assert_called_with(self.FAKE_ARGS_NEW_RUN['CONFIGFILE'])
         assert mock_autotrageur._execute_trade.call_count == 1
         assert retry_counter_instance.increment.call_count == 1
+
+        # Finally clause.
+        mock_autotrageur._export_state.assert_called_once_with()
+        mock_autotrageur._final_log.assert_called_once_with()

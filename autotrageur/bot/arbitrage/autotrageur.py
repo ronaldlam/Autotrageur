@@ -223,7 +223,7 @@ class Autotrageur(ABC):
 
     @abstractmethod
     def _final_log(self):
-        """Outputs a final log and/or console output during the finality of the
+        """Outputs a final log and/or console output during teardown of the
         bot."""
         pass
 
@@ -252,7 +252,7 @@ class Autotrageur(ABC):
         components.
 
         Components initialized:
-        - Logger (overwrites the temporary logger initialized in _setup)
+        - Logger (completes background logger setup)
 
         Args:
             arguments (dict): Map of the arguments passed to the program.
@@ -315,19 +315,11 @@ class Autotrageur(ABC):
                     else:
                         raise
         except KeyboardInterrupt:
-            self._export_state()
-            self._final_log()
-
             if self._config.dryrun:
                 logging.critical("Keyboard Interrupt")
-                fancy_log("Summary")
-                fancy_log("End")
             else:
                 raise
         except Exception as e:
-            self._export_state()
-            self._final_log()
-
             if not self._config.dryrun:
                 logging.critical("Falling back to dry run, error encountered:")
                 logging.critical(e)
@@ -337,3 +329,8 @@ class Autotrageur(ABC):
             else:
                 self._alert(SUBJECT_DRY_RUN_FAILURE)
                 raise
+        finally:
+            self._export_state()
+            self._final_log()
+            fancy_log("Summary")
+            fancy_log("End")

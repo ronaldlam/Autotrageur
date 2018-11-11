@@ -260,8 +260,8 @@ class FCFAutotrageur(Autotrageur):
         )
 
     def __setup_dry_run_exchanges(self, resume_id):
-        """Sets up DryRunExchanges which emulate Exchanges, trades, wallet
-        balances, etc.
+        """Sets up DryRunExchanges which emulate Exchanges.  Trades, wallet
+        balances, other exchange-related state is then recorded.
 
         Args:
             resume_id (str): The unique ID used to resume the bot from a
