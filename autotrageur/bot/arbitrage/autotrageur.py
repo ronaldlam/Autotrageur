@@ -331,6 +331,6 @@ class Autotrageur(ABC):
                 raise
         finally:
             self._export_state()
-            self._final_log()
             fancy_log("Summary")
+            self._final_log()
             fancy_log("End")
