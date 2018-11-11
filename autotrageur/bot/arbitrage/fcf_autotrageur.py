@@ -725,6 +725,8 @@ class FCFAutotrageur(Autotrageur):
         Args:
             arguments (dict): Map of the arguments passed to the program.
         """
+        super()._post_setup(arguments)
+
         # Persist the configuration.
         self.__persist_config()
 

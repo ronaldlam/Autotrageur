@@ -842,6 +842,7 @@ def test_post_setup(mocker, no_patch_fcf_autotrageur, resume_id):
         no_patch_fcf_autotrageur, '_FCFAutotrageur__setup_traders')
     mock_send_email = mocker.patch.object(no_patch_fcf_autotrageur, '_send_email')
     mocker.patch.object(no_patch_fcf_autotrageur._config, 'twilio_cfg_path')
+    parent_super = mocker.patch.object(builtins, 'super')
     mock_load_twilio = mocker.patch.object(
         no_patch_fcf_autotrageur, '_FCFAutotrageur__load_twilio')
     mock_setup_forex = mocker.patch.object(
@@ -858,6 +859,7 @@ def test_post_setup(mocker, no_patch_fcf_autotrageur, resume_id):
 
     no_patch_fcf_autotrageur._post_setup(arguments)
 
+    parent_super.return_value._post_setup.assert_called_once_with(arguments)
     mock_parse_keyfile.assert_called_once_with(arguments['KEYFILE'], arguments['--pi_mode'])
     mock_setup_traders.assert_called_once_with(MOCK_EXCHANGE_KEY_MAP, arguments['--resume_id'])
     mock_load_twilio.assert_called_once_with(

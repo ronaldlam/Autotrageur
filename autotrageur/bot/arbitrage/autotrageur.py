@@ -243,14 +243,17 @@ class Autotrageur(ABC):
         """
         pass
 
-    @abstractmethod
     def _post_setup(self, arguments):
         """Initializes any additional components which rely on the core
         components.
 
+        Components initialized:
+        - Logger (overwrites the temporary logger initialized in _setup)
+
         Args:
             arguments (dict): Map of the arguments passed to the program.
         """
+        # TODO: self.__init_complete_logger()
         pass
 
     def _wait(self):
