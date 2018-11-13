@@ -153,7 +153,8 @@ def persist_to_db(hist_fetchers):
             metadata, and used for fetching historical data through an API.
     """
     cached_exceptions = []
-    with ThreadPoolExecutor(max_workers=30) as executor:
+    cached_exchange_names = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
         future_to_fetcher = {
             executor.submit(fetch_history, fetcher): fetcher for fetcher in hist_fetchers
         }
@@ -162,6 +163,7 @@ def persist_to_db(hist_fetchers):
             try:
                 price_history = future.result()
             except Exception as exc:
+                cached_exchange_names.append(fetcher.exchange)
                 cached_exceptions.append(exc)
             else:
                 if logging.getLogger().getEffectiveLevel() < logging.INFO:
@@ -191,6 +193,6 @@ def persist_to_db(hist_fetchers):
                 cursor.close()
 
         wait(future_to_fetcher)
-        for exc in cached_exceptions:
+        for exchange_name, exc in zip(cached_exchange_names, cached_exceptions):
             logging.info("{} fetching generated an exception: {}".format(
-                fetcher.exchange, exc))
+                exchange_name, exc))
