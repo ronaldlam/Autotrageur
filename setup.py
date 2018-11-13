@@ -162,7 +162,7 @@ setup(
         'docopt',
         # NOTE: This is only supported with pip versions > 18.1.
         # See https://github.com/pypa/pip/issues/4187 for more details.
-        'fp-libs @ git+ssh://git@github.com/ronaldlam/FirstPartyLibs.git',
+        'fp-libs @ git+ssh://git@github.com/ronaldlam/FirstPartyLibs.git@1.1.0',
         'python-dotenv',
         'setuptools-scm',
     ],  # Optional
