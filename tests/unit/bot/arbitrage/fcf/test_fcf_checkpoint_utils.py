@@ -35,10 +35,10 @@ def mock_fcf_checkpoint():
 def test_form_fcf_attr_map(mocker, mock_fcf_checkpoint):
     attr_map = fcf_checkpoint_utils._form_fcf_attr_map(mock_fcf_checkpoint)
     assert attr_map == {
-    'config': MOCK_CONFIG,
-    'strategy_state': MOCK_STRATEGY_STATE,
-    'stat_tracker': MOCK_STAT_TRACKER
-}
+        'config': MOCK_CONFIG,
+        'strategy_state': MOCK_STRATEGY_STATE,
+        'stat_tracker': MOCK_STAT_TRACKER
+    }
 
 
 def test_pickle_fcf_checkpoint(mocker, mock_fcf_checkpoint):

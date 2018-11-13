@@ -700,8 +700,6 @@ class FCFAutotrageur(Autotrageur):
     def _poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
 
-        Any Exception is re-raised after collecting stats.
-
         Returns:
             bool: Whether there is an opportunity.
         """

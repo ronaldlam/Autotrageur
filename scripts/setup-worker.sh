@@ -13,6 +13,18 @@ newgrp autotrageur
 eval `ssh-agent -s`
 ssh-add <private-key-path>
 
+# Install mariadb 10.3
+# https://downloads.mariadb.org/mariadb/repositories/#mirror=globotech&distro=Ubuntu&distro_release=bionic--ubuntu_bionic&version=10.3
+# https://stackoverflow.com/questions/22949654/mysql-config-not-found-when-installing-mysqldb-python-interface-for-mariadb-10-u
+# https://stackoverflow.com/questions/25979525/cannot-find-lssl-cannot-find-lcrypto-when-installing-mysql-python-using-mar
+sudo apt-get install software-properties-common
+sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
+sudo add-apt-repository 'deb [arch=amd64,arm64,ppc64el] http://mariadb.mirror.globo.tech/repo/10.3/ubuntu bionic main'
+sudo apt update
+sudo apt install mariadb-server
+sudo apt install libmariadb-dev-compat
+sudo apt install libssl-dev
+
 # For db:
 # Yes you need the sudo.
 sudo mysql -u root -p

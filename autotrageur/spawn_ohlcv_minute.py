@@ -3,16 +3,14 @@
 Updates database with historical minute OHLCV of a trading pair.
 
 Usage:
-    spawn_ohlcv_minute.py DBINFOFILE DBPWFILE [--pi_mode] [--db_pw=DB_PW]
+    spawn_ohlcv_minute.py DBINFOFILE [--db_pw=DB_PW]
 
 Options:
-    --pi_mode           Whether this is to be used with the raspberry pi or on a full desktop.
     --db_pw=DB_PW       Provide a database password via command-line.  Warning: Should be used
                         with extreme caution and only for tasks such as cronjobs.
 
 Description:
     DBINFOFILE          Database details, including database name and user.
-    DBPWFILE            The encrypted file containing the database password.
 """
 import getpass
 import logging
@@ -35,7 +33,7 @@ def main():
                         datefmt="%Y-%m-%d %H:%M:%S")
     logging.getLogger().setLevel(logging.INFO)
 
-    db_pw = getpass.getpass("Enter DB Password:")
+    db_pw = args['--db_pw'] or getpass.getpass("Enter DB Password:")
 
     with open(args['DBINFOFILE'], 'r') as db_info:
         db_info = yaml.safe_load(db_info)
