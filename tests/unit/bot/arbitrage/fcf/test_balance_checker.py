@@ -3,8 +3,8 @@ from decimal import Decimal
 import pytest
 import schedule
 
-import libs.utils.schedule_utils as schedule_utils
-from bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
+import fp_libs.utils.schedule_utils as schedule_utils
+from autotrageur.bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
 
 
 @pytest.fixture

@@ -3,12 +3,12 @@ from decimal import Decimal
 import ccxt
 import pytest
 
-import libs.ccxt_extensions as ccxt_extensions
-from libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
-from libs.trade.executor.ccxt_executor import CCXTExecutor
-from libs.trade.executor.dryrun_executor import DryRunExecutor
-from libs.utilities import set_autotrageur_decimal_context
-from bot.trader.ccxt_trader import CCXTTrader
+import fp_libs.ccxt_extensions as ccxt_extensions
+from fp_libs.trade.fetcher.ccxt_fetcher import CCXTFetcher
+from fp_libs.trade.executor.ccxt_executor import CCXTExecutor
+from fp_libs.trade.executor.dryrun_executor import DryRunExecutor
+from fp_libs.utilities import set_autotrageur_decimal_context
+from autotrageur.bot.trader.ccxt_trader import CCXTTrader
 
 
 # Set the Decimal context before test runs.
@@ -94,6 +94,6 @@ def fake_dryrun_executor(mocker, ext_gemini_exchange):
 # ------------------ Mock trader fixtures -------------------------------------
 @pytest.fixture()
 def fake_ccxt_trader(mocker, symbols, exc_names, ccxtfetcher_binance, fake_ccxt_executor):
-    mocker.patch('libs.trade.fetcher.ccxt_fetcher.CCXTFetcher', return_value=ccxtfetcher_binance)
-    mocker.patch('libs.trade.executor.ccxt_executor.CCXTExecutor', return_value=fake_ccxt_executor)
+    mocker.patch('fp_libs.trade.fetcher.ccxt_fetcher.CCXTFetcher', return_value=ccxtfetcher_binance)
+    mocker.patch('fp_libs.trade.executor.ccxt_executor.CCXTExecutor', return_value=fake_ccxt_executor)
     return CCXTTrader(symbols['bitcoin'], symbols['usd'], exc_names['binance'], Decimal('3.0'), Decimal('20000.0'))

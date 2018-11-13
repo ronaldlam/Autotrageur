@@ -16,18 +16,15 @@ Description:
     KEYFILE                             The encrypted Keyfile containing relevant api keys.
     EXCHANGE                            The name of the exchange you wish to interact with.
 """
-import getpass
 import logging
 import pprint
 
 import ccxt
 from docopt import docopt
 
-import libs.ccxt_extensions as ccxt_extensions
-from libs.constants.ccxt_constants import API_KEY, API_SECRET
-from libs.security.encryption import decrypt
-from libs.utilities import keyfile_to_map, num_to_decimal, to_bytes, to_str
-
+from autotrageur.version import VERSION
+from fp_libs.ccxt_extensions.exchange_loader import load_exchange
+from fp_libs.utilities import load_keyfile, num_to_decimal, to_bytes, to_str
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,92 +33,23 @@ logging.basicConfig(
 
 
 # Constants
-EXTENSION_PREFIX = "ext_"
 EXCHANGE = 'EXCHANGE'
 KEYFILE = 'KEYFILE'
 
 
-def load_keyfile(keyfile, pi_mode=False):
-        """Load the keyfile given in the arguments.
-
-        Returns:
-            dict: Map of the keyfile contents, or None if dryrun and
-                unavailable.
-        """
-        pw = getpass.getpass(prompt="Enter keyfile password:")
-        with open(keyfile, "rb") as in_file:
-            keys = decrypt(
-                in_file.read(),
-                to_bytes(pw),
-                pi_mode)
-
-        str_keys = to_str(keys)
-        return keyfile_to_map(str_keys)
-
-
-def load_exchange(exchange_name, keyfile, pi_mode=False, use_test_api=False,
-                  use_verbose=False):
-    """Load the exchange given from user input.
-
-    Also calls `load_markets()` to ensure that the ccxt exchange object has been
-    initialized.
-
-    Args:
-        exchange_name (str): Name of the exchange to load.
-        keyfile (str): Name of the keyfile to obtain api keys.
-        pi_mode (bool): Whether to run Scrypt with memory limitations to
-            accommodate raspberry pi.  Default is False.
-        use_test_api (bool): Whether to use an exchange's test API.
-            Default is False.
-        use_verbose (bool): Whether to output ccxt's verbose logging from
-            network calls.  Default is False.
-
-    Raises:
-        IOError: If the encrypted keyfile does not open, and not in
-            dryrun mode.
-    """
-    # Load keyfile.
-    exchange_key_map = load_keyfile(keyfile, pi_mode)
-
-    # Exchange configuration settings.
-    exchange_config = {
-        'nonce': ccxt.Exchange.milliseconds,
-        'verbose': use_verbose
-    }
-
-    if exchange_key_map:
-        exchange_config['apiKey'] = (
-            exchange_key_map[exchange_name][API_KEY])
-        exchange_config['secret'] = (
-            exchange_key_map[exchange_name][API_SECRET])
-        exchange_config['password'] = (
-            exchange_key_map[exchange_name][API_SECRET])
-
-    if EXTENSION_PREFIX + exchange_name in dir(ccxt_extensions):
-        ccxt_exchange = getattr(
-            ccxt_extensions, EXTENSION_PREFIX + exchange_name)(exchange_config)
-    else:
-        ccxt_exchange = getattr(ccxt, exchange_name)(exchange_config)
-
-    # Connect to Test exchange, if requested.
-    if use_test_api:
-        if 'test' in ccxt_exchange.urls:
-            ccxt_exchange.urls['api'] = ccxt_exchange.urls['test']
-        else:
-            raise NotImplementedError(
-                "Test connection to %s not implemented." %
-                exchange_name)
-
-    load_markets_result = ccxt_exchange.load_markets()
-    logging.info(pprint.pformat(load_markets_result))
-    return ccxt_exchange
-
 if __name__ == "__main__":
-    args = docopt(__doc__, version="BasicClient 0.1")
+    args = docopt(__doc__, version=VERSION)
+
+    # Load keyfile.
+    exchange_key_map = load_keyfile(args[KEYFILE], args['--pi_mode'])
 
     exchange = load_exchange(
-        args[EXCHANGE], args[KEYFILE], args['--pi_mode'], args['--test_api'],
+        args[EXCHANGE], exchange_key_map, args['--test_api'],
         args['--verbose'])
+
+    load_markets_result = exchange.load_markets()
+    logging.info(pprint.pformat(load_markets_result))
+
     logging.info(
         'Loaded exchange: {}.  Ensure that there is ample exchange data output'
         ' displayed or call `exchange.load_markets()` to see available markets'
