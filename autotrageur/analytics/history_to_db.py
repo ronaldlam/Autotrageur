@@ -12,6 +12,7 @@ import MySQLdb
 import yaml
 
 import fp_libs.db.maria_db_handler as db_handler
+from fp_libs.email_client.simple_email_client import send_all_emails
 from fp_libs.fiat_symbols import FIAT_SYMBOLS
 from fp_libs.logging.logging_utils import fancy_log
 from fp_libs.time_utils import TimeInterval, get_most_recent_rounded_timestamp
@@ -144,7 +145,7 @@ def prepare_tables(table_metadata_list):
     logging.info('Tables prepared.')
 
 
-def persist_to_db(hist_fetchers):
+def persist_to_db(hist_fetchers, email_cfg_path):
     """Inserts minute data.
 
     Creates a table (if necessary), and inserts historical data.  Requires
@@ -153,6 +154,7 @@ def persist_to_db(hist_fetchers):
     Args:
         hist_fetchers (list[HistoryFetcher]): A list of fetchers containing
             metadata, and used for fetching historical data through an API.
+        email_cfg_path (str): Path to e-mail configuration for sending emails.
     """
     cached_exceptions = []
     cached_exceptions_exchange_names = []
@@ -215,7 +217,17 @@ def persist_to_db(hist_fetchers):
         fancy_log("SUCCESSFUL INSERTS")
         logging.info(pprint.pformat(cached_successful_inserts_metadata))
 
+        email_msg_entries = []
         fancy_log("Exceptions during fetching")
         for exchange_name, exc in zip(cached_exceptions_exchange_names, cached_exceptions):
-            logging.info("{} fetching generated an exception: {}".format(
-                exchange_name, exc))
+            exception_msg = "{} fetching generated an exception: {}".format(
+                exchange_name, exc)
+            logging.info(exception_msg)
+            email_msg_entries.append(exception_msg + '\n')
+
+        # Send email to admin if any errors during fetching.
+        if email_msg_entries:
+            send_all_emails(
+                email_cfg_path,
+                "Minute Data Fetching Error Report",
+                ''.join(email_msg_entries))

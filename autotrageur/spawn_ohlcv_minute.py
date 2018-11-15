@@ -3,7 +3,7 @@
 Updates database with historical minute OHLCV of a trading pair.
 
 Usage:
-    spawn_ohlcv_minute.py DBINFOFILE [--db_pw=DB_PW]
+    spawn_ohlcv_minute.py DBINFOFILE EMAILCFGPATH [--db_pw=DB_PW]
 
 Options:
     --db_pw=DB_PW       Provide a database password via command-line.  Warning: Should be used
@@ -11,6 +11,7 @@ Options:
 
 Description:
     DBINFOFILE          Database details, including database name and user.
+    EMAILCFGPATH        Email configuration path for emailing any errors.
 """
 import getpass
 import logging
@@ -31,7 +32,7 @@ DB_KEEP_ALIVE_HOURS = 4
 MINUTE_FETCH_HOURS = 8
 
 
-def fetch_minute_data():
+def fetch_minute_data(email_cfg_path):
     min_filepaths = []
     for root, dirs, files in os.walk('configs/fetch_rpi'):
         if root.endswith('minute'):
@@ -57,7 +58,7 @@ def fetch_minute_data():
                 ])))
 
     prepare_tables(table_metadata_list)
-    persist_to_db(hist_fetchers)
+    persist_to_db(hist_fetchers, email_cfg_path)
 
 def main():
     """Installed entry point."""
@@ -81,7 +82,7 @@ def main():
     schedule.every(4).hours.do(db_handler.ping_db)
 
     # Schedule minute fetching.
-    schedule.every(8).hours.do(fetch_minute_data)
+    schedule.every(8).hours.do(fetch_minute_data, args['EMAILCFGPATH'])
 
     while True:
         schedule.run_pending()
