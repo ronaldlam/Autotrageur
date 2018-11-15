@@ -80,7 +80,7 @@ def main():
             start_e2_quote = num_to_decimal(balance_info['e2_quote'])
     else:
         balance_info = execute_parametrized_query(
-            'SELECT start_e1_bal_base, start_e1_bal_quote, start_e2_bal_base, start_e2_bal_quote '
+            'SELECT e1_start_bal_base, e1_start_bal_quote, e2_start_bal_base, e2_start_bal_quote '
             'FROM fcf_measures '
             'WHERE autotrageur_config_id=%s '
             'ORDER BY autotrageur_config_start_timestamp '
