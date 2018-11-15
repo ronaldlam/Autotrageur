@@ -3,6 +3,7 @@
 Updates database with historical prices of a trading pair.
 """
 import logging
+import pprint
 from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from warnings import filterwarnings
@@ -12,6 +13,7 @@ import yaml
 
 import fp_libs.db.maria_db_handler as db_handler
 from fp_libs.fiat_symbols import FIAT_SYMBOLS
+from fp_libs.logging.logging_utils import fancy_log
 from fp_libs.time_utils import TimeInterval, get_most_recent_rounded_timestamp
 from fp_libs.trade.fetcher.history_fetcher import (HistoryFetcher,
                                                    HistoryQueryParams)
@@ -153,7 +155,8 @@ def persist_to_db(hist_fetchers):
             metadata, and used for fetching historical data through an API.
     """
     cached_exceptions = []
-    cached_exchange_names = []
+    cached_exceptions_exchange_names = []
+    cached_successful_inserts_metadata = {}
     with ThreadPoolExecutor(max_workers=10) as executor:
         future_to_fetcher = {
             executor.submit(fetch_history, fetcher): fetcher for fetcher in hist_fetchers
@@ -163,7 +166,7 @@ def persist_to_db(hist_fetchers):
             try:
                 price_history = future.result()
             except Exception as exc:
-                cached_exchange_names.append(fetcher.exchange)
+                cached_exceptions_exchange_names.append(fetcher.exchange)
                 cached_exceptions.append(exc)
             else:
                 if logging.getLogger().getEffectiveLevel() < logging.INFO:
@@ -190,9 +193,29 @@ def persist_to_db(hist_fetchers):
                     + "ON DUPLICATE KEY UPDATE time=time",
                     price_history)
                 db_handler.db.commit()
+
+                # Add successful row insertion metadata.
+                if not cached_successful_inserts_metadata.get(exchange):
+                    cached_successful_inserts_metadata[exchange] = [{
+                        'base': base,
+                        'quote': quote,
+                        'rows_updated': cursor.rowcount
+                    }]
+                else:
+                    cached_successful_inserts_metadata[exchange].append({
+                        'base': base,
+                        'quote': quote,
+                        'rows_updated': cursor.rowcount
+                    })
+
+                # Cleanup.
                 cursor.close()
 
         wait(future_to_fetcher)
-        for exchange_name, exc in zip(cached_exchange_names, cached_exceptions):
+        fancy_log("SUCCESSFUL INSERTS")
+        logging.info(pprint.pformat(cached_successful_inserts_metadata))
+
+        fancy_log("Exceptions during fetching")
+        for exchange_name, exc in zip(cached_exceptions_exchange_names, cached_exceptions):
             logging.info("{} fetching generated an exception: {}".format(
                 exchange_name, exc))
