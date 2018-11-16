@@ -12,8 +12,8 @@ exchange: coinbase
 # (String) Time Interval to retrieve historical.  One of 'day', 'hour', 'minute'.
 interval: minute
 # (Int) Number of data points to return. E.g. 365 for daily will be 365 days.
-# Maximum for minute data is approximately 10080 for 7 days worth.
-limit: 10080
+# Maximum for minute data is approximately 2000 for 1.38 days worth.
+limit: 2000
 
 # ----------------DATA SETTINGS------------------------------------------------
 # (String) The database name.
