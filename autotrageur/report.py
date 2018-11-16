@@ -78,6 +78,15 @@ def main():
             start_e1_quote = num_to_decimal(balance_info['e1_quote'])
             start_e2_base = num_to_decimal(balance_info['e2_base'])
             start_e2_quote = num_to_decimal(balance_info['e2_quote'])
+    else:
+        balance_info = execute_parametrized_query(
+            'SELECT e1_start_bal_base, e1_start_bal_quote, e2_start_bal_base, e2_start_bal_quote '
+            'FROM fcf_measures '
+            'WHERE autotrageur_config_id=%s '
+            'ORDER BY autotrageur_config_start_timestamp '
+            'LIMIT 1',
+            (config_id,))
+        start_e1_base, start_e1_quote, start_e2_base, start_e2_quote = balance_info[0]
 
     # As is, the BIT MariaDB type will return b'\x00' or b'\x01'. We use
     # INTEGER since it's better behaved as a python int.
