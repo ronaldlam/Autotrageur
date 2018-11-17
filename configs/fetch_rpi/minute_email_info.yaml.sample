@@ -1,0 +1,8 @@
+# Email info
+
+username: # Insert your email address here
+password: # Insert your email password or app password with 2FA (recommended)
+host: # Insert email host (e.g. smtp.gmail.com for gmail)
+port: # Insert email port (e.g. 587 for gmail)
+fail_silent: # default: False
+recipients: # Fill with one or more e-mail address as recipients using yaml list syntax
