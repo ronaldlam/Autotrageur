@@ -15,11 +15,6 @@ interval: minute
 # Maximum for minute data is approximately 2000 for 1.38 days worth.
 limit: 2000
 
-# ----------------DATA SETTINGS------------------------------------------------
-# (String) The database name.
-db_name: minute
-# (String) The database user.
-db_user: root
 
 # ----------------CSV SETTINGS-------------------------------------------------
 
