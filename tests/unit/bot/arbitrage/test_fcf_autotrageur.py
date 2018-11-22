@@ -38,6 +38,8 @@ from autotrageur.bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                                  FCF_AUTOTRAGEUR_CONFIG_TABLE,
                                                  FCF_MEASURES_PRIM_KEY_ID,
                                                  FCF_MEASURES_TABLE,
+                                                 FCF_SESSION_PRIM_KEY_ID,
+                                                 FCF_SESSION_TABLE,
                                                  FCF_STATE_PRIM_KEY_ID,
                                                  FCF_STATE_TABLE,
                                                  FOREX_RATE_PRIM_KEY_ID,
@@ -96,6 +98,7 @@ FAKE_NEW_STAT_TRACKER_UUID = str(uuid.uuid4())
 FAKE_SPREAD_OPP_ID = 9999
 FAKE_CURR_TIME = time.time()
 FAKE_CONFIG_ROW = { 'fake': 'config_row' }
+FAKE_SESSION_ROW = { 'fake': 'session_row'}
 FAKE_STRATEGY_STATE_RESTORED = Mock()
 
 
@@ -234,6 +237,24 @@ def test_update_forex(mocker, no_patch_fcf_autotrageur):
 
     mock_trader.set_forex_ratio.assert_called_once_with()
     persist_forex.assert_called_once_with(mock_trader)
+
+
+def test_persist_session(mocker, no_patch_fcf_autotrageur):
+    mocker.patch.object(db_handler, 'build_row', return_value=FAKE_SESSION_ROW)
+    mocker.patch.object(db_handler, 'insert_row')
+    mocker.patch.object(db_handler, 'commit_all')
+
+    no_patch_fcf_autotrageur._FCFAutotrageur__persist_session()
+
+    db_handler.build_row.assert_called_once_with(
+        no_patch_fcf_autotrageur._session._fields,
+        no_patch_fcf_autotrageur._session._asdict())
+    db_handler.insert_row.assert_called_once_with(
+        InsertRowObject(
+            FCF_SESSION_TABLE,
+            FAKE_SESSION_ROW,
+            (FCF_SESSION_PRIM_KEY_ID,)))
+    db_handler.commit_all.assert_called_once_with()
 
 
 @pytest.mark.parametrize('buy_response', [
