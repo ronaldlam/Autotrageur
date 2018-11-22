@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 import autotrageur.resume_fabricator as rf
-from autotrageur.bot.arbitrage.autotrageur import Configuration
+from autotrageur.bot.arbitrage.fcf.configuration import FCFConfiguration
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
 from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyState
 from autotrageur.bot.arbitrage.fcf.target_tracker import FCFTargetTracker
@@ -21,7 +21,7 @@ CURR_DIR = os.path.dirname(os.path.realpath(__file__))
 # Mocked loaded config.
 MOCK_CONFIG_ID = 'some_uuid_uuid4'
 MOCK_STARTING_TS = 12345678
-MOCK_STARTING_CONFIG = Configuration(
+MOCK_STARTING_CONFIG = FCFConfiguration(
     id=MOCK_CONFIG_ID,
     start_timestamp=MOCK_STARTING_TS,
     dryrun=False,

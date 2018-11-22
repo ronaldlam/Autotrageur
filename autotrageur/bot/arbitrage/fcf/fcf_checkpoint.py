@@ -1,4 +1,4 @@
-from autotrageur.bot.arbitrage.autotrageur import Configuration
+from autotrageur.bot.arbitrage.fcf.configuration import FCFConfiguration
 from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyState
 from autotrageur.bot.arbitrage.fcf.fcf_stat_tracker import FCFStatTracker
 from autotrageur.version import VERSION
@@ -29,7 +29,7 @@ class FCFCheckpoint():
         the constructor directly.
 
         Args:
-            config (Configuration): The current Configuration of the bot.
+            config (FCFConfiguration): The current FCFConfiguration of the bot.
             strategy_state (FCFStrategyState): The current Strategy State of
                 the bot.
             stat_tracker (StatTracker): The StatTracker state of the bot.
@@ -43,7 +43,7 @@ class FCFCheckpoint():
         """Property getter for the checkpoint's config.
 
         Returns:
-            Configuration: The checkpoint's saved config.
+            FCFConfiguration: The checkpoint's saved config.
         """
         return self._config
 
@@ -52,18 +52,18 @@ class FCFCheckpoint():
         """Property setter for the checkpoint's config.
 
         Args:
-            config (Configuration): A configuration to save into the checkpoint.
+            config (FCFConfiguration): A configuration to save into the checkpoint.
 
         Raises:
-            TypeError: Raised if not type Configuration.
-            AttributeError: Raised if a Configuration has already been saved
-                in the checkpoint - ensuring that the config is not
+            TypeError: Raised if not type FCFConfiguration.
+            AttributeError: Raised if an FCFConfiguration has already been
+                saved in the checkpoint - ensuring that the config is not
                 accidentally overwritten.
         """
-        if not isinstance(config, Configuration):
-            raise TypeError("config must be of type Configuration.")
+        if not isinstance(config, FCFConfiguration):
+            raise TypeError("config must be of type FCFConfiguration.")
         if hasattr(self, '_config'):
-            raise AttributeError("a Configuration cannot be changed during a "
+            raise AttributeError("a FCFConfiguration cannot be changed during a "
                 "run")
         self._config = config
 

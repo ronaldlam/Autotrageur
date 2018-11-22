@@ -5,6 +5,7 @@
 sudo groupadd autotrageur
 sudo usermod -a -G autotrageur ronaldctlam
 sudo usermod -a -G autotrageur drewngui
+sudo mkdir /home/rnd
 sudo chgrp -R autotrageur /home/rnd
 sudo chmod g+w /home/rnd
 newgrp autotrageur

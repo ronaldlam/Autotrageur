@@ -35,7 +35,6 @@ from autotrageur.bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
                                                      TWILIO_SENDER_NUMBER)
 from autotrageur.bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                                  FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
-                                                 FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS,
                                                  FCF_AUTOTRAGEUR_CONFIG_TABLE,
                                                  FCF_MEASURES_PRIM_KEY_ID,
                                                  FCF_MEASURES_TABLE,
@@ -91,6 +90,7 @@ FAKE_UNIFIED_RESPONSE_DIFFERENT_AMOUNT = {
 
 FAKE_CONFIG_UUID = str(uuid.uuid4())
 FAKE_RESUME_UUID = str(uuid.uuid4())
+FAKE_SESSION_UUID = str(uuid.uuid4())
 FAKE_NEW_STATE_UUID = str(uuid.uuid4())
 FAKE_NEW_STAT_TRACKER_UUID = str(uuid.uuid4())
 FAKE_SPREAD_OPP_ID = 9999
@@ -103,6 +103,7 @@ FAKE_STRATEGY_STATE_RESTORED = Mock()
 def no_patch_fcf_autotrageur():
     fcf_instance = FCFAutotrageur()
     fcf_instance._config = Mock()
+    fcf_instance._session = Mock()
     return fcf_instance
 
 
@@ -197,8 +198,7 @@ def test_persist_config(mocker, no_patch_fcf_autotrageur):
         InsertRowObject(
             FCF_AUTOTRAGEUR_CONFIG_TABLE,
             FAKE_CONFIG_ROW,
-            (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
-            FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS)))
+            (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,)))
     db_handler.commit_all.assert_called_once_with()
 
 
@@ -252,8 +252,7 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
         SpreadOpportunity(
             FAKE_SPREAD_OPP_ID, None, None, None, None, None, None, None, None),
         None, None, None, None)
-    mocker.patch.object(no_patch_fcf_autotrageur._config, 'id', FAKE_CONFIG_UUID)
-    mocker.patch.object(no_patch_fcf_autotrageur._config, 'start_timestamp', FAKE_CURR_TIME)
+    mocker.patch.object(no_patch_fcf_autotrageur._session, 'id', FAKE_SESSION_UUID)
     mocker.patch.object(db_handler, 'insert_row')
     mocker.patch.object(db_handler, 'commit_all')
 
@@ -270,12 +269,10 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
     # Check that the ids are not populated until function is called.
     if buy_response_copy is not None:
         assert buy_response_copy.get('trade_opportunity_id') is None
-        assert buy_response_copy.get('autotrageur_config_id') is None
-        assert buy_response_copy.get('autotrageur_config_start_timestamp') is None
+        assert buy_response_copy.get('session_id') is None
     if sell_response_copy is not None:
         assert sell_response_copy.get('trade_opportunity_id') is None
-        assert sell_response_copy.get('autotrageur_config_id') is None
-        assert sell_response_copy.get('autotrageur_config_start_timestamp') is None
+        assert sell_response_copy.get('session_id') is None
     no_patch_fcf_autotrageur._FCFAutotrageur__persist_trade_data(
         buy_response_copy, sell_response_copy, trade_metadata)
 
@@ -288,8 +285,7 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
                 (TRADES_PRIM_KEY_TRADE_OPP_ID, TRADES_PRIM_KEY_SIDE))
         ))
         assert buy_response_copy.get('trade_opportunity_id') is FAKE_SPREAD_OPP_ID
-        assert buy_response_copy.get('autotrageur_config_id') is FAKE_CONFIG_UUID
-        assert buy_response_copy.get('autotrageur_config_start_timestamp') is FAKE_CURR_TIME
+        assert buy_response_copy.get('session_id') is FAKE_SESSION_UUID
 
     if sell_response_copy is not None:
         insert_num_calls += 1
@@ -300,8 +296,7 @@ def test_persist_trade_data(mocker, no_patch_fcf_autotrageur,
                 (TRADES_PRIM_KEY_TRADE_OPP_ID, TRADES_PRIM_KEY_SIDE))
         ))
         assert sell_response_copy.get('trade_opportunity_id') is FAKE_SPREAD_OPP_ID
-        assert sell_response_copy.get('autotrageur_config_id') is FAKE_CONFIG_UUID
-        assert sell_response_copy.get('autotrageur_config_start_timestamp') is FAKE_CURR_TIME
+        assert sell_response_copy.get('session_id') is FAKE_SESSION_UUID
 
     assert db_handler.insert_row.call_count == insert_num_calls
     assert db_handler.insert_row.call_args_list == insert_call_args_list
@@ -385,6 +380,7 @@ def test_setup_stat_tracker(mocker, no_patch_fcf_autotrageur, resume_id, dryrun,
     FAKE_TRADER1 = mocker.Mock()
     FAKE_TRADER2 = mocker.Mock()
     mocker.patch.object(uuid, 'uuid4', return_value=FAKE_NEW_STAT_TRACKER_UUID)
+    mocker.patch.object(time, 'time', return_value=FAKE_CURR_TIME)
     mock_fancy_log = mocker.patch.object(autotrageur.bot.arbitrage.fcf_autotrageur, 'fancy_log')
     mock_stat_tracker_constructor = mocker.patch.object(
         autotrageur.bot.arbitrage.fcf_autotrageur,
@@ -398,9 +394,7 @@ def test_setup_stat_tracker(mocker, no_patch_fcf_autotrageur, resume_id, dryrun,
     mock_commit_all = mocker.patch.object(db_handler, 'commit_all')
     MOCK_FCF_MEASURES_ROW_DATA = {
         'id': FAKE_NEW_STAT_TRACKER_UUID,
-        'autotrageur_config_id': no_patch_fcf_autotrageur._config.id,
-        'autotrageur_config_start_timestamp': no_patch_fcf_autotrageur._config.start_timestamp,
-        'autotrageur_stop_timestamp': None,
+        'session_id': no_patch_fcf_autotrageur._session.id,
         'e1_start_bal_base': no_patch_fcf_autotrageur.trader1.base_bal,
         'e1_close_bal_base': no_patch_fcf_autotrageur.trader1.base_bal,
         'e2_start_bal_base': no_patch_fcf_autotrageur.trader2.base_bal,
@@ -751,8 +745,7 @@ def test_export_state(mocker, no_patch_fcf_autotrageur, fcf_checkpoint):
     mocker.patch.object(no_patch_fcf_autotrageur, 'trader2', create=True)
     FAKE_STAT_TRACKER = FCFStatTracker(
         None, no_patch_fcf_autotrageur.trader1, no_patch_fcf_autotrageur.trader2)
-    mocker.patch.object(no_patch_fcf_autotrageur._config, 'id', FAKE_CONFIG_UUID)
-    mocker.patch.object(no_patch_fcf_autotrageur._config, 'start_timestamp', FAKE_CURR_TIME)
+    mocker.patch.object(no_patch_fcf_autotrageur._session, 'id', FAKE_SESSION_UUID)
     mocker.patch.object(no_patch_fcf_autotrageur, 'checkpoint', fcf_checkpoint, create=True)
     mocker.patch.object(no_patch_fcf_autotrageur, '_stat_tracker', FAKE_STAT_TRACKER, create=True)
     mocker.patch.object(no_patch_fcf_autotrageur._stat_tracker, 'detach_traders')
@@ -773,8 +766,7 @@ def test_export_state(mocker, no_patch_fcf_autotrageur, fcf_checkpoint):
         FCF_STATE_TABLE,
         {
             'id': FAKE_NEW_STATE_UUID,
-            'autotrageur_config_id': FAKE_CONFIG_UUID,
-            'autotrageur_config_start_timestamp': FAKE_CURR_TIME,
+            'session_id': FAKE_SESSION_UUID,
             'state': pickle.dumps(fcf_checkpoint)
         },
         (FCF_STATE_PRIM_KEY_ID,))
@@ -849,9 +841,11 @@ def test_post_setup(mocker, no_patch_fcf_autotrageur, resume_id):
         no_patch_fcf_autotrageur, '_FCFAutotrageur__setup_forex')
     mock_persist_config = mocker.patch.object(
         no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_config')
+    mock_persist_config = mocker.patch.object(
+        no_patch_fcf_autotrageur, '_FCFAutotrageur__persist_session')
     mock_setup_stat_tracker = mocker.patch.object(
         no_patch_fcf_autotrageur, '_FCFAutotrageur__setup_stat_tracker')
-    mocker.patch.object(no_patch_fcf_autotrageur, '_stat_tracker')
+    mocker.patch.object(no_patch_fcf_autotrageur, '_stat_tracker', create=True)
     mock_attach_traders = mocker.patch.object(no_patch_fcf_autotrageur._stat_tracker, 'attach_traders')
     mock_balance_checker_constructor = mocker.patch(
         'autotrageur.bot.arbitrage.fcf_autotrageur.FCFBalanceChecker',

@@ -166,12 +166,13 @@ class CCXTTrader():
                     t_o.{exchange_id}_sell * CAST(%s AS DECIMAL(27,8)) / t.true_price) AS trade_predict_ratio
             FROM
                 fcf_autotrageur_config AS c,
+                fcf_session AS s,
                 trade_opportunity AS t_o,
                 trades AS t
             WHERE
                 c.dryrun = %s
-                AND c.id = t.autotrageur_config_id
-                AND c.start_timestamp = t.autotrageur_config_start_timestamp
+                AND c.id = s.autotrageur_config_id
+                AND s.id = t.session_id
                 AND t.trade_opportunity_id = t_o.id
                 AND t.exchange = %s
         """.format(exchange_id=self.exchange_id, buy_op=buy_op)

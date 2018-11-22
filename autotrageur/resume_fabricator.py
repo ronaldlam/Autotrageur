@@ -24,7 +24,7 @@ import yaml
 from docopt import docopt
 
 import fp_libs.db.maria_db_handler as db_handler
-from autotrageur.bot.arbitrage.autotrageur import Configuration
+from autotrageur.bot.arbitrage.fcf.configuration import FCFConfiguration
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint_utils import \
     pickle_fcf_checkpoint
@@ -34,7 +34,6 @@ from autotrageur.bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
 from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
 from autotrageur.bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                                  FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
-                                                 FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS,
                                                  FCF_AUTOTRAGEUR_CONFIG_TABLE,
                                                  FCF_STATE_PRIM_KEY_ID,
                                                  FCF_STATE_TABLE)
@@ -103,8 +102,7 @@ def _export_config(new_config):
     config_row_obj = InsertRowObject(
         FCF_AUTOTRAGEUR_CONFIG_TABLE,
         fcf_autotrageur_config_row,
-        (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
-        FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS))
+        (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,))
 
     db_handler.insert_row(config_row_obj)
     db_handler.commit_all()
@@ -199,10 +197,10 @@ def main():
     # Save a copy of the old checkpoint for comparison purposes.
     original_checkpoint = copy.deepcopy(checkpoint)
 
-    # Replace the Configuration object, if override specified.
+    # Replace the FCFConfiguration object, if override specified.
     # Create a new ID and start_timestamp, unpack the rest of the config.
     if in_yaml['config_override']:
-        new_configuration = Configuration(
+        new_configuration = FCFConfiguration(
             id=str(uuid.uuid4()),
             start_timestamp=int(time.time()),
             **in_yaml['config_map'])

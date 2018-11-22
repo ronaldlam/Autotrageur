@@ -3,6 +3,7 @@
 # Table names.
 FCF_AUTOTRAGEUR_CONFIG_TABLE = 'fcf_autotrageur_config'
 FCF_MEASURES_TABLE = 'fcf_measures'
+FCF_SESSION_TABLE = 'fcf_session'
 FCF_STATE_TABLE = 'fcf_state'
 FOREX_RATE_TABLE = 'forex_rate'
 TRADES_TABLE = 'trades'
@@ -32,8 +33,8 @@ FCF_AUTOTRAGEUR_CONFIG_COLUMNS = [
 
 # Table primary keys.
 FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID = 'id'
-FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS = 'start_timestamp'
 FCF_MEASURES_PRIM_KEY_ID = 'id'
+FCF_SESSION_PRIM_KEY_ID = 'id'
 FCF_STATE_PRIM_KEY_ID = 'id'
 FOREX_RATE_PRIM_KEY_ID = 'id'
 TRADES_PRIM_KEY_TRADE_OPP_ID = 'trade_opportunity_id'
