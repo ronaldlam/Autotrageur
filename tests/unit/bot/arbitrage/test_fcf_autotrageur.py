@@ -98,7 +98,6 @@ FAKE_NEW_STAT_TRACKER_UUID = str(uuid.uuid4())
 FAKE_SPREAD_OPP_ID = 9999
 FAKE_CURR_TIME = time.time()
 FAKE_CONFIG_ROW = { 'fake': 'config_row' }
-FAKE_SESSION_ROW = { 'fake': 'session_row'}
 FAKE_STRATEGY_STATE_RESTORED = Mock()
 
 
@@ -240,19 +239,15 @@ def test_update_forex(mocker, no_patch_fcf_autotrageur):
 
 
 def test_persist_session(mocker, no_patch_fcf_autotrageur):
-    mocker.patch.object(db_handler, 'build_row', return_value=FAKE_SESSION_ROW)
     mocker.patch.object(db_handler, 'insert_row')
     mocker.patch.object(db_handler, 'commit_all')
 
     no_patch_fcf_autotrageur._FCFAutotrageur__persist_session()
 
-    db_handler.build_row.assert_called_once_with(
-        no_patch_fcf_autotrageur._session._fields,
-        no_patch_fcf_autotrageur._session._asdict())
     db_handler.insert_row.assert_called_once_with(
         InsertRowObject(
             FCF_SESSION_TABLE,
-            FAKE_SESSION_ROW,
+            no_patch_fcf_autotrageur._session._asdict(),
             (FCF_SESSION_PRIM_KEY_ID,)))
     db_handler.commit_all.assert_called_once_with()
 

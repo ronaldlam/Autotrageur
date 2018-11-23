@@ -89,7 +89,7 @@ class IncorrectStateObjectTypeError(Exception):
 
 class FCFSession(namedtuple('FCFSession', [
         'id', 'autotrageur_config_id', 'start_timestamp', 'stop_timestamp'])):
-    """Holds all of the configuration for the autotrageur bot.
+    """Holds descriptors for a session of an FCFAutotrageur bot.
 
     Args:
         id (str): The unique uuid.
@@ -210,11 +210,9 @@ class FCFAutotrageur(Autotrageur):
 
     def __persist_session(self):
         """Persists the current session for this `fcf_autotrageur` run."""
-        session_row = db_handler.build_row(
-            self._session._fields, self._session._asdict())
         session_row_object = InsertRowObject(
             FCF_SESSION_TABLE,
-            session_row,
+            self._session._asdict(),
             (FCF_SESSION_PRIM_KEY_ID,))
 
         db_handler.insert_row(session_row_object)
