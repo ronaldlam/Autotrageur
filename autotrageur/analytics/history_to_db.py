@@ -16,8 +16,9 @@ from fp_libs.email_client.simple_email_client import send_all_emails
 from fp_libs.fiat_symbols import FIAT_SYMBOLS
 from fp_libs.logging.logging_utils import fancy_log
 from fp_libs.time_utils import TimeInterval, get_most_recent_rounded_timestamp
-from fp_libs.trade.fetcher.history_fetcher import (HistoryFetcher,
-                                                   HistoryQueryParams)
+from fp_libs.trade.fetcher.cc_history_fetcher import CCHistoryFetcher
+from fp_libs.trade.fetcher.cw_history_fetcher import CWHistoryFetcher
+from fp_libs.trade.fetcher.history_fetcher import HistoryQueryParams
 
 
 class IncompatibleTimeIntervalError(Exception):
@@ -40,27 +41,6 @@ class HistoryTableMetadata(namedtuple('HistoryTableMetadata', [
     __slots__ = ()
 
 
-def row_add_info(row, base, quote, exchange):
-    """Appends additional information to an existing row of historical data.
-
-    Args:
-        row (dict): A row of historical data, represented as a dict.
-        base (str): The base currency.
-        quote (str): The quote currency.
-        exchange (str): The exchange associated with the retrieved data.
-    """
-    if row['volumefrom'] > 0:
-        vwap = row['volumeto'] / row['volumefrom']
-    else:
-        vwap = 0
-    row.update({
-        'vwap': vwap,
-        'base': base,
-        'quote': quote,
-        'exchange': exchange
-    })
-
-
 def fetch_history(fetcher):
     """Fetches token history.
 
@@ -76,16 +56,19 @@ def fetch_history(fetcher):
     return fetcher.get_token_history(fetcher.interval)
 
 
-def make_fetchers(cfg_filepaths):
+def make_fetchers(cfg_filepaths, fetcher_type):
     """Creates a list of HistoryFetchers.
 
     Args:
         cfg_filepaths (list[str]): A list of config filepaths containing the
             metadata required for fetching a trading pair's history.
+        fetcher_type (str): One of ['cc', 'cw'], for CryptoCompare or
+            Cryptowatch datasources.
 
     Raises:
         IncompatibleTimeIntervalError: Thrown if an invalid TimeInterval is
             given.
+        NotImplementedError: If fetcher_type is not supported.
 
     Returns:
         list[HistoryFetcher]: A list of constructed HistoryFetchers for each
@@ -114,7 +97,16 @@ def make_fetchers(cfg_filepaths):
             history_params = HistoryQueryParams(
                 basecurr, quotecurr, exchange, None, None, None, 1,
                 limit, toTs)
-            hist_fetchers.append(HistoryFetcher(history_params, interval))
+
+            if fetcher_type == 'cc':
+                fetcher = CCHistoryFetcher(history_params, interval)
+            elif fetcher_type == 'cw':
+                fetcher = CWHistoryFetcher(history_params, interval)
+            else:
+                raise NotImplementedError(
+                    'Only cc or cw fetcher types supported.')
+
+            hist_fetchers.append(fetcher)
     return hist_fetchers
 
 
@@ -172,7 +164,7 @@ def persist_to_db(hist_fetchers, email_cfg_path):
                 cached_exceptions.append(exc)
             else:
                 if logging.getLogger().getEffectiveLevel() < logging.INFO:
-                    filterwarnings('ignore', category=MySQLdb.Warning)
+                    filterwarnings('ignore', category=MySQLdb.Warning)  # pylint: disable=E1101
 
                 base = fetcher.base
                 quote = fetcher.quote
@@ -182,7 +174,7 @@ def persist_to_db(hist_fetchers, email_cfg_path):
 
                 # Add the extra columns.
                 for row in price_history:
-                    row_add_info(row, base, quote, exchange)
+                    fetcher.adjust_row_info(row, base, quote, exchange)
 
                 cursor = db_handler.db.cursor()
                 cursor.executemany("INSERT IGNORE INTO "
