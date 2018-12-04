@@ -3,7 +3,7 @@
 Updates database with historical minute OHLCV of a trading pair.
 
 Usage:
-    spawn_ohlcv_minute.py DBINFOFILE EMAILCFGPATH [--db_pw=DB_PW]
+    spawn_ohlcv_minute.py (cc|cw) DBINFOFILE EMAILCFGPATH [--db_pw=DB_PW]
 
 Options:
     --db_pw=DB_PW       Provide a database password via command-line.  Warning: Should be used
@@ -27,19 +27,20 @@ from autotrageur.analytics.history_to_db import (HistoryTableMetadata,
                                                  make_fetchers, persist_to_db,
                                                  prepare_tables)
 from autotrageur.version import VERSION
+from fp_libs.utils import schedule_utils
 
 DB_KEEP_ALIVE_HOURS = 4
 MINUTE_FETCH_HOURS = 8
 
 
-def fetch_minute_data(email_cfg_path):
+def fetch_minute_data(email_cfg_path, fetcher_type):
     min_filepaths = []
-    for root, dirs, files in os.walk('configs/fetch_rpi'):
+    for root, _, files in os.walk('configs/fetch_rpi'):
         if root.endswith('minute'):
             min_filepaths.extend([os.path.join(root, filename) for filename in
                              files if root.endswith('minute')])
 
-    hist_fetchers = make_fetchers(min_filepaths)
+    hist_fetchers = make_fetchers(min_filepaths, fetcher_type)
 
     # Create Table Metadata objects from each type of fetcher.
     table_metadata_list = []
@@ -67,6 +68,11 @@ def main():
                         datefmt="%Y-%m-%d %H:%M:%S")
     logging.getLogger().setLevel(logging.INFO)
 
+    if args['cc']:
+        fetcher_type = 'cc'
+    elif args['cw']:
+        fetcher_type = 'cw'
+
     db_pw = args['--db_pw'] or getpass.getpass("Enter DB Password:")
 
     with open(args['DBINFOFILE'], 'r') as db_info:
@@ -82,7 +88,10 @@ def main():
     schedule.every(4).hours.do(db_handler.ping_db)
 
     # Schedule minute fetching.
-    schedule.every(8).hours.do(fetch_minute_data, args['EMAILCFGPATH'])
+    FETCH_TAG = 'FETCH'
+    schedule.every(8).hours.do(
+        fetch_minute_data, args['EMAILCFGPATH'], fetcher_type).tag(FETCH_TAG)
+    schedule_utils.fetch_only_job(FETCH_TAG).run()
 
     while True:
         schedule.run_pending()

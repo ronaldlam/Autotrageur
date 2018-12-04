@@ -72,7 +72,7 @@ def test_load_configs(mocker, mock_autotrageur):
     MOCK_CONFIG_PATH = 'mock/config/path'
     mock_parse_config_file = mocker.patch.object(
         mock_autotrageur, '_Autotrageur__parse_config_file')
-    mock_configuration = mocker.patch('autotrageur.bot.arbitrage.autotrageur.Configuration')
+    mock_configuration = mocker.patch('autotrageur.bot.arbitrage.autotrageur.FCFConfiguration')
     mock_uuid4 = mocker.patch('uuid.uuid4')
     mock_time_time = mocker.patch('time.time')
 

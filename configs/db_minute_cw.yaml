@@ -1,0 +1,5 @@
+# ----------------DATABASE SETTINGS--------------------------------------------
+# (String) The database name.
+db_name: minute_cw
+# (String) The database user.
+db_user: worker1

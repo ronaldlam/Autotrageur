@@ -7,6 +7,7 @@ import pprint
 import time
 import traceback
 import uuid
+from collections import namedtuple
 
 import ccxt
 import schedule
@@ -25,10 +26,11 @@ from autotrageur.bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
                                                      TWILIO_SENDER_NUMBER)
 from autotrageur.bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                                  FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
-                                                 FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS,
                                                  FCF_AUTOTRAGEUR_CONFIG_TABLE,
                                                  FCF_MEASURES_PRIM_KEY_ID,
                                                  FCF_MEASURES_TABLE,
+                                                 FCF_SESSION_PRIM_KEY_ID,
+                                                 FCF_SESSION_TABLE,
                                                  FCF_STATE_PRIM_KEY_ID,
                                                  FCF_STATE_TABLE,
                                                  FOREX_RATE_PRIM_KEY_ID,
@@ -83,6 +85,19 @@ class IncorrectStateObjectTypeError(Exception):
     state.  For fcf_autotrageur, FCFCheckpoint is the required object type.
     """
     pass
+
+
+class FCFSession(namedtuple('FCFSession', [
+        'id', 'autotrageur_config_id', 'start_timestamp', 'stop_timestamp'])):
+    """Holds descriptors for a session of an FCFAutotrageur bot.
+
+    Args:
+        id (str): The unique uuid.
+        autotrageur_config_id (str): The unique uuid of the config.
+        start_timestamp (int): The start unix timestamp.
+        stop_timestamp (int): The stop unix timestamp.
+    """
+    __slots__ = ()
 
 
 class FCFAutotrageur(Autotrageur):
@@ -156,8 +171,7 @@ class FCFAutotrageur(Autotrageur):
         config_row_obj = InsertRowObject(
             FCF_AUTOTRAGEUR_CONFIG_TABLE,
             fcf_autotrageur_config_row,
-            (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
-            FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_START_TS))
+            (FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,))
 
         db_handler.insert_row(config_row_obj)
         db_handler.commit_all()
@@ -194,6 +208,16 @@ class FCFAutotrageur(Autotrageur):
         trader.set_forex_ratio()
         self.__persist_forex(trader)
 
+    def __persist_session(self):
+        """Persists the current session for this `fcf_autotrageur` run."""
+        session_row_object = InsertRowObject(
+            FCF_SESSION_TABLE,
+            self._session._asdict(),
+            (FCF_SESSION_PRIM_KEY_ID,))
+
+        db_handler.insert_row(session_row_object)
+        db_handler.commit_all()
+
     def __persist_trade_data(self, buy_response, sell_response, trade_metadata):
         """Persists data regarding the current trade into the database.
 
@@ -222,9 +246,7 @@ class FCFAutotrageur(Autotrageur):
         # Persist the executed buy order, if available.
         if buy_response is not None:
             buy_response['trade_opportunity_id'] = trade_opportunity_id
-            buy_response['autotrageur_config_id'] = self._config.id
-            buy_response['autotrageur_config_start_timestamp'] = (
-                self._config.start_timestamp)
+            buy_response['session_id'] = self._session.id
             buy_trade_row_obj = InsertRowObject(
                 TRADES_TABLE,
                 buy_response,
@@ -234,9 +256,7 @@ class FCFAutotrageur(Autotrageur):
         # Persist the executed sell order, if available.
         if sell_response is not None:
             sell_response['trade_opportunity_id'] = trade_opportunity_id
-            sell_response['autotrageur_config_id'] = self._config.id
-            sell_response['autotrageur_config_start_timestamp'] = (
-                self._config.start_timestamp)
+            sell_response['session_id'] = self._session.id
             sell_trade_row_obj = InsertRowObject(
                 TRADES_TABLE,
                 sell_response,
@@ -330,7 +350,6 @@ class FCFAutotrageur(Autotrageur):
                 fancy_log(
                     "Resumed - DRY RUN mode. Trades will NOT execute on actual "
                     "exchanges.")
-            return
         else:
             if self._config.dryrun:
                 fancy_log(
@@ -344,9 +363,7 @@ class FCFAutotrageur(Autotrageur):
 
         row_data = {
             'id': new_stat_tracker_id,
-            'autotrageur_config_id': self._config.id,
-            'autotrageur_config_start_timestamp': self._config.start_timestamp,
-            'autotrageur_stop_timestamp': None,
+            'session_id': self._session.id,
             'e1_start_bal_base': self.trader1.base_bal,
             'e1_close_bal_base': self.trader1.base_bal,
             'e2_start_bal_base': self.trader2.base_bal,
@@ -608,18 +625,21 @@ class FCFAutotrageur(Autotrageur):
         fatal error or if it is killed manually."""
         logging.debug("#### Exporting bot's current state")
 
+        # Update fcf_sessions entry.
+        session_update_result = db_handler.execute_parametrized_query(
+            "UPDATE fcf_session SET stop_timestamp = %s WHERE id = %s;",
+            (int(time.time()), self._session.id))
+
         # UPDATE the fcf_measures table with updated stats.
-        raw_update_result = db_handler.execute_parametrized_query(
-                "UPDATE fcf_measures SET "
-                "autotrageur_stop_timestamp = %s, "
+        measures_update_result = db_handler.execute_parametrized_query(
+            "UPDATE fcf_measures SET "
                 "e1_close_bal_base = %s, "
                 "e2_close_bal_base = %s, "
                 "e1_close_bal_quote = %s, "
                 "e2_close_bal_quote = %s, "
                 "num_fatal_errors = num_fatal_errors + 1, "
                 "trade_count = %s "
-                "WHERE id = %s;",
-                (int(time.time()),
+            "WHERE id = %s;", (
                 self._stat_tracker.e1.base_bal,
                 self._stat_tracker.e2.base_bal,
                 self._stat_tracker.e1.quote_bal,
@@ -627,8 +647,10 @@ class FCFAutotrageur(Autotrageur):
                 self._stat_tracker.trade_count,
                 self._stat_tracker.id))
 
+        logging.debug("UPDATE fcf_session affected rows: {}".format(
+            session_update_result))
         logging.debug("UPDATE fcf_measures affected rows: {}".format(
-            raw_update_result))
+            measures_update_result))
 
         # Register copyreg.pickle with Checkpoint object and helper function
         # for better backwards-compatibility in pickling.
@@ -643,8 +665,7 @@ class FCFAutotrageur(Autotrageur):
         # from the saved state.
         fcf_state_map = {
             'id': str(uuid.uuid4()),
-            'autotrageur_config_id': self._config.id,
-            'autotrageur_config_start_timestamp': self._config.start_timestamp,
+            'session_id': self._session.id,
             'state': pickle.dumps(self.checkpoint)
         }
         logging.debug(
@@ -718,7 +739,7 @@ class FCFAutotrageur(Autotrageur):
         - Forex Client
 
         Other responsibilities:
-        - Persists Configuration and Forex in the database.
+        - Persists Configuration, Session and Forex in the database.
 
         NOTE: The order of these calls matters.  For example, the StatTracker
         relies on instantiated Traders, and a persisted Configuration entry.
@@ -728,8 +749,12 @@ class FCFAutotrageur(Autotrageur):
         """
         super()._post_setup(arguments)
 
-        # Persist the configuration.
-        self.__persist_config()
+        # Persist the configuration if required.
+        if not arguments['--resume_id']:
+            self.__persist_config()
+
+        # Persist session.
+        self.__persist_session()
 
         # Parse keyfile into a dict.
         exchange_key_map = self.__parse_keyfile(
@@ -773,6 +798,7 @@ class FCFAutotrageur(Autotrageur):
         - Checkpoint (for state-related variables)
         - Algorithm
         - Dry Run (on resume)
+        - Session
 
         If starting from resume:
           - Import the previous Checkpoint, setting a checkpoint object.
@@ -804,6 +830,9 @@ class FCFAutotrageur(Autotrageur):
 
             # Set up the Algorithm.
             self._strategy = self.__construct_strategy()
+
+        self._session = FCFSession(
+            str(uuid.uuid4()), self._config.id, int(time.time()), None)
 
     # @Override
     def _wait(self):
