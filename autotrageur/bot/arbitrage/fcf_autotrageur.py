@@ -15,7 +15,9 @@ import yaml
 
 import autotrageur.bot.arbitrage.arbseeker as arbseeker
 import fp_libs.db.maria_db_handler as db_handler
-from autotrageur.bot.arbitrage.autotrageur import Autotrageur
+from autotrageur.bot.arbitrage.autotrageur import (Autotrageur, AlertError,
+                                                   AutotrageurAuthenticationError,
+                                                   IncorrectStateObjectTypeError)
 from autotrageur.bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint_utils import \
@@ -45,28 +47,14 @@ from autotrageur.bot.trader.dry_run import DryRunExchange
 from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
 from fp_libs.constants.decimal_constants import TEN, ZERO
 from fp_libs.db.maria_db_handler import InsertRowObject
-from fp_libs.email_client.simple_email_client import send_all_emails
 from fp_libs.fiat_symbols import FIAT_SYMBOLS
 from fp_libs.logging.logging_utils import fancy_log
 from fp_libs.security.encryption import decrypt
-from fp_libs.twilio.twilio_client import TwilioClient
 from fp_libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
                                to_bytes, to_str)
 
 # Default error message for phone call.
 DEFAULT_PHONE_MESSAGE = "Please check logs and e-mail for full stack trace."
-
-
-class AutotrageurAuthenticationError(Exception):
-    """Incorrect credentials or exchange unavailable when attempting to
-    communicate through an exchange's API."""
-    pass
-
-
-class FCFAlertError(Exception):
-    """Error indicating that one or more methods of communication for `_alert`
-    failed."""
-    pass
 
 
 class IncompleteArbitrageError(Exception):
@@ -77,13 +65,6 @@ class IncompleteArbitrageError(Exception):
 class InsufficientCryptoBalance(Exception):
     """Thrown when there is not enough crypto balance to fulfill the matching
     sell order."""
-    pass
-
-
-class IncorrectStateObjectTypeError(Exception):
-    """Raised when an incorrect object type is being used as the bot's
-    state.  For fcf_autotrageur, FCFCheckpoint is the required object type.
-    """
     pass
 
 
@@ -111,58 +92,22 @@ class FCFAutotrageur(Autotrageur):
     specified target high; vice versa if the calculated spread is less
     than the specified target low.
     """
-    def __load_twilio(self, twilio_cfg_path):
-        """Loads the Twilio configuration file and tests the connection to
-        Twilio APIs.
-
-        Args:
-            twilio_cfg_path (str): Path to the Twilio configuration file.
-        """
-        with open(twilio_cfg_path, 'r') as ymlfile:
-            self.twilio_config = yaml.safe_load(ymlfile)
-
-        self.twilio_client = TwilioClient(
-            os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'), self.logger)
-
-        # Make sure there is a valid connection as notifications are a critical
-        # service to the bot.
-        self.twilio_client.test_connection()
-
-    def __parse_keyfile(self, keyfile_path, pi_mode=False):
-        """Parses the keyfile given in the arguments.
-
-        Prompts user for a passphrase to decrypt the encrypted keyfile.
-
-        Args:
-            keyfile_path (str): The path to the keyfile.
-            pi_mode (bool): Whether to decrypt with memory limitations to
-                accommodate raspberry pi.  Default is False.
-
-        Raises:
-            IOError: If the encrypted keyfile does not open, and not in
-                dryrun mode.
+    def __construct_strategy(self):
+        """Initializes the Algorithm component.
 
         Returns:
-            dict: Map of the keyfile contents, or None if dryrun and
-                unavailable.
+            FCFStrategy: The strategy object.
         """
-        try:
-            pw = getpass.getpass(prompt="Enter keyfile password:")
-            with open(keyfile_path, "rb") as in_file:
-                keys = decrypt(
-                    in_file.read(),
-                    to_bytes(pw),
-                    pi_mode=pi_mode)
-
-            str_keys = to_str(keys)
-            return keyfile_to_map(str_keys)
-        except Exception:
-            logging.error("Unable to load keyfile.", exc_info=True)
-            if not self._config.dryrun:
-                raise IOError("Unable to open file: %s" % keyfile_path)
-            else:
-                logging.info("**Dry run: continuing with program")
-                return None
+        strategy_builder = FCFStrategyBuilder()
+        return (strategy_builder
+            .set_has_started(False)
+            .set_h_to_e1_max(num_to_decimal(self._config.h_to_e1_max))
+            .set_h_to_e2_max(num_to_decimal(self._config.h_to_e2_max))
+            .set_max_trade_size(num_to_decimal(self._config.max_trade_size))
+            .set_spread_min(num_to_decimal(self._config.spread_min))
+            .set_vol_min(num_to_decimal(self._config.vol_min))
+            .set_manager(self)
+            .build())
 
     def __persist_config(self):
         """Persists the configuration for this `fcf_autotrageur` run."""
@@ -265,20 +210,6 @@ class FCFAutotrageur(Autotrageur):
 
         db_handler.commit_all()
 
-    def __construct_strategy(self):
-        """Initializes the Algorithm component."""
-        strategy_builder = FCFStrategyBuilder()
-        return (strategy_builder
-            .set_has_started(False)
-            .set_h_to_e1_max(num_to_decimal(self._config.h_to_e1_max))
-            .set_h_to_e2_max(num_to_decimal(self._config.h_to_e2_max))
-            .set_max_trade_size(num_to_decimal(self._config.max_trade_size))
-            .set_spread_min(num_to_decimal(self._config.spread_min))
-            .set_vol_min(num_to_decimal(self._config.vol_min))
-            .set_manager(self)
-            .build()
-        )
-
     def __setup_dry_run_exchanges(self, resume_id):
         """Sets up DryRunExchanges which emulate Exchanges.  Trades, wallet
         balances, other exchange-related state is then recorded.
@@ -331,9 +262,6 @@ class FCFAutotrageur(Autotrageur):
 
         Used for internal tracking and also for persisting simple statistics
         into the database for reporting and analysis.
-
-        If resuming a bot, simply logs and returns without any additional
-        setup.
 
         Args:
             resume_id (str, optional): The resume id used when resuming a run.
@@ -541,7 +469,7 @@ class FCFAutotrageur(Autotrageur):
                 logging.error(exc, exc_info=True)
 
         if alert_error:
-            raise FCFAlertError("One or more methods of communication have"
+            raise AlertError("One or more methods of communication have"
                 " failed.  Check the logs for more detail.")
 
     # @Override
@@ -757,7 +685,7 @@ class FCFAutotrageur(Autotrageur):
         self.__persist_session()
 
         # Parse keyfile into a dict.
-        exchange_key_map = self.__parse_keyfile(
+        exchange_key_map = self._parse_keyfile(
             arguments['KEYFILE'], arguments['--pi_mode'])
 
         # Set up the Traders for interfacing with exchange APIs.
@@ -773,20 +701,10 @@ class FCFAutotrageur(Autotrageur):
             self.trader1, self.trader2, self._send_email)
 
         # Set up Twilio Client.
-        self.__load_twilio(self._config.twilio_cfg_path)
+        self._load_twilio(self._config.twilio_cfg_path)
 
         # Set up Forex client.
         self.__setup_forex()
-
-
-    def _send_email(self, subject, msg):
-        """Send email alert to preconfigured emails.
-
-        Args:
-            subject (str): The subject of the message.
-            msg (str): The contents of the email to send out.
-        """
-        send_all_emails(self._config.email_cfg_path, subject, msg)
 
     # @Override
     def _setup(self, arguments):

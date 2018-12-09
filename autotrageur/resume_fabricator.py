@@ -30,7 +30,7 @@ from autotrageur.bot.arbitrage.fcf.fcf_checkpoint_utils import \
     pickle_fcf_checkpoint
 from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyState
 from autotrageur.bot.arbitrage.fcf.target_tracker import FCFTargetTracker
-from autotrageur.bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
+from autotrageur.bot.arbitrage.trade_chunker import TradeChunker
 from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
 from autotrageur.bot.common.db_constants import (FCF_AUTOTRAGEUR_CONFIG_COLUMNS,
                                                  FCF_AUTOTRAGEUR_CONFIG_PRIM_KEY_ID,
@@ -161,7 +161,7 @@ def _replace_strategy_state(checkpoint, in_yaml):
         old_tc = old_ss.trade_chunker
         tc_constructor_attr = ['_max_trade_size']
 
-        new_trade_chunker = FCFTradeChunker(
+        new_trade_chunker = TradeChunker(
             num_to_decimal(
                 new_tc_map['_max_trade_size']) if new_tc_map['_max_trade_size']
                 is not None else old_tc._max_trade_size)

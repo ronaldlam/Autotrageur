@@ -9,7 +9,7 @@ import autotrageur.bot.arbitrage.arbseeker as arbseeker
 from autotrageur.bot.arbitrage.fcf.strategy import (FCFStrategy, InsufficientCryptoBalance,
                                         TradeMetadata)
 from autotrageur.bot.arbitrage.fcf.target_tracker import FCFTargetTracker
-from autotrageur.bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
+from autotrageur.bot.arbitrage.trade_chunker import TradeChunker
 from autotrageur.bot.common.enums import Momentum
 from autotrageur.bot.trader.ccxt_trader import CCXTTrader, OrderbookException
 
@@ -445,7 +445,7 @@ def test_poll_opportunity(mocker, fcf_strategy, vol_min, e1_quote_balance,
         if not has_started:
             assert fcf_strategy.state.momentum == Momentum.NEUTRAL
             assert isinstance(fcf_strategy.target_tracker, FCFTargetTracker)
-            assert isinstance(fcf_strategy.trade_chunker, FCFTradeChunker)
+            assert isinstance(fcf_strategy.trade_chunker, TradeChunker)
             assert fcf_strategy.has_started is True
             assert calc_targets.call_count == 2
             assert is_opportunity_result is False

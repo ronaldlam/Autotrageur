@@ -5,7 +5,7 @@ import ccxt
 
 import autotrageur.bot.arbitrage.arbseeker as arbseeker
 from autotrageur.bot.arbitrage.fcf.target_tracker import FCFTargetTracker
-from autotrageur.bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
+from autotrageur.bot.arbitrage.trade_chunker import TradeChunker
 from autotrageur.bot.common.enums import Momentum
 from autotrageur.bot.trader.ccxt_trader import OrderbookException
 from fp_libs.constants.decimal_constants import ONE
@@ -201,7 +201,7 @@ class FCFStrategy():
         self._max_trade_size = max_trade_size
 
         self.target_tracker = FCFTargetTracker()
-        self.trade_chunker = FCFTradeChunker(max_trade_size)
+        self.trade_chunker = TradeChunker(max_trade_size)
 
         # Save any stateful objects to the Strategy State.
         self.state.target_tracker = self.target_tracker

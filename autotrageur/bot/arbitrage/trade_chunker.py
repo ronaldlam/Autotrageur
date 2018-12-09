@@ -3,7 +3,7 @@ import logging
 from fp_libs.constants.decimal_constants import ZERO
 
 
-class FCFTradeChunker():
+class TradeChunker():
     """Class to encapsulate trade chunking logic."""
 
     def __init__(self, max_trade_size):

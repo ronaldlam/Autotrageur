@@ -4,26 +4,50 @@ import os
 import time
 import uuid
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from pathlib import Path
 
+import fp_libs.db.maria_db_handler as db_handler
 import schedule
 import yaml
 from dotenv import load_dotenv
+from fp_libs.email_client.simple_email_client import send_all_emails
+from fp_libs.logging import bot_logging
+from fp_libs.logging.logging_utils import fancy_log
+from fp_libs.security.encryption import decrypt
+from fp_libs.twilio.twilio_client import TwilioClient
+from fp_libs.utilities import keyfile_to_map, to_bytes, to_str
+from fp_libs.utils.ccxt_utils import RetryableError, RetryCounter
 
-import fp_libs.db.maria_db_handler as db_handler
 from autotrageur.bot.arbitrage.fcf.configuration import FCFConfiguration
 from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
 from autotrageur.bot.common.env_var_constants import ENV_VAR_NAMES
 from autotrageur.bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
                                                            SUBJECT_LIVE_FAILURE)
-from fp_libs.logging import bot_logging
-from fp_libs.logging.logging_utils import fancy_log
-from fp_libs.utils.ccxt_utils import RetryableError, RetryCounter
 
 # Program argument constants.
 CONFIGFILE = 'CONFIGFILE'
 DBCONFIGFILE = 'DBCONFIGFILE'
 KEYFILE = 'KEYFILE'
+
+
+class AlertError(Exception):
+    """Error indicating that one or more methods of communication for `_alert`
+    failed."""
+    pass
+
+
+class AutotrageurAuthenticationError(Exception):
+    """Incorrect credentials or exchange unavailable when attempting to
+    communicate through an exchange's API."""
+    pass
+
+
+class IncorrectStateObjectTypeError(Exception):
+    """Raised when an incorrect object type is being used as the bot's
+    state.  For fcf_autotrageur, FCFCheckpoint is the required object type.
+    """
+    pass
 
 
 class Autotrageur(ABC):
@@ -122,6 +146,68 @@ class Autotrageur(ABC):
             id=str(uuid.uuid4()),
             start_timestamp=int(time.time()),
             **config_map)
+
+    def _load_twilio(self, twilio_cfg_path):
+        """Loads the Twilio configuration file and tests the connection to
+        Twilio APIs.
+
+        Args:
+            twilio_cfg_path (str): Path to the Twilio configuration file.
+        """
+        with open(twilio_cfg_path, 'r') as ymlfile:
+            self.twilio_config = yaml.safe_load(ymlfile)
+
+        self.twilio_client = TwilioClient(
+            os.getenv('ACCOUNT_SID'), os.getenv('AUTH_TOKEN'), self.logger)
+
+        # Make sure there is a valid connection as notifications are a critical
+        # service to the bot.
+        self.twilio_client.test_connection()
+
+    def _parse_keyfile(self, keyfile_path, pi_mode=False):
+        """Parses the keyfile given in the arguments.
+
+        Prompts user for a passphrase to decrypt the encrypted keyfile.
+
+        Args:
+            keyfile_path (str): The path to the keyfile.
+            pi_mode (bool): Whether to decrypt with memory limitations to
+                accommodate raspberry pi.  Default is False.
+
+        Raises:
+            IOError: If the encrypted keyfile does not open, and not in
+                dryrun mode.
+
+        Returns:
+            dict: Map of the keyfile contents, or None if dryrun and
+                unavailable.
+        """
+        try:
+            pw = getpass.getpass(prompt="Enter keyfile password:")
+            with open(keyfile_path, "rb") as in_file:
+                keys = decrypt(
+                    in_file.read(),
+                    to_bytes(pw),
+                    pi_mode=pi_mode)
+
+            str_keys = to_str(keys)
+            return keyfile_to_map(str_keys)
+        except Exception:
+            logging.error("Unable to load keyfile.", exc_info=True)
+            if not self._config.dryrun:
+                raise IOError("Unable to open file: %s" % keyfile_path)
+            else:
+                logging.info("**Dry run: continuing with program")
+                return None
+
+    def _send_email(self, subject, msg):
+        """Send email alert to preconfigured emails.
+
+        Args:
+            subject (str): The subject of the message.
+            msg (str): The contents of the email to send out.
+        """
+        send_all_emails(self._config.email_cfg_path, subject, msg)
 
     def _setup(self, arguments):
         """Initializes the autotrageur bot for use by setting up core
@@ -273,11 +359,9 @@ class Autotrageur(ABC):
                 raise
         except Exception as e:
             if not self._config.dryrun:
-                logging.critical("Falling back to dry run, error encountered:")
                 logging.critical(e)
                 self._alert(SUBJECT_LIVE_FAILURE)
-                self._config.dryrun = True
-                self.run_autotrageur(arguments, False)
+                raise
             else:
                 self._alert(SUBJECT_DRY_RUN_FAILURE)
                 raise

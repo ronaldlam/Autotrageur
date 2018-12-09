@@ -2,18 +2,18 @@ from decimal import Decimal
 
 import pytest
 
-from autotrageur.bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
+from autotrageur.bot.arbitrage.trade_chunker import TradeChunker
 from fp_libs.constants.decimal_constants import ZERO
 
 MAX_TRADE_SIZE = Decimal('1000')
 
 @pytest.fixture(scope='module')
 def fcf_trade_chunker():
-    return FCFTradeChunker(MAX_TRADE_SIZE)
+    return TradeChunker(MAX_TRADE_SIZE)
 
 
 def test_init():
-    result = FCFTradeChunker(MAX_TRADE_SIZE)
+    result = TradeChunker(MAX_TRADE_SIZE)
     assert result._max_trade_size == MAX_TRADE_SIZE
     assert result._target == None
     assert result._current_trade_size == ZERO

@@ -12,7 +12,7 @@ from autotrageur.bot.arbitrage.fcf.configuration import FCFConfiguration
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
 from autotrageur.bot.arbitrage.fcf.strategy import FCFStrategyState
 from autotrageur.bot.arbitrage.fcf.target_tracker import FCFTargetTracker
-from autotrageur.bot.arbitrage.fcf.trade_chunker import FCFTradeChunker
+from autotrageur.bot.arbitrage.trade_chunker import TradeChunker
 from autotrageur.bot.common.enums import Momentum
 from fp_libs.utilities import num_to_decimal
 
@@ -51,8 +51,8 @@ MOCK_STARTING_CONFIG = FCFConfiguration(
 MOCK_TARGET_TRACKER = FCFTargetTracker()
 
 
-# Mocked loaded FCFTradeChunker.
-MOCK_TRADE_CHUNKER = FCFTradeChunker(max_trade_size=1)
+# Mocked loaded TradeChunker.
+MOCK_TRADE_CHUNKER = TradeChunker(max_trade_size=1)
 
 
 # Mocked loaded Strategy State.
