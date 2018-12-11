@@ -1,7 +1,11 @@
 from autotrageur.bot.arbitrage.cc.configuration import CCConfiguration
 from autotrageur.bot.arbitrage.cc.stat_tracker import CCStatTracker
 from autotrageur.bot.arbitrage.cc.strategy import CCStrategyState
-from autotrageur.bot.arbitrage.cc_autotrageur import CCSession
+from autotrageur.version import VERSION
+
+# Constants
+MAJOR, MINOR, HOTFIX, *REMAINDER = VERSION.split('.')
+CURRENT_CC_CHECKPOINT_VERSION = '{}.{}.{}'.format(MAJOR, MINOR, HOTFIX)
 
 
 class CCCheckpoint():
@@ -124,5 +128,4 @@ class CCCheckpoint():
                 restoration.
         """
         strategy.state = self.strategy_state
-        strategy.target_tracker = strategy.state.target_tracker
         strategy.trade_chunker = strategy.state.trade_chunker

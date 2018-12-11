@@ -4,13 +4,18 @@ import os
 import time
 import uuid
 from abc import ABC, abstractmethod
-from collections import namedtuple
 from pathlib import Path
 
-import fp_libs.db.maria_db_handler as db_handler
 import schedule
 import yaml
 from dotenv import load_dotenv
+
+import fp_libs.db.maria_db_handler as db_handler
+from autotrageur.bot.arbitrage.fcf.configuration import FCFConfiguration
+from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
+from autotrageur.bot.common.env_var_constants import ENV_VAR_NAMES
+from autotrageur.bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
+                                                           SUBJECT_LIVE_FAILURE)
 from fp_libs.email_client.simple_email_client import send_all_emails
 from fp_libs.logging import bot_logging
 from fp_libs.logging.logging_utils import fancy_log
@@ -18,12 +23,6 @@ from fp_libs.security.encryption import decrypt
 from fp_libs.twilio.twilio_client import TwilioClient
 from fp_libs.utilities import keyfile_to_map, to_bytes, to_str
 from fp_libs.utils.ccxt_utils import RetryableError, RetryCounter
-
-from autotrageur.bot.arbitrage.fcf.configuration import FCFConfiguration
-from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
-from autotrageur.bot.common.env_var_constants import ENV_VAR_NAMES
-from autotrageur.bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
-                                                           SUBJECT_LIVE_FAILURE)
 
 # Program argument constants.
 CONFIGFILE = 'CONFIGFILE'

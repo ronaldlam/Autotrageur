@@ -1,7 +1,5 @@
 import copyreg
-import getpass
 import logging
-import os
 import pickle
 import pprint
 import time
@@ -11,7 +9,6 @@ from collections import namedtuple
 
 import ccxt
 import schedule
-import yaml
 
 import autotrageur.bot.arbitrage.arbseeker as arbseeker
 import fp_libs.db.maria_db_handler as db_handler
@@ -49,9 +46,7 @@ from fp_libs.constants.decimal_constants import TEN, ZERO
 from fp_libs.db.maria_db_handler import InsertRowObject
 from fp_libs.fiat_symbols import FIAT_SYMBOLS
 from fp_libs.logging.logging_utils import fancy_log
-from fp_libs.security.encryption import decrypt
-from fp_libs.utilities import (keyfile_to_map, num_to_decimal, split_symbol,
-                               to_bytes, to_str)
+from fp_libs.utilities import (num_to_decimal, split_symbol)
 
 # Default error message for phone call.
 DEFAULT_PHONE_MESSAGE = "Please check logs and e-mail for full stack trace."

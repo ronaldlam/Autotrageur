@@ -25,6 +25,22 @@ SpreadOpportunity = namedtuple(
         'e1_forex_rate_id', 'e2_forex_rate_id'])
 
 
+# See https://stackoverflow.com/questions/1606436/adding-docstrings-to-namedtuples
+class TradeMetadata(namedtuple('TradeMetadata', [
+        'spread_opp', 'buy_price', 'sell_price', 'buy_trader', 'sell_trader'])):
+    """Encapsulates trade metadata produced by algorithm for execution.
+
+    Args:
+        spread_opp (SpreadOpportunity): The spread opportunity to
+            consider.
+        buy_price (Decimal): The buy price.
+        sell_price (Decimal): The sell price.
+        buy_trader (CCXTTrader): The trader for the buy side exchange.
+        sell_trader (CCXTTrader): The trader for the sell side exchange.
+    """
+    __slots__ = ()
+
+
 def get_spreads_by_ob(trader1, trader2):
     """Obtains spreads across two exchanges based on orderbook.
 

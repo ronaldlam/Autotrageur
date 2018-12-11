@@ -1,5 +1,4 @@
 import logging
-from collections import namedtuple
 
 import ccxt
 
@@ -10,22 +9,6 @@ from autotrageur.bot.common.enums import Momentum
 from autotrageur.bot.trader.ccxt_trader import OrderbookException
 from fp_libs.constants.decimal_constants import ONE
 from fp_libs.utilities import num_to_decimal
-
-
-# See https://stackoverflow.com/questions/1606436/adding-docstrings-to-namedtuples
-class TradeMetadata(namedtuple('TradeMetadata', [
-        'spread_opp', 'buy_price', 'sell_price', 'buy_trader', 'sell_trader'])):
-    """Encapsulates trade metadata produced by algorithm for execution.
-
-    Args:
-        spread_opp (SpreadOpportunity): The spread opportunity to
-            consider.
-        buy_price (Decimal): The buy price.
-        sell_price (Decimal): The sell price.
-        buy_trader (CCXTTrader): The trader for the buy side exchange.
-        sell_trader (CCXTTrader): The trader for the sell side exchange.
-    """
-    __slots__ = ()
 
 
 class InsufficientCryptoBalance(Exception):
@@ -450,7 +433,7 @@ class FCFStrategy():
             buy_price = spread_opp.e2_buy
             sell_price = spread_opp.e1_sell
 
-        self.trade_metadata = TradeMetadata(
+        self.trade_metadata = arbseeker.TradeMetadata(
             spread_opp=spread_opp,
             buy_price=buy_price,
             sell_price=sell_price,

@@ -1,3 +1,4 @@
+import copyreg
 import logging
 import pickle
 import time
@@ -16,6 +17,7 @@ from autotrageur.bot.arbitrage.autotrageur import (AlertError, Autotrageur,
                                                    AutotrageurAuthenticationError,
                                                    IncorrectStateObjectTypeError)
 from autotrageur.bot.arbitrage.cc.checkpoint import CCCheckpoint
+from autotrageur.bot.arbitrage.cc.checkpoint_utils import pickle_cc_checkpoint
 from autotrageur.bot.arbitrage.cc.stat_tracker import CCStatTracker
 from autotrageur.bot.arbitrage.cc.strategy import CCStrategy, CCStrategyBuilder
 from autotrageur.bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
@@ -26,7 +28,9 @@ from autotrageur.bot.common.db_constants import (CC_AUTOTRAGEUR_CONFIG_COLUMNS,
                                                  CC_MEASURES_PRIM_KEY_ID,
                                                  CC_MEASURES_TABLE,
                                                  CC_SESSION_PRIM_KEY_ID,
-                                                 CC_SESSION_TABLE)
+                                                 CC_SESSION_TABLE,
+                                                 CC_STATE_PRIM_KEY_ID,
+                                                 CC_STATE_TABLE)
 from autotrageur.bot.trader.ccxt_trader import CCXTTrader
 from autotrageur.bot.trader.dry_run import DryRunExchange
 
@@ -307,15 +311,75 @@ class CCAutotrageur(Autotrageur):
 
     # @Override
     def _export_state(self):
-        """Exports the state of the autotrageur. Normally exported to a file or
-        a database."""
-        pass
+        """Exports the state of the autotrageur to a database.
+
+        NOTE: This method is only called when the cc bot is stops due to a
+        fatal error or if it is killed manually."""
+        logging.debug("#### Exporting bot's current state")
+
+        # Update cc_sessions entry.
+        session_update_result = db_handler.execute_parametrized_query(
+            "UPDATE cc_session SET stop_timestamp = %s WHERE id = %s;",
+            (int(time.time()), self._session.id))
+
+        # UPDATE the cc_measures table with updated stats.
+        measures_update_result = db_handler.execute_parametrized_query(
+            "UPDATE cc_measures SET "
+            "e1_close_bal_base = %s, "
+            "e2_close_bal_base = %s, "
+            "e1_close_bal_quote = %s, "
+            "e2_close_bal_quote = %s, "
+            "num_fatal_errors = num_fatal_errors + 1, "
+            "trade_count = %s "
+            "WHERE id = %s;", (
+                self._stat_tracker.e1.base_bal,
+                self._stat_tracker.e2.base_bal,
+                self._stat_tracker.e1.quote_bal,
+                self._stat_tracker.e2.quote_bal,
+                self._stat_tracker.trade_count,
+                self._stat_tracker.id))
+
+        logging.debug("UPDATE cc_session affected rows: {}".format(
+            session_update_result))
+        logging.debug("UPDATE cc_measures affected rows: {}".format(
+            measures_update_result))
+
+        # Register copyreg.pickle with Checkpoint object and helper function
+        # for better backwards-compatibility in pickling.
+        # (See 'cc_checkpoint_utils' module for more details)
+        copyreg.pickle(CCCheckpoint, pickle_cc_checkpoint)
+
+        # Detach the Traders from StatTracker and attach it to the Checkpoint.
+        self._stat_tracker.detach_traders()
+        self.checkpoint.stat_tracker = self._stat_tracker
+
+        # The generated ID can be used as the `resume_id` to resume the bot
+        # from the saved state.
+        cc_state_map = {
+            'id': str(uuid.uuid4()),
+            'session_id': self._session.id,
+            'state': pickle.dumps(self.checkpoint)
+        }
+        logging.debug(
+            "#### The exported checkpoint object is: {0!r}".format(
+                self.checkpoint))
+        logging.info("Exported with resume id: {}".format(
+            cc_state_map[CC_STATE_PRIM_KEY_ID]))
+        cc_state_row_obj = InsertRowObject(
+            CC_STATE_TABLE,
+            cc_state_map,
+            (CC_STATE_PRIM_KEY_ID,))
+        db_handler.insert_row(cc_state_row_obj)
+        db_handler.commit_all()
+
+        # Reattach the Traders for further use in current bot run.
+        self._stat_tracker.attach_traders(self.trader1, self.trader2)
 
     # @Override
     def _final_log(self):
         """Outputs a final log and/or console output during teardown of the
         bot."""
-        pass
+        self._stat_tracker.log_all()
 
     # @Override
     def _import_state(self, resume_id):
