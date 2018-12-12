@@ -42,6 +42,11 @@ class AutotrageurAuthenticationError(Exception):
     pass
 
 
+class IncompleteArbitrageError(Exception):
+    """Error indicating an uneven buy/sell base amount."""
+    pass
+
+
 class IncorrectStateObjectTypeError(Exception):
     """Raised when an incorrect object type is being used as the bot's
     state.  For fcf_autotrageur, FCFCheckpoint is the required object type.

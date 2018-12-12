@@ -14,6 +14,7 @@ import autotrageur.bot.arbitrage.arbseeker as arbseeker
 import fp_libs.db.maria_db_handler as db_handler
 from autotrageur.bot.arbitrage.autotrageur import (Autotrageur, AlertError,
                                                    AutotrageurAuthenticationError,
+                                                   IncompleteArbitrageError,
                                                    IncorrectStateObjectTypeError)
 from autotrageur.bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
@@ -50,11 +51,6 @@ from fp_libs.utilities import (num_to_decimal, split_symbol)
 
 # Default error message for phone call.
 DEFAULT_PHONE_MESSAGE = "Please check logs and e-mail for full stack trace."
-
-
-class IncompleteArbitrageError(Exception):
-    """Error indicating an uneven buy/sell base amount."""
-    pass
 
 
 class InsufficientCryptoBalance(Exception):

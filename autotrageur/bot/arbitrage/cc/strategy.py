@@ -1,4 +1,10 @@
+import logging
+
+import ccxt
+
+import autotrageur.bot.arbitrage.arbseeker as arbseeker
 from autotrageur.bot.arbitrage.trade_chunker import TradeChunker
+from autotrageur.bot.trader.ccxt_trader import OrderbookException
 
 
 class CCStrategyState():
@@ -88,6 +94,18 @@ class CCStrategy():
         # Save any stateful objects to the Strategy State.
         self.state.trade_chunker = self.trade_chunker
 
+    def __check_within_limits(self):
+        """Check whether potential trade meets minimum volume limits.
+
+        Should be used only when trade_metadata is set and there is a
+        potential trade.
+
+        Returns:
+            bool: Whether the trade falls within the limits.
+        """
+        buy_trader = self.trade_metadata.buy_trader
+        return buy_trader.quote_target_amount > self.__get_min_target_amount()
+
     def __get_min_target_amount(self):
         """Fetch the minimum target amount that the exchanges support.
 
@@ -138,6 +156,14 @@ class CCStrategy():
         self._manager.trader1.update_wallet_balances()
         self._manager.trader2.update_wallet_balances()
 
+    def get_trade_data(self):
+        """Get trade metadata.
+
+        Returns:
+            TradeMetadata: The trade metadata to execute on.
+        """
+        return self.trade_metadata
+
     def poll_opportunity(self):
         """Poll exchanges for arbitrage opportunity.
 
@@ -145,20 +171,85 @@ class CCStrategy():
             bool: Whether there is an opportunity.
         """
         # Set trader target amounts based on strategy.
-        trader1_balance = self._manager.trader1.get_adjusted_usd_balance()
-        trader2_balance = self._manager.trader2.get_adjusted_usd_balance()
+        t1 = self._manager.trader1
+        t2 = self._manager.trader2
 
-        trader1_buy_target_amount = min(self._max_trade_size, trader1_balance)
-        trader2_buy_target_amount = min(self._max_trade_size, trader2_balance)
+        trader1_balance = t1.adjusted_quote_bal
+        trader2_balance = t2.adjusted_quote_bal
 
-        self._manager.trader1.set_buy_target_amount(trader1_buy_target_amount)
-        self._manager.trader1.set_rough_sell_amount(trader2_buy_target_amount)
-        self._manager.trader2.set_buy_target_amount(trader2_buy_target_amount)
-        self._manager.trader2.set_rough_sell_amount(trader1_buy_target_amount)
+        # We are using quote balances here.
+        t1_buy_target = min(self._max_trade_size, trader1_balance)
+        t2_buy_target = min(self._max_trade_size, trader2_balance)
+
+        t1.set_buy_target_amount(t1_buy_target, False)
+        t1.set_rough_sell_amount(t2_buy_target, False)
+        t2.set_buy_target_amount(t2_buy_target, False)
+        t2.set_rough_sell_amount(t1_buy_target, False)
 
         try:
-            spread_opp = arbseeker.get_spreads_by_ob(
-                self._manager.trader1, self._manager.trader2)
+            spread_opp = arbseeker.get_spreads_by_ob(t1, t2)
         except (ccxt.NetworkError, OrderbookException) as exc:
             logging.error(exc, exc_info=True)
             return False
+
+        # Ding ding! We want to trade.
+        if spread_opp.e1_spread >= self._spread_min:
+            # The corrected_buy_target represents calculation based on pricing
+            # of the current poll.
+            base_limited_buy_target = t1.base_bal * spread_opp.e2_buy
+            corrected_buy_target = min(t2_buy_target, base_limited_buy_target)
+
+            if self.trade_chunker.trade_completed:
+                self.trade_chunker.reset(corrected_buy_target)
+
+            # The chunked_target represents calculations based on pricing of
+            # the first poll that reset the chunker. We require this to hold
+            # 'trade state' that increases polling rate. Future work can
+            # dynamically change the target stored in the chunker.
+            chunked_target = self.trade_chunker.get_next_trade()
+            next_target = min(corrected_buy_target, chunked_target)
+
+            t2.set_buy_target_amount(next_target, False)
+            self.trade_metadata = arbseeker.TradeMetadata(
+                spread_opp=spread_opp,
+                buy_price=spread_opp.e2_buy,
+                sell_price=spread_opp.e1_sell,
+                buy_trader=t2,
+                sell_trader=t1)
+
+            if self.__check_within_limits():
+                return True
+            else:
+                self.trade_chunker.trade_completed = True
+                # TODO: Initiate withdrawal
+        elif spread_opp.e2_spread >= self._spread_min:
+            # The corrected_buy_target represents calculation based on pricing
+            # of the current poll.
+            base_limited_buy_target = t2.base_bal * spread_opp.e1_buy
+            corrected_buy_target = min(t1_buy_target, base_limited_buy_target)
+
+            if self.trade_chunker.trade_completed:
+                self.trade_chunker.reset(corrected_buy_target)
+
+            # The chunked_target represents calculations based on pricing of
+            # the first poll that reset the chunker. We require this to hold
+            # 'trade state' that increases polling rate. Future work can
+            # dynamically change the target stored in the chunker.
+            chunked_target = self.trade_chunker.get_next_trade()
+            next_target = min(corrected_buy_target, chunked_target)
+
+            t1.set_buy_target_amount(next_target, False)
+            self.trade_metadata = arbseeker.TradeMetadata(
+                spread_opp=spread_opp,
+                buy_price=spread_opp.e1_buy,
+                sell_price=spread_opp.e2_sell,
+                buy_trader=t1,
+                sell_trader=t2)
+
+            if self.__check_within_limits():
+                return True
+            else:
+                self.trade_chunker.trade_completed = True
+                # TODO: Initiate withdrawal
+
+        return False

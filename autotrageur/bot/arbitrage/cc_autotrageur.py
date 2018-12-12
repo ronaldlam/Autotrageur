@@ -1,25 +1,24 @@
 import copyreg
 import logging
 import pickle
+import pprint
 import time
 import traceback
 import uuid
 from collections import namedtuple
 
 import ccxt
-import fp_libs.db.maria_db_handler as db_handler
-from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
-from fp_libs.db.maria_db_handler import InsertRowObject
-from fp_libs.logging.logging_utils import fancy_log
-from fp_libs.utilities import num_to_decimal, split_symbol
 
+import autotrageur.bot.arbitrage.arbseeker as arbseeker
+import fp_libs.db.maria_db_handler as db_handler
 from autotrageur.bot.arbitrage.autotrageur import (AlertError, Autotrageur,
                                                    AutotrageurAuthenticationError,
+                                                   IncompleteArbitrageError,
                                                    IncorrectStateObjectTypeError)
 from autotrageur.bot.arbitrage.cc.checkpoint import CCCheckpoint
 from autotrageur.bot.arbitrage.cc.checkpoint_utils import pickle_cc_checkpoint
 from autotrageur.bot.arbitrage.cc.stat_tracker import CCStatTracker
-from autotrageur.bot.arbitrage.cc.strategy import CCStrategy, CCStrategyBuilder
+from autotrageur.bot.arbitrage.cc.strategy import CCStrategyBuilder
 from autotrageur.bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
                                                      TWILIO_SENDER_NUMBER)
 from autotrageur.bot.common.db_constants import (CC_AUTOTRAGEUR_CONFIG_COLUMNS,
@@ -30,9 +29,19 @@ from autotrageur.bot.common.db_constants import (CC_AUTOTRAGEUR_CONFIG_COLUMNS,
                                                  CC_SESSION_PRIM_KEY_ID,
                                                  CC_SESSION_TABLE,
                                                  CC_STATE_PRIM_KEY_ID,
-                                                 CC_STATE_TABLE)
+                                                 CC_STATE_TABLE,
+                                                 TRADE_OPPORTUNITY_PRIM_KEY_ID,
+                                                 TRADE_OPPORTUNITY_TABLE,
+                                                 TRADES_PRIM_KEY_SIDE,
+                                                 TRADES_PRIM_KEY_TRADE_OPP_ID,
+                                                 TRADES_TABLE)
 from autotrageur.bot.trader.ccxt_trader import CCXTTrader
 from autotrageur.bot.trader.dry_run import DryRunExchange
+from fp_libs.constants.ccxt_constants import API_KEY, API_SECRET, PASSWORD
+from fp_libs.constants.decimal_constants import TEN, ZERO
+from fp_libs.db.maria_db_handler import InsertRowObject
+from fp_libs.logging.logging_utils import fancy_log
+from fp_libs.utilities import num_to_decimal, split_symbol
 
 # Default error message for phone call.
 DEFAULT_PHONE_MESSAGE = "Please check logs and e-mail for full stack trace."
@@ -92,6 +101,53 @@ class CCAutotrageur(Autotrageur):
             (CC_SESSION_PRIM_KEY_ID,))
 
         db_handler.insert_row(session_row_object)
+        db_handler.commit_all()
+
+    def __persist_trade_data(self, buy_response, sell_response, trade_metadata):
+        """Persists data regarding the current trade into the database.
+
+        If a trade has been executed, we add any necessary information (such as
+        foreign key IDs) to the trade responses before saving to the database.
+
+        Args:
+            buy_response (dict): The autotrageur unified response from the
+                executed buy trade.  If a buy trade was unsuccessful, then
+                buy_response is None.
+            sell_response (dict): The autotrageur unified response from the
+                executed sell trade.  If a sell trade was unsuccessful, then
+                sell_response is None.
+            trade_metadata (TradeMetadata): The trade metadata prepared by the
+                autotrageur strategy.
+        """
+        # Persist the spread_opp.
+        trade_opportunity_id = trade_metadata.spread_opp.id
+        spread_opp = trade_metadata.spread_opp._asdict()
+        trade_opp_row_obj = InsertRowObject(
+            TRADE_OPPORTUNITY_TABLE,
+            spread_opp,
+            (TRADE_OPPORTUNITY_PRIM_KEY_ID, ))
+        db_handler.insert_row(trade_opp_row_obj)
+
+        # Persist the executed buy order, if available.
+        if buy_response is not None:
+            buy_response['trade_opportunity_id'] = trade_opportunity_id
+            buy_response['session_id'] = self._session.id
+            buy_trade_row_obj = InsertRowObject(
+                TRADES_TABLE,
+                buy_response,
+                (TRADES_PRIM_KEY_TRADE_OPP_ID, TRADES_PRIM_KEY_SIDE))
+            db_handler.insert_row(buy_trade_row_obj)
+
+        # Persist the executed sell order, if available.
+        if sell_response is not None:
+            sell_response['trade_opportunity_id'] = trade_opportunity_id
+            sell_response['session_id'] = self._session.id
+            sell_trade_row_obj = InsertRowObject(
+                TRADES_TABLE,
+                sell_response,
+                (TRADES_PRIM_KEY_TRADE_OPP_ID, TRADES_PRIM_KEY_SIDE))
+            db_handler.insert_row(sell_trade_row_obj)
+
         db_handler.commit_all()
 
     def __setup_dry_run_exchanges(self, resume_id):
@@ -269,6 +325,46 @@ class CCAutotrageur(Autotrageur):
             logging.error(auth_error)
             raise AutotrageurAuthenticationError(auth_error)
 
+    def __verify_sold_amount(
+            self, bought_amount, sell_trader, buy_response, sell_response):
+        """Ensure that the sold amount is within tolerance.
+
+        Args:
+            bought_amount (Decimal): The base amount bought.
+            sell_trader (CCXTTrader): The sell side trader.
+            buy_response (dict): The buy response.
+            sell_response (dict): The sell response.
+
+        Raises:
+            IncompleteArbitrageError: If the sold amount is not within
+                the prescribed tolerance.
+        """
+        rounded_sell_amount = sell_trader.round_exchange_precision(
+            bought_amount)
+        amount_precision = sell_trader.get_amount_precision()
+        difference = rounded_sell_amount - sell_response['pre_fee_base']
+
+        if amount_precision is None:
+            # Exchange has arbitrary precision.
+            tolerance = ZERO
+        else:
+            tolerance = TEN ** num_to_decimal(-amount_precision)
+
+        if abs(difference) > tolerance:
+            msg = ("The purchased base amount does not match with "
+                   "the sold amount. Normal execution has "
+                   "terminated.\nBought amount: {}\n, Expected "
+                   "sell amount: {}\nSold amount:"
+                   " {}\n\nBuy results:\n\n{}\n\nSell results:\n\n"
+                   "{}\n").format(
+                bought_amount,
+                rounded_sell_amount,
+                sell_response['pre_fee_base'],
+                pprint.pformat(buy_response),
+                pprint.pformat(sell_response))
+
+            raise IncompleteArbitrageError(msg)
+
     # @Override
     def _alert(self, subject):
         """Last ditch effort to alert user on operation failure.
@@ -302,12 +398,74 @@ class CCAutotrageur(Autotrageur):
     # @Override
     def _clean_up(self):
         """Cleans up the state of the autotrageur."""
-        pass
+        self._strategy.clean_up()
 
     # @Override
     def _execute_trade(self):
         """Execute the trade, providing necessary failsafes."""
-        pass
+        buy_response = None
+        sell_response = None
+        trade_metadata = self._strategy.get_trade_data()
+
+        if self._config.dryrun:
+            logging.debug("**Dry run - begin fake execution")
+            buy_response = arbseeker.execute_buy(
+                trade_metadata.buy_trader,
+                trade_metadata.buy_price)
+            self._stat_tracker.trade_count += 1
+
+            executed_amount = buy_response['post_fee_base']
+            sell_response = arbseeker.execute_sell(
+                trade_metadata.sell_trader,
+                trade_metadata.sell_price,
+                executed_amount)
+            self._stat_tracker.trade_count += 1
+
+            self._strategy.finalize_trade(buy_response, sell_response)
+            self._stat_tracker.log_balances()
+            self.__persist_trade_data(
+                buy_response, sell_response, trade_metadata)
+            logging.debug("**Dry run - end fake execution")
+        else:
+            try:
+                buy_response = arbseeker.execute_buy(
+                    trade_metadata.buy_trader,
+                    trade_metadata.buy_price)
+                bought_amount = buy_response['post_fee_base']
+            except Exception as exc:
+                self._send_email("BUY ERROR ALERT - CONTINUING", repr(exc))
+                logging.error(exc, exc_info=True)
+                self._strategy.strategy_state = self.checkpoint.strategy_state
+            else:
+                self._stat_tracker.trade_count += 1
+
+                # If an exception is thrown, we want the program to stop on the
+                # second trade.
+                try:
+                    sell_response = arbseeker.execute_sell(
+                        trade_metadata.sell_trader,
+                        trade_metadata.sell_price,
+                        bought_amount)
+                    self.__verify_sold_amount(
+                        bought_amount,
+                        trade_metadata.sell_trader,
+                        buy_response,
+                        sell_response)
+                except Exception as exc:
+                    self._send_email("SELL ERROR ALERT - ABORT", repr(exc))
+                    logging.error(exc, exc_info=True)
+                    raise
+                else:
+                    self._stat_tracker.trade_count += 1
+                    self._strategy.finalize_trade(buy_response, sell_response)
+                    self._send_email(
+                        "TRADE SUMMARY",
+                        "Buy results:\n\n{}\n\nSell results:\n\n{}\n".format(
+                            pprint.pformat(buy_response),
+                            pprint.pformat(sell_response)))
+            finally:
+                self.__persist_trade_data(
+                    buy_response, sell_response, trade_metadata)
 
     # @Override
     def _export_state(self):
@@ -416,7 +574,7 @@ class CCAutotrageur(Autotrageur):
         Returns:
             bool: Whether there is an opportunity.
         """
-        pass
+        return self._strategy.poll_opportunity()
 
     # @Override
     def _post_setup(self, arguments):
@@ -503,3 +661,15 @@ class CCAutotrageur(Autotrageur):
 
         self._session = CCSession(
             str(uuid.uuid4()), self._config.id, int(time.time()), None)
+
+    # @Override
+    def _wait(self):
+        """Wait for the specified polling interval.
+
+        We use the Autotrageur default unless a chunked trade is in
+        progress.
+        """
+        if self._strategy.trade_chunker.trade_completed:
+            super()._wait()
+        else:
+            time.sleep(self._config.poll_wait_short)
