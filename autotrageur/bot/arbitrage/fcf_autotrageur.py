@@ -12,11 +12,12 @@ import schedule
 
 import autotrageur.bot.arbitrage.arbseeker as arbseeker
 import fp_libs.db.maria_db_handler as db_handler
-from autotrageur.bot.arbitrage.autotrageur import (Autotrageur, AlertError,
+from autotrageur.bot.arbitrage.autotrageur import (AlertError, Autotrageur,
                                                    AutotrageurAuthenticationError,
                                                    IncompleteArbitrageError,
                                                    IncorrectStateObjectTypeError)
 from autotrageur.bot.arbitrage.fcf.balance_checker import FCFBalanceChecker
+from autotrageur.bot.arbitrage.fcf.configuration import FCFConfiguration
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint import FCFCheckpoint
 from autotrageur.bot.arbitrage.fcf.fcf_checkpoint_utils import \
     pickle_fcf_checkpoint
@@ -47,7 +48,7 @@ from fp_libs.constants.decimal_constants import TEN, ZERO
 from fp_libs.db.maria_db_handler import InsertRowObject
 from fp_libs.fiat_symbols import FIAT_SYMBOLS
 from fp_libs.logging.logging_utils import fancy_log
-from fp_libs.utilities import (num_to_decimal, split_symbol)
+from fp_libs.utilities import num_to_decimal, split_symbol
 
 # Default error message for phone call.
 DEFAULT_PHONE_MESSAGE = "Please check logs and e-mail for full stack trace."
@@ -360,6 +361,7 @@ class FCFAutotrageur(Autotrageur):
             exchange1,
             'e1',
             num_to_decimal(self._config.slippage),
+            'fcf',
             exchange1_configs,
             dry_e1)
         self.trader2 = CCXTTrader(
@@ -368,6 +370,7 @@ class FCFAutotrageur(Autotrageur):
             exchange2,
             'e2',
             num_to_decimal(self._config.slippage),
+            'fcf',
             exchange2_configs,
             dry_e2)
 
@@ -635,6 +638,21 @@ class FCFAutotrageur(Autotrageur):
                     .format(type(previous_checkpoint)))
 
         self.checkpoint = previous_checkpoint
+
+    # @Override
+    def _load_configs(self, config_file_path):
+        """Load the configurations of the Autotrageur run.
+
+        Args:
+            config_file_path (str): Path to the configuration file used for the
+                current autotrageur run.
+        """
+        # Set up the configuration.
+        config_map = self._parse_config_file(config_file_path)
+        self._config = FCFConfiguration(
+            id=str(uuid.uuid4()),
+            start_timestamp=int(time.time()),
+            **config_map)
 
     # @Override
     def _poll_opportunity(self):

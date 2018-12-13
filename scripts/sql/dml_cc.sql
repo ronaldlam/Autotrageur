@@ -105,3 +105,20 @@ CREATE TABLE IF NOT EXISTS cc_state (
         ON DELETE CASCADE
         ON UPDATE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS withdrawals (
+    id VARCHAR(36) NOT NULL,
+    session_id VARCHAR(36) NOT NULL,
+    exchange VARCHAR(28) NOT NULL,
+    asset VARCHAR(10) NOT NULL,
+    target_address VARCHAR(100) NOT NULL,
+    pre_fee_amount DECIMAL(27, 8) NOT NULL,
+    post_fee_amount DECIMAL(27, 8),
+    fees DECIMAL(27, 8),
+    exchange_response VARCHAR(250) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT `fk_withdrawals_cc_session`
+        FOREIGN KEY (session_id) REFERENCES cc_session (id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);

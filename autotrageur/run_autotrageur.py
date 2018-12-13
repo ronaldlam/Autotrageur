@@ -3,19 +3,23 @@
 Executes trades based on simple arbitrage strategy
 
 Usage:
-    run_autotrageur.py KEYFILE (--resume_id=FCF_STATE_ID | CONFIGFILE) DBCONFIGFILE [--pi_mode]
+    run_autotrageur.py (cc|fcf) KEYFILE (--resume_id=FCF_STATE_ID | CONFIGFILE) DBCONFIGFILE [--pi_mode]
 
 Options:
-    --pi_mode                           Whether this is to be used with the raspberry pi or on a full desktop.
-    --resume_id=FCF_STATE_ID            If provided, this bot run is continued from a previous run with FCF_STATE_ID.
+    --pi_mode                   Whether this is to be used with the raspberry pi or on a full desktop.
+    --resume_id=FCF_STATE_ID    If provided, this bot run is continued from a previous run with FCF_STATE_ID.
 
 Description:
-    KEYFILE                             The encrypted Keyfile containing relevant api keys.
-    CONFIGFILE                          The config file, modeled under configs/arb_config_sample.yaml for use with the bot.
-    DBCONFIGFILE                        The config file for the database.
+    cc                          The crypto-crypto autotrageur command.
+    fcf                         The fiat-crypto-fiat autotrageur command.
+
+    KEYFILE                     The encrypted Keyfile containing relevant api keys.
+    CONFIGFILE                  The config file, modeled under configs/arb_config_sample.yaml for use with the bot.
+    DBCONFIGFILE                The config file for the database.
 """
 from docopt import docopt
 
+from autotrageur.bot.arbitrage.cc_autotrageur import CCAutotrageur
 from autotrageur.bot.arbitrage.fcf_autotrageur import FCFAutotrageur
 from autotrageur.version import VERSION
 from fp_libs.utilities import set_autotrageur_decimal_context
@@ -39,7 +43,12 @@ def main():
         # keep precision regardless at 28 digits until either external calls
         # or output are required.
         set_autotrageur_decimal_context()
-        autotrageur = FCFAutotrageur()
+
+        if arguments['cc']:
+            autotrageur = CCAutotrageur()
+        elif arguments['fcf']:
+            autotrageur = FCFAutotrageur()
+
         autotrageur.run_autotrageur(arguments)
     finally:
         # Must be called before exit for logs to flush.

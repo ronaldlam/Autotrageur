@@ -1,10 +1,18 @@
 import logging
+import pprint
+import uuid
+from decimal import Decimal
 
 import ccxt
+import fp_libs.db.maria_db_handler as db_handler
 
 import autotrageur.bot.arbitrage.arbseeker as arbseeker
 from autotrageur.bot.arbitrage.trade_chunker import TradeChunker
+from autotrageur.bot.common.db_constants import (WITHDRAWALS_PRIM_KEY_ID,
+                                                 WITHDRAWALS_TABLE)
 from autotrageur.bot.trader.ccxt_trader import OrderbookException
+
+TWO = Decimal('2')
 
 
 class CCStrategyState():
@@ -94,6 +102,28 @@ class CCStrategy():
         # Save any stateful objects to the Strategy State.
         self.state.trade_chunker = self.trade_chunker
 
+    def __balance_balances(self):
+        """Initiate the withdrawals necessary to even out balances."""
+        trader1 = self._manager.trader1
+        trader2 = self._manager.trader2
+        # Require up to date information.
+        trader1.update_wallet_balances()
+        trader2.update_wallet_balances()
+
+        if trader1.base_bal > trader2.base_bal:
+            amount = (trader1.base_bal - trader2.base_bal) / TWO
+            self.__withdraw(trader1, trader2, trader1.base, amount)
+        else:
+            amount = (trader2.base_bal - trader1.base_bal) / TWO
+            self.__withdraw(trader2, trader1, trader2.base, amount)
+
+        if trader1.quote_bal > trader2.quote_bal:
+            amount = (trader1.quote_bal - trader2.quote_bal) / TWO
+            self.__withdraw(trader1, trader2, trader1.quote, amount)
+        else:
+            amount = (trader2.quote_bal - trader1.quote_bal) / TWO
+            self.__withdraw(trader2, trader1, trader2.quote, amount)
+
     def __check_within_limits(self):
         """Check whether potential trade meets minimum volume limits.
 
@@ -118,6 +148,38 @@ class CCStrategy():
         min_base_buy = self.trade_metadata.buy_trader.get_min_base_limit()
         min_base_sell = self.trade_metadata.sell_trader.get_min_base_limit()
         return self.trade_metadata.buy_price * max(min_base_buy, min_base_sell)
+
+    def __withdraw(self, src_trader, dst_trader, currency, amount):
+        """Withdraw specified asset from exchange to address.
+
+        Args:
+            src_trader (CCXTTrader): The trader for the source exchange.
+            dst_trader (CCXTTrader): The trader for the target exchange.
+            currency (str): The asset type.
+            amount (Decimal): The asset amount.
+        """
+        if dst_trader.dry_run_exchange:
+            address = dst_trader.exchange_name
+            result = src_trader.withdraw(
+                currency, amount, dst_trader.dry_run_exchange)
+        else:
+            address = dst_trader.addresses[currency]
+            result = src_trader.withdraw(currency, amount, address)
+
+        row = {
+            'id': str(uuid.uuid4()),
+            'session_id': self._manager.session_id,
+            'exchange': src_trader.exchange_name,
+            'asset': currency,
+            'target_address': address,
+            'pre_fee_amount': amount,
+            'exchange_response': str(result)
+        }
+        withdrawal_object = db_handler.InsertRowObject(
+            WITHDRAWALS_TABLE, row, WITHDRAWALS_PRIM_KEY_ID)
+        db_handler.insert_row(withdrawal_object)
+        db_handler.commit_all()
+        logging.info("Withdrawal info: %s", pprint.pformat(row))
 
     def clean_up(self):
         """Clean up any state information before the next poll."""
@@ -148,8 +210,7 @@ class CCStrategy():
         # We increment the target index only after the chunks completely make
         # up the target.
         if self.trade_chunker.trade_completed:
-            # TODO: Now we need to initiate withdrawal.
-            pass
+            self.__balance_balances()
 
         # Retrieve updated wallet balances if everything worked
         # as expected.
@@ -221,7 +282,7 @@ class CCStrategy():
                 return True
             else:
                 self.trade_chunker.trade_completed = True
-                # TODO: Initiate withdrawal
+                self.__balance_balances()
         elif spread_opp.e2_spread >= self._spread_min:
             # The corrected_buy_target represents calculation based on pricing
             # of the current poll.
@@ -250,6 +311,6 @@ class CCStrategy():
                 return True
             else:
                 self.trade_chunker.trade_completed = True
-                # TODO: Initiate withdrawal
+                self.__balance_balances()
 
         return False

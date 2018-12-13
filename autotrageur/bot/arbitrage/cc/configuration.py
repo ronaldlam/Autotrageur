@@ -2,7 +2,7 @@ from collections import namedtuple
 
 
 class CCConfiguration(namedtuple('CCConfiguration', [
-        'dryrun', 'dryrun_e1_base', 'dryrun_e1_quote',
+        'addresses', 'dryrun', 'dryrun_e1_base', 'dryrun_e1_quote',
         'dryrun_e2_base', 'dryrun_e2_quote', 'email_cfg_path', 'exchange1',
         'exchange1_pair', 'exchange2', 'exchange2_pair', 'use_test_api',
         'id', 'max_trade_size', 'poll_wait_default', 'poll_wait_short',
@@ -10,6 +10,7 @@ class CCConfiguration(namedtuple('CCConfiguration', [
     """Holds all of the configuration for the autotrageur bot.
 
     Args:
+        addresses (dict): Dictionary of asset addresses.
         dryrun (bool): If True, this bot's run is considered to be a dry run
             against fake exchange objects and no real trades are performed.
         dryrun_e1_base (str): In dry run, the base used for exchange one.

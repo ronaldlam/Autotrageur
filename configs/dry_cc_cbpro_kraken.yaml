@@ -1,0 +1,45 @@
+# Exchange configurations for autotrageur.py
+
+# Dry Run functionality.
+dryrun: true # If True, will log trades instead of executing them.
+dryrun_e1_base: 100
+dryrun_e1_quote: 3
+dryrun_e2_base: 100
+dryrun_e2_quote: 3
+
+# Email configuration, and email options.
+email_cfg_path: 'configs/email_info.yaml' # path/to/email_cfg file.  Used to send e-mails on arb opportunities.
+
+# Exchange 1
+exchange1: coinbasepro
+exchange1_pair: ETH/BTC
+
+# Exchange 2
+exchange2: kraken
+exchange2_pair: ETH/BTC
+
+# Deposit address info.
+addresses:
+    coinbasepro:
+        ETH: cbpro-eth-test-address
+        BTC: cbpro-btc-test-address
+    kraken:
+        ETH: kraken-eth-test-address
+        BTC: kraken-btc-test-address
+
+use_test_api: false
+
+# Poll intervals in seconds
+poll_wait_default: 5
+poll_wait_short: 2 # Used when trade is chunked and in progress.
+
+# The maximum USD value of any given trade.
+max_trade_size: 1
+# The minimum spread increment for considering trade targets.
+spread_min: 0.5
+# Percentage downside of limit order slippage tolerable for market order emulations
+slippage: 0 # Important for Gemini, eg. 3
+
+# ----------------TWILIO SETTINGS----------------------------------------------
+# Path for the twilio config file.
+twilio_cfg_path: configs/twilio/twilio.yaml

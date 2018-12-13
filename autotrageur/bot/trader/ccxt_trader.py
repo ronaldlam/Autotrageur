@@ -43,7 +43,8 @@ class CCXTTrader():
     """CCXT Trader for performing trades."""
 
     def __init__(self, base, quote, exchange_name, exchange_id, slippage,
-        exchange_config={}, dry_run_exchange=None):
+        autotrageur_type, exchange_config={}, dry_run_exchange=None,
+        withdraw_addresses=None):
         """Constructor.
 
         The trading client for interacting with the CCXT library.
@@ -60,6 +61,8 @@ class CCXTTrader():
             exchange_id (str): The exchange id, either 'e1' or e2'.
             slippage (Decimal): Maximum desired slippage from emulated
                 market trades.
+            autotrageur_type (str): Either 'fcf' or 'cc', for db table
+                prefix use.
             exchange_config (dict): The exchange's configuration in
                 accordance with the ccxt library for instantiating an
                 exchange, ex.
@@ -68,9 +71,11 @@ class CCXTTrader():
                     "secret": [SOME_API_SECRET]
                     "verbose": False,
                 }
-            dry_run_exchange (DryRunExchange): The object to hold the state of
-                the dry run for the associated exchange. Is None if not
-                a dry run.
+            dry_run_exchange (DryRunExchange): The object to hold the
+                state of the dry run for the associated exchange. Is
+                None if not a dry run.
+            withdraw_addresses (dict): A dictionary of withdrawal
+                addresses by asset.
         """
         # Instantiate the CCXT Exchange object, or a custom extended CCXT
         # Exchange object.
@@ -87,7 +92,9 @@ class CCXTTrader():
         self.exchange_id = exchange_id
         self.fetcher = CCXTFetcher(self.ccxt_exchange)
         self.slippage = slippage
+        self.autotrageur_type = autotrageur_type
         self.dry_run_exchange = dry_run_exchange
+        self.addresses = withdraw_addresses
 
         if dry_run_exchange:
             self.executor = DryRunExecutor(
@@ -165,8 +172,8 @@ class CCXTTrader():
                     t_o.{exchange_id}_buy {buy_op} CAST(%s AS DECIMAL(27,8)) / t.true_price,
                     t_o.{exchange_id}_sell * CAST(%s AS DECIMAL(27,8)) / t.true_price) AS trade_predict_ratio
             FROM
-                fcf_autotrageur_config AS c,
-                fcf_session AS s,
+                {autotrageur_type}_autotrageur_config AS c,
+                {autotrageur_type}_session AS s,
                 trade_opportunity AS t_o,
                 trades AS t
             WHERE
@@ -175,7 +182,7 @@ class CCXTTrader():
                 AND s.id = t.session_id
                 AND t.trade_opportunity_id = t_o.id
                 AND t.exchange = %s
-        """.format(exchange_id=self.exchange_id, buy_op=buy_op)
+        """.format(exchange_id=self.exchange_id, buy_op=buy_op, autotrageur_type=self.autotrageur_type)
         sell_fee_ratio = ONE - self.get_taker_fee()
         data = execute_parametrized_query(query, (
             buy_fee_ratio,
@@ -676,8 +683,8 @@ class CCXTTrader():
         # TODO: Perhaps create DryRunFetcher to keep reference to
         # DryRunExchange to avoid introspection.
         if isinstance(self.executor, DryRunExecutor):
-            self.base_bal = self.executor.dry_run_exchange.base_balance
-            self.quote_bal = self.executor.dry_run_exchange.quote_balance
+            self.base_bal = self.dry_run_exchange.base_balance
+            self.quote_bal = self.dry_run_exchange.quote_balance
             logging.debug("%s: %s", self.quote, self.quote_bal)
             self.__adjust_working_balance(True)
         else:
@@ -688,3 +695,26 @@ class CCXTTrader():
 
         logging.debug("%s: %s", self.base, self.base_bal)
         logging.debug("%s after adjustment: %s", self.quote, self.quote_bal)
+
+    def withdraw(self, currency, amount, address_or_target):
+        """Withdraw asset from exchange.
+
+        TODO: Take fees into account.
+
+        Args:
+            currency (str): The withdrawal currency.
+            amount (Decimal): The withdrawl amount.
+            address_or_target (str/DryRunExchange): The destination
+                address, or DryRunExchange of the deposit destination if
+                current run is a dry run.
+
+        Returns:
+            dict: The exchange response.
+        """
+        if self.dry_run_exchange:
+            self.dry_run_exchange.withdraw(currency, amount)
+            address_or_target.deposit(currency, amount)
+            return {'result': 'dryrun'}
+        else:
+            return self.ccxt_exchange.withdraw(
+                currency, amount, address_or_target)

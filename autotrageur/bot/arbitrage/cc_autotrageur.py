@@ -17,6 +17,7 @@ from autotrageur.bot.arbitrage.autotrageur import (AlertError, Autotrageur,
                                                    IncorrectStateObjectTypeError)
 from autotrageur.bot.arbitrage.cc.checkpoint import CCCheckpoint
 from autotrageur.bot.arbitrage.cc.checkpoint_utils import pickle_cc_checkpoint
+from autotrageur.bot.arbitrage.cc.configuration import CCConfiguration
 from autotrageur.bot.arbitrage.cc.stat_tracker import CCStatTracker
 from autotrageur.bot.arbitrage.cc.strategy import CCStrategyBuilder
 from autotrageur.bot.common.config_constants import (TWILIO_RECIPIENT_NUMBERS,
@@ -292,16 +293,20 @@ class CCAutotrageur(Autotrageur):
             exchange1,
             'e1',
             num_to_decimal(self._config.slippage),
+            'cc',
             exchange1_configs,
-            dry_e1)
+            dry_e1,
+            self._config.addresses[exchange1])
         self.trader2 = CCXTTrader(
             e2_base,
             e2_quote,
             exchange2,
             'e2',
             num_to_decimal(self._config.slippage),
+            'cc',
             exchange2_configs,
-            dry_e2)
+            dry_e2,
+            self._config.addresses[exchange2])
 
         # Set to run against test API, if applicable.
         if not self._config.use_test_api:
@@ -566,6 +571,21 @@ class CCAutotrageur(Autotrageur):
                 .format(type(previous_checkpoint)))
 
         self.checkpoint = previous_checkpoint
+
+    # @Override
+    def _load_configs(self, config_file_path):
+        """Load the configurations of the Autotrageur run.
+
+        Args:
+            config_file_path (str): Path to the configuration file used for the
+                current autotrageur run.
+        """
+        # Set up the configuration.
+        config_map = self._parse_config_file(config_file_path)
+        self._config = CCConfiguration(
+            id=str(uuid.uuid4()),
+            start_timestamp=int(time.time()),
+            **config_map)
 
     # @Override
     def _poll_opportunity(self):

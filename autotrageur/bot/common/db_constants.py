@@ -12,6 +12,7 @@ FCF_STATE_TABLE = 'fcf_state'
 FOREX_RATE_TABLE = 'forex_rate'
 TRADES_TABLE = 'trades'
 TRADE_OPPORTUNITY_TABLE = 'trade_opportunity'
+WITHDRAWALS_TABLE = 'withdrawals'
 
 # Table columns.
 CC_AUTOTRAGEUR_CONFIG_COLUMNS = [
@@ -65,3 +66,4 @@ FOREX_RATE_PRIM_KEY_ID = 'id'
 TRADES_PRIM_KEY_TRADE_OPP_ID = 'trade_opportunity_id'
 TRADES_PRIM_KEY_SIDE = 'side'
 TRADE_OPPORTUNITY_PRIM_KEY_ID = 'id'
+WITHDRAWALS_PRIM_KEY_ID = 'id'

@@ -11,7 +11,6 @@ import yaml
 from dotenv import load_dotenv
 
 import fp_libs.db.maria_db_handler as db_handler
-from autotrageur.bot.arbitrage.fcf.configuration import FCFConfiguration
 from autotrageur.bot.common.config_constants import DB_NAME, DB_USER
 from autotrageur.bot.common.env_var_constants import ENV_VAR_NAMES
 from autotrageur.bot.common.notification_constants import (SUBJECT_DRY_RUN_FAILURE,
@@ -65,18 +64,6 @@ class Autotrageur(ABC):
     to alter behaviour and run different algorithms with different
     configurations.
     """
-
-    def __parse_config_file(self, file_name):
-        """Parses the given config file into a dict.
-
-        Args:
-            file_name (str): The name of the file.
-
-        Returns:
-            dict: The configuration file represented as a dict.
-        """
-        with open(file_name, 'r') as ymlfile:
-            return yaml.safe_load(ymlfile)
 
     def __init_db(self, db_config_path):
         """Initializes and connects to the database.
@@ -144,12 +131,7 @@ class Autotrageur(ABC):
             config_file_path (str): Path to the configuration file used for the
                 current autotrageur run.
         """
-        # Set up the configuration.
-        config_map = self.__parse_config_file(config_file_path)
-        self._config = FCFConfiguration(
-            id=str(uuid.uuid4()),
-            start_timestamp=int(time.time()),
-            **config_map)
+        self._config = None
 
     def _load_twilio(self, twilio_cfg_path):
         """Loads the Twilio configuration file and tests the connection to
@@ -167,6 +149,18 @@ class Autotrageur(ABC):
         # Make sure there is a valid connection as notifications are a critical
         # service to the bot.
         self.twilio_client.test_connection()
+
+    def _parse_config_file(self, file_name):
+        """Parses the given config file into a dict.
+
+        Args:
+            file_name (str): The name of the file.
+
+        Returns:
+            dict: The configuration file represented as a dict.
+        """
+        with open(file_name, 'r') as ymlfile:
+            return yaml.safe_load(ymlfile)
 
     def _parse_keyfile(self, keyfile_path, pi_mode=False):
         """Parses the keyfile given in the arguments.
